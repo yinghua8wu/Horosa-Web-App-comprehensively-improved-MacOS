@@ -840,14 +840,14 @@ class AstroChartMain extends Component{
 						<div className="horosa-planet-with-lots">
 							<AstroPlanet
 								value={chartObj}
-								height={showlots ? Math.max(300, tabHeight * 0.58) : tabHeight}
+								height={showlots ? Math.max(360, tabHeight * 0.68) : tabHeight}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
 							/>
 							{showlots ? (
 								<div className="horosa-lots-under-planets">
 									<div className="horosa-info-card-title">希腊点</div>
-									<AstroLots value={chartObj} height={Math.max(240, tabHeight * 0.42)} showAstroMeaning={this.props.showAstroMeaning}/>
+									<AstroLots value={chartObj} height={Math.max(180, tabHeight * 0.32)} showAstroMeaning={this.props.showAstroMeaning}/>
 								</div>
 							) : null}
 						</div>

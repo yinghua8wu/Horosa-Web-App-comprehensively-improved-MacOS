@@ -153,9 +153,10 @@ class AstroPlanet extends Component{
 					<Col span={24}>
 						<Card title={this.renderTitle(objid, chartObj)} 
 							bordered={true} 
+							className="horosa-astro-data-card"
 							style={{
 								fontFamily: AstroConst.AstroFont,
-								background: AstroConst.AstroColor.Backgroud
+								background: 'var(--horosa-astro-panel, transparent)'
 							}}
 						>
 							<Row gutter={12}>

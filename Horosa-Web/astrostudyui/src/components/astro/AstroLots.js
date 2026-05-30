@@ -92,10 +92,11 @@ class AstroLots extends Component{
 			let dom = (
 				<Row key={objid}>
 					<Col span={24}>
-						<Card title={this.renderTitle(objid)} 
-							bordered={true} 
+						<Card title={this.renderTitle(objid)}
+							bordered={true}
+							className="horosa-astro-data-card"
 							style={{
-								background: AstroConst.AstroColor.Backgroud
+								background: 'var(--horosa-astro-panel, transparent)'
 							}}>
 							<Row gutter={12}>
 								<Col span={titleSpan}>落座</Col>
