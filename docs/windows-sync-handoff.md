@@ -20,14 +20,14 @@
 
 ---
 
-## v2.4.0（重发补丁,版本号不变）— 热修「更新后卡启动页 / 不进主界面」(模态弹框阻塞导航)
+## v2.4.0（重发补丁,版本号不变）— 热修「更新后卡启动页 / 不进主界面」(真因 cleanup_state 误杀静态服务器)
 
-> 发布后真机发现弹框阻塞 bug,**版本号保持 2.4.0、覆盖重发原 GitHub release**(非 2.4.1)。机制:[`更新后卡启动页-模态弹窗阻塞导航修复-v2.4.0.md`](更新后卡启动页-模态弹窗阻塞导航修复-v2.4.0.md)。
+> 发布后真机发现此 bug,**版本号保持 2.4.0、覆盖重发原 GitHub release**(非 2.4.1)。**前两次误诊(快路径、模态弹框)没修好,靠真机实测定位。** 机制:[`更新后卡启动页-真因cleanup_state误杀静态服务器-v2.4.0.md`](更新后卡启动页-真因cleanup_state误杀静态服务器-v2.4.0.md)。
 
-**性质:macOS 专属(Tauri 外壳 `main.rs`,`rfd::MessageDialog` + macOS 主线程 run loop 语义)。共享 `Horosa-Web/` 零改动 → Windows 不必同步代码、不必重编 jar。**
-- **真因**:首启成功后 `emit_ready` 注入导航 JS,紧跟的 `show_post_update_notice_if_needed` 弹阻塞式 `MessageDialog`,NSAlert 在主线程抢嵌套 run loop、冻结 webview → 不导航 + 按钮死。v2.4.0 快路径让首启时序变紧后必现。
-- **修法**:移除首启关键路径上的模态框,只留非阻塞 macOS 通知。
-- **Windows 怎么办**:**只要 Windows 没有「更新后卡启动页/不进主界面」症状,无需动作**;若有,检查首启「就绪→导航」之间是否有模态阻塞(确认框/弹窗),改非阻塞,代码另写。
+**性质:macOS 专属(Tauri 外壳 `main.rs` + `web_shutdown`/静态服务器实现)。共享 `Horosa-Web/` 零改动 → Windows 不必同步代码、不必重编 jar。**
+- **真因**:`runtime_bootstrap` 的 `first_launch_after_update` 分支里调 `cleanup_state(&app)`,它把本次刚 `start_static_server` 起的静态服务器(web_port)`web_shutdown.store(true)` 关掉 → `emit_ready` 导航的 `frontend_url` 连不上 → 停启动页 + 按钮死(实测 curl web_port=000、进程零监听)。普通启动不走此分支故正常。
+- **修法**:删掉首启分支里的 `cleanup_state` 调用(顺手去掉同路径阻塞式 MessageDialog,防御性)。
+- **Windows 怎么办**:**只要 Windows 没有「更新后卡启动页/不进主界面」症状,无需动作**;若有,排查其首启路径是否在起好本地 web/静态服务后又把它关掉。
 
 ---
 

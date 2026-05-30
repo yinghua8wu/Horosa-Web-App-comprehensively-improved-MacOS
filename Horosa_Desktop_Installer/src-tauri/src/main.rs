@@ -5444,7 +5444,14 @@ fn runtime_bootstrap(
         // 修复(更新后卡顿):runtime 已在安装前逐字节验签,首启走 trusted 快路径(通常 ~10 秒内,
         // 冷启动略久)。用不确定进度动画 + 明确文案,避免冷启动的短暂停顿被当成「卡死」而被强退。
         emit_indeterminate_progress(&window, 78, "更新已完成，正在恢复启动,通常约 10 秒,请稍候…");
-        cleanup_state(&app);
+        // 修复(更新后卡在启动页 / 不进主界面 / 「进入主界面」按钮无效 —— 真因):
+        // 原先此处调 `cleanup_state(&app)`,它会 `web_shutdown.take()` 后 `store(true)`,把本次
+        // runtime_bootstrap 上方刚 `start_static_server` 起来的静态服务器(web_port)直接关掉 →
+        // 之后 `emit_ready` 让 webview 导航到的 `frontend_url`(http://127.0.0.1:web_port/index.html)
+        // 立刻连不上 → 永远停在启动页(每次更新必现;普通重启不走此分支故正常,这也是「重启就好」的原因)。
+        // 实测:此刻 curl web_port 直接 connection-refused、进程零监听端口。`cleanup_state` 在这里对
+        // session 是 no-op(`start_runtime` 还没跑、session 为 None),唯一实际效果就是误杀静态服务器。
+        // 故直接去掉,只保留 1s 缓冲。
         thread::sleep(Duration::from_secs(1));
     }
     if let Err(first_err) = start_runtime(
