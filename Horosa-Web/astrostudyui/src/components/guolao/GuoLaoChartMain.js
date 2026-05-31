@@ -10,10 +10,13 @@ import DateTime from '../comp/DateTime';
 import GuoLaoInput from './GuoLaoInput';
 import GuoLaoChart from './GuoLaoChart';
 import GuoLaoMoiraPanel from './GuoLaoMoiraPanel';
-import GuoLaoMoiraWheel from './GuoLaoMoiraWheel';
+import GuoLaoMoiraWheel, {
+	moiraBuildLimitTable as buildLimitTable,
+	moiraLifeDegree as lifeDegree,
+} from './GuoLaoMoiraWheel';
 import GuoLaoMoiraPickWheel from './GuoLaoMoiraPickWheel';
 import GuoLaoQizhengWheel from './GuoLaoQizhengWheel';
-import { GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoChartStyle, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, getStoredGuolaoSu28Mode, getStoredMoiraTransitGodsVisible, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, setStoredGuolaoChartStyle, setStoredGuolaoLifeMode, setStoredGuolaoNodeMode, setStoredGuolaoSu28Mode, setStoredMoiraTransitGodsVisible, } from './GuoLaoChartStyle';
+import { GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoChartStyle, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, getStoredGuolaoSu28Mode, getStoredGuolaoDisplay, getStoredMoiraTransitGodsVisible, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, setStoredGuolaoChartStyle, setStoredGuolaoLifeMode, setStoredGuolaoNodeMode, setStoredGuolaoSu28Mode, setStoredMoiraTransitGodsVisible, setStoredGuolaoDisplay, } from './GuoLaoChartStyle';
 import { fetchKinastroQizheng, fetchMoiraQizhengRules, } from '../../services/qizheng';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import * as AstroText from '../../constants/AstroText';
@@ -1708,7 +1711,28 @@ function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields){
 	lines.push('');
 	lines.push('[神煞]');
 	lines.push(buildHouseGodsSection(result, fields) || '无');
+	lines.push('');
+	lines.push('[大限]');
+	lines.push(buildGuolaoLimitSection(chart, fields, params) || '无');
 	return lines.join('\n').trim();
+}
+
+// AI 快照·大限段：复用 Moira 命盘轮的命度→十二宫大限算法（moiraBuildLimitTable/lifeDegree），
+// 保证导出/挂载与盘面「命身与限度·大限」列表完全同口径。出生年取自 params.date（YYYY/MM/DD）。
+function buildGuolaoLimitSection(chart, fields, params){
+	try{
+		const lifeDeg = lifeDegree(chart, fields);
+		const birthYear = Number(String(params.date || '').split('/')[0]) || 0;
+		const rows = buildLimitTable(lifeDeg, birthYear);
+		if(!rows || !rows.length){
+			return '';
+		}
+		return rows.map((row)=>(
+			`第${row.index}限 ${row.palace}：${row.fromAge}-${row.toAge}岁（${row.fromYear}-${row.toYear}年），约${row.years}年`
+		)).join('\n');
+	}catch(e){
+		return '';
+	}
 }
 
 function fieldsToParams(fields){
@@ -1779,6 +1803,8 @@ class GuoLaoChartMain extends Component{
 			moiraPanelTransitChartObj: null,
 			moiraPanelTransitParams: null,
 			moiraLoading: false,
+			bundleLoading: false,
+			guolaoDisplay: getStoredGuolaoDisplay(),
 			chartStyle: storedEngineMode === 'kinastro' ? GUOLAO_CHART_STYLE_QIZHENG : storedChartStyle,
 			showMoiraTransitGods: getStoredMoiraTransitGodsVisible(),
 			moiraQuickDialog: null,
@@ -1792,6 +1818,7 @@ class GuoLaoChartMain extends Component{
 		};
 
 		this.unmounted = false;
+		this.bundleSeq = 0;
 		this.chartReqSeq = 0;
 		this.moiraReqSeq = 0;
 		this.prefetchTimer = null;
@@ -1802,6 +1829,8 @@ class GuoLaoChartMain extends Component{
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.requestChart = this.requestChart.bind(this);
 		this.requestChartObj = this.requestChartObj.bind(this);
+		this.requestGuolaoBundle = this.requestGuolaoBundle.bind(this);
+		this.onGuolaoDisplayChange = this.onGuolaoDisplayChange.bind(this);
 		this.requestMoiraTransitChart = this.requestMoiraTransitChart.bind(this);
 		this.genParams = this.genParams.bind(this);
 		this.onTipClick = this.onTipClick.bind(this);
@@ -1842,13 +1871,8 @@ class GuoLaoChartMain extends Component{
 		}, ()=>{
 			if(engineMode === 'kinastro'){
 				this.requestKinastroQizheng();
-			}else if(chartStyle === GUOLAO_CHART_STYLE_MOIRA || chartStyle === GUOLAO_CHART_STYLE_PICK){
-				this.requestMoiraTransitChart();
-				if(!this.state.chartObj && this.props.fields){
-					this.requestChartObj();
-				}
-			}else if(this.props.fields){
-				this.requestChartObj();
+			}else{
+				this.requestGuolaoBundle(this.state.chartObj || this.props.value);
 			}
 		});
 	}
@@ -1862,7 +1886,7 @@ class GuoLaoChartMain extends Component{
 			moiraTransitTime: time.clone ? time.clone() : time,
 		}, ()=>{
 			if(!value || value.confirmed !== false){
-				this.requestMoiraTransitChart();
+				this.requestGuolaoBundle(this.state.chartObj || this.props.value);
 			}
 		});
 	}
@@ -1871,6 +1895,11 @@ class GuoLaoChartMain extends Component{
 		this.setState({
 			showMoiraTransitGods: setStoredMoiraTransitGodsVisible(visible),
 		});
+	}
+
+	onGuolaoDisplayChange(patch){
+		const next = setStoredGuolaoDisplay({...this.state.guolaoDisplay, ...(patch || {})});
+		this.setState({ guolaoDisplay: next });
 	}
 
 	openMoiraQuickDialog(key){
@@ -2198,30 +2227,80 @@ class GuoLaoChartMain extends Component{
 	}
 
 	requestChartObj(fields, chartObj){
-		let params = null;
-		if(fields){
-			params = fieldsToParams(fields);
-		}else{
-			params = this.genParams();
+		// v-guolao-moira: 收口到单闸门，禁止分步 setState（见 requestGuolaoBundle）。
+		this.requestGuolaoBundle(chartObj || this.props.value);
+	}
+
+	// 一次性渲染闸门：本命盘 + 流年盘并行取齐 + Moira 规则一次性提交，期间只显示骨架/遮罩，
+	// 绝不画半成品。取代旧的 requestChartObj→applyChartObj→requestMoiraTransitChart→requestMoiraRules→commitMoiraPanel 多段提交。
+	async requestGuolaoBundle(srcChart){
+		if(this.unmounted || this.state.engineMode === 'kinastro'){
+			return;
 		}
+		const params = this.genParams();
 		if(!params){
 			return;
 		}
-		const srcChart = chartObj || this.props.value;
-		if(srcChart && isChartObjMatchParams(srcChart, params)){
-			if(hasGuolaoRiseSetFields(srcChart)){
-				this.applyChartObj(params, srcChart);
+		const style = this.state.chartStyle;
+		const needTransit = (style === GUOLAO_CHART_STYLE_MOIRA || style === GUOLAO_CHART_STYLE_PICK);
+		const seq = ++this.bundleSeq;
+		this.setState({ bundleLoading: true });
+		const transitParams = paramsWithMoiraTransit(this.props.fields, this.state.moiraTransitTime);
+		const reuse = srcChart && isChartObjMatchParams(srcChart, params) && hasGuolaoRiseSetFields(srcChart);
+		let natalRaw = null;
+		let transitRaw = null;
+		try{
+			[natalRaw, transitRaw] = await Promise.all([
+				reuse ? Promise.resolve(srcChart) : fetchGuolaoChartCached(params, {silent: true}),
+				needTransit ? fetchGuolaoChartCached(transitParams, {silent: true}) : Promise.resolve(null),
+			]);
+		}catch(e){
+			natalRaw = reuse ? srcChart : (this.state.chartObj || null);
+		}
+		if(seq !== this.bundleSeq || this.unmounted){
+			return;
+		}
+		const chartObj = natalRaw ? applyGuolaoNodeMode(natalRaw, this.props.fields) : (this.state.chartObj || null);
+		const transitObj = transitRaw ? applyGuolaoNodeMode(transitRaw, this.props.fields) : null;
+		let rules = null;
+		if(chartObj){
+			let rsp = null;
+			let fallbackReason = 'empty-response';
+			try{
+				rsp = await fetchMoiraQizhengRules({
+					params,
+					chartObj,
+					transitParams,
+					transitChartObj: transitObj,
+				}, {
+					silent: true,
+					timeoutMs: 12000,
+				});
+			}catch(e){
+				fallbackReason = e && e.message ? e.message : 'request-error';
+			}
+			if(seq !== this.bundleSeq || this.unmounted){
 				return;
 			}
+			const remoteRules = rsp && rsp[Constants.ResultKey] ? rsp[Constants.ResultKey] : null;
+			rules = isIncompleteMoiraRules(remoteRules)
+				? buildLocalMoiraRules(params, chartObj, this.props.fields, fallbackReason)
+				: remoteRules;
 		}
-		if(srcChart && !this.state.chartObj){
-			this.setState({
-				chartObj: clonePlain(srcChart),
-			});
-		}
-		this.requestChart(params, {
-			silent: true,
+		this.setState({
+			chartObj,
+			moiraTransitChartObj: transitObj,
+			moiraRules: rules,
+			moiraPanelChartObj: chartObj,
+			moiraPanelTransitChartObj: transitObj,
+			moiraPanelTransitParams: transitParams,
+			bundleLoading: false,
+			moiraLoading: false,
+			moiraTransitLoading: false,
 		});
+		if(chartObj){
+			this.saveGuolaoAISnapshot(params, chartObj);
+		}
 	}
 
 	genParams(){
@@ -2361,16 +2440,7 @@ class GuoLaoChartMain extends Component{
 			this.saveGuolaoAISnapshot(null, this.state.chartObj);
 		}
 		if(prevProps.value !== this.props.value && this.props.value){
-			const params = this.genParams();
-			if(isChartObjMatchParams(this.props.value, params)){
-				if(hasGuolaoRiseSetFields(this.props.value)){
-					this.applyChartObj(params, this.props.value);
-				}else {
-					this.requestChart(params, {
-						silent: true,
-					});
-				}
-			}
+			this.requestGuolaoBundle(this.props.value);
 		}
 	}
 
@@ -3103,6 +3173,17 @@ class GuoLaoChartMain extends Component{
 		);
 	}
 
+	renderGuolaoChartSkeleton(){
+		return (
+			<div className="horosa-guolao-chart-skeleton" aria-busy="true">
+				<div className="horosa-guolao-chart-skeleton-ring" />
+				<div className="horosa-guolao-chart-skeleton-ring is-mid" />
+				<div className="horosa-guolao-chart-skeleton-ring is-core" />
+				<div className="horosa-guolao-chart-skeleton-hint">排盘中…</div>
+			</div>
+		);
+	}
+
 	render(){
 		let height = this.props.height ? this.props.height : 760;
 		if(height === '100%'){
@@ -3141,10 +3222,13 @@ class GuoLaoChartMain extends Component{
 								onMoiraTransitTimeChange={this.onMoiraTransitTimeChange}
 								showMoiraTransitGods={this.state.showMoiraTransitGods}
 								onMoiraTransitGodsVisibleChange={this.onMoiraTransitGodsVisibleChange}
+								guolaoDisplay={this.state.guolaoDisplay}
+								onGuolaoDisplayChange={this.onGuolaoDisplayChange}
+								onOpenPatternDialog={()=>this.openMoiraQuickDialog('patterns')}
 							/>
 						</div>
 						<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-guolao-chart-panel xq-chart-renderer xq-chart-renderer-guolao${useMoiraLikeWheel ? ' horosa-guolao-chart-panel-moira' : ''}`}>
-							{useKinastroQizheng ? this.renderQizhengKinBoard() : usePickWheel ? (
+							{useKinastroQizheng ? this.renderQizhengKinBoard() : (this.state.bundleLoading && !chartObj) ? this.renderGuolaoChartSkeleton() : usePickWheel ? (
 								<GuoLaoMoiraPickWheel
 									rootValue={chartObj}
 									value={chart}
@@ -3152,6 +3236,11 @@ class GuoLaoChartMain extends Component{
 									transitParams={paramsWithMoiraTransit(this.props.fields, this.state.moiraTransitTime)}
 									transitLoading={this.state.moiraTransitLoading}
 									moiraRules={this.state.moiraRules}
+									aspectSet={this.state.guolaoDisplay.aspects}
+									showDignity={this.state.guolaoDisplay.dignity}
+									showMountains={this.state.guolaoDisplay.mountains}
+									showBirthGods={this.state.guolaoDisplay.birthGods}
+									showAgeRing={this.state.guolaoDisplay.ageRing}
 									height={height}
 									fields={this.props.fields}
 									chartDisplay={this.props.chartDisplay}
@@ -3167,6 +3256,11 @@ class GuoLaoChartMain extends Component{
 									transitLoading={this.state.moiraTransitLoading}
 									showMoiraTransitGods={this.state.showMoiraTransitGods}
 									moiraRules={this.state.moiraRules}
+									aspectSet={this.state.guolaoDisplay.aspects}
+									showDignity={this.state.guolaoDisplay.dignity}
+									showMountains={this.state.guolaoDisplay.mountains}
+									showBirthGods={this.state.guolaoDisplay.birthGods}
+									showAgeRing={this.state.guolaoDisplay.ageRing}
 									height={height}
 									fields={this.props.fields}
 									chartDisplay={this.props.chartDisplay}
@@ -3185,23 +3279,17 @@ class GuoLaoChartMain extends Component{
 							)}
 						</div>
 						<div className="horosa-inspector-panel horosa-astro-content-panel horosa-guolao-info-panel">
-							{useKinastroQizheng ? this.renderQizhengKinInfoPanel() : <Tabs
-								activeKey="moira"
-								tabPosition="top"
-								className="horosa-content-tabs horosa-guolao-tabs"
-							>
-								<TabPane tab="Moira" key="moira">
+							{useKinastroQizheng ? this.renderQizhengKinInfoPanel() : (
 									<GuoLaoMoiraPanel
 										value={this.state.moiraRules}
-										loading={this.state.moiraLoading}
+										loading={this.state.bundleLoading}
 										rootValue={moiraPanelChartObj}
 										transitValue={moiraPanelTransitChartObj}
 										transitParams={moiraPanelTransitParams}
 										fields={this.props.fields}
 										chartMode={usePickWheel ? 'pick' : 'moira'}
 									/>
-								</TabPane>
-							</Tabs>}
+							)}
 						</div>
 					</div>
 					{useKinastroQizheng ? this.renderQizhengKinQuickDock() : this.renderQuickDock()}

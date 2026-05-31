@@ -116,3 +116,59 @@ export function setStoredMoiraTransitGodsVisible(visible){
 	writeItem(GUOLAO_MOIRA_TRANSIT_GODS_KEY, next ? '1' : '0');
 	return next;
 }
+
+// 命盘轮显示偏好（纯前端、即时联动、不触发后端重取）
+export const GUOLAO_DISPLAY_KEY = 'horosaGuolaoDisplay';
+export const GUOLAO_ALL_ASPECTS = ['會', '衝', '刑', '合', '半合', '半刑', '四合'];
+export const GUOLAO_DEFAULT_DISPLAY = {
+	aspects: ['會', '衝', '刑', '合', '半合'],
+	dignity: true,
+	mountains: false,
+	birthGods: true,
+	ageRing: true,
+};
+
+function cloneDefaultDisplay(){
+	return {
+		aspects: [...GUOLAO_DEFAULT_DISPLAY.aspects],
+		dignity: GUOLAO_DEFAULT_DISPLAY.dignity,
+		mountains: GUOLAO_DEFAULT_DISPLAY.mountains,
+		birthGods: GUOLAO_DEFAULT_DISPLAY.birthGods,
+		ageRing: GUOLAO_DEFAULT_DISPLAY.ageRing,
+	};
+}
+
+export function getStoredGuolaoDisplay(){
+	const raw = readItem(GUOLAO_DISPLAY_KEY);
+	if(!raw){
+		return cloneDefaultDisplay();
+	}
+	try{
+		const parsed = JSON.parse(raw) || {};
+		return {
+			aspects: Array.isArray(parsed.aspects)
+				? parsed.aspects.filter((a)=>GUOLAO_ALL_ASPECTS.indexOf(a) >= 0)
+				: [...GUOLAO_DEFAULT_DISPLAY.aspects],
+			dignity: parsed.dignity !== false,
+			mountains: parsed.mountains === true,
+			birthGods: parsed.birthGods !== false,
+			ageRing: parsed.ageRing !== false,
+		};
+	}catch(e){
+		return cloneDefaultDisplay();
+	}
+}
+
+export function setStoredGuolaoDisplay(next){
+	const safe = {
+		aspects: Array.isArray(next && next.aspects)
+			? next.aspects.filter((a)=>GUOLAO_ALL_ASPECTS.indexOf(a) >= 0)
+			: [...GUOLAO_DEFAULT_DISPLAY.aspects],
+		dignity: !(next && next.dignity === false),
+		mountains: !!(next && next.mountains === true),
+		birthGods: !(next && next.birthGods === false),
+		ageRing: !(next && next.ageRing === false),
+	};
+	writeItem(GUOLAO_DISPLAY_KEY, JSON.stringify(safe));
+	return safe;
+}

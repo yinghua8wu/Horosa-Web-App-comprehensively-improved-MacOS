@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import * as AstroConst from '../../constants/AstroConst';
 import { GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, getStoredGuolaoLifeMode, normalizeGuolaoLifeMode, } from './GuoLaoChartStyle';
+import { guolaoShenShaTip } from './GuoLaoShenShaDoc';
 import './GuoLaoMoiraWheel.less';
 
 const R = 560;
@@ -45,6 +46,28 @@ const PLANET_DEFS = [
 	{id: AstroConst.PURPLE_CLOUDS, label: '炁'},
 	{id: AstroConst.DARKMOON, label: '孛'},
 ];
+
+// 七政四余 行星主管（黄道十二宫 → 主星），用于中宫「命主/身主」
+const SIGN_RULERS_CN = {
+	Aries: '火', Taurus: '金', Gemini: '水', Cancer: '月', Leo: '日', Virgo: '水',
+	Libra: '金', Scorpio: '火', Sagittarius: '木', Capricorn: '土', Aquarius: '土', Pisces: '木',
+};
+// 庙旺落陷着色（庙旺=吉金、陷失=弱色），与顺逆留色互不冲突（顺逆留优先）
+const DIGNITY_STRONG = ['庙', '旺', '入垣', '得地', '入庙'];
+const DIGNITY_WEAK = ['陷', '失', '落'];
+const DIGNITY_GOLD = 'var(--moira-dignity-strong, #c9912e)';
+const DIGNITY_WEAK_COLOR = 'var(--moira-dignity-weak, #b06a5e)';
+// 相位（會衝刑合半合半刑四合）：度 / 容许度 / 色 / 线型，照 Moira aspects 表
+const MOIRA_ASPECTS = [
+	{key: '會', angle: 0, orb: 12, color: '#00b35a', dash: '5 3'},
+	{key: '衝', angle: 180, orb: 6, color: '#8a4bff', dash: '8 3 2 3'},
+	{key: '刑', angle: 90, orb: 3, color: '#e07a18', dash: ''},
+	{key: '合', angle: 120, orb: 4, color: '#d23b3b', dash: '10 4'},
+	{key: '半合', angle: 60, orb: 2, color: '#c79a1e', dash: '2 3'},
+	{key: '半刑', angle: 45, alt: 135, orb: 1.5, color: '#c64fb8', dash: '2 3'},
+	{key: '四合', angle: 30, alt: 150, orb: 1, color: '#8a8a3a', dash: '2 3'},
+];
+const MOIRA_DEFAULT_ASPECTS = ['會', '衝', '刑', '合', '半合'];
 
 function r(idx){
 	return RING_POS[idx] * R;
@@ -621,13 +644,21 @@ function planetSpeed(obj){
 	return Number.isFinite(speed) ? speed : 0;
 }
 
-function planetColor(obj, baseColor){
+function planetColor(obj, baseColor, dignity){
 	const speed = planetSpeed(obj);
 	if(speed < -0.000001){
 		return RED;
 	}
 	if(Math.abs(speed) < 0.002){
 		return MAGENTA;
+	}
+	if(dignity){
+		if(DIGNITY_STRONG.indexOf(dignity) >= 0){
+			return DIGNITY_GOLD;
+		}
+		if(DIGNITY_WEAK.indexOf(dignity) >= 0){
+			return DIGNITY_WEAK_COLOR;
+		}
 	}
 	return baseColor;
 }
@@ -719,10 +750,20 @@ function planetPlacements(chart, inner, outer, dir, size, preferLon = false){
 	const safeRadius = Math.max(inner + pad, Math.min(outer - pad, preferredRadius));
 	const minGap = Math.max(5.6, Math.min(12.5, (size || 30) / Math.max(180, safeRadius) * 180 / Math.PI * 1.35));
 	const groups = clusterPlanetItems(items, minGap);
-	return groups.reduce((list, group)=>list.concat(resolveLabelDegrees(group, minGap).map((item)=>({
-		...item,
-		radius: safeRadius,
-	}))), []).sort((a, b)=>a.degree - b.degree || a.order - b.order);
+	// 防重叠：保持真黄经角（labelDegree=degree，落点精确），同簇沿径向分层，避免靠改角度致位移失真。
+	return groups.reduce((list, group)=>{
+		const n = group.length;
+		const step = n <= 1 ? 0 : Math.min(size * 0.62, Math.max(8, (band - pad) / n));
+		return list.concat(group.map((item, k)=>{
+			let radius = safeRadius + dir * (k - (n - 1) / 2) * step;
+			radius = Math.max(inner + pad * 0.6, Math.min(outer - pad * 0.6, radius));
+			return {
+				...item,
+				labelDegree: item.degree,
+				radius,
+			};
+		}));
+	}, []).sort((a, b)=>a.degree - b.degree || a.order - b.order);
 }
 
 function lifeModeFromFields(fields){
@@ -804,6 +845,42 @@ function limitOffsetFromLife(life, degree){
 
 function limitYearForDegree(birthYear, life, degree){
 	return birthYear + Math.floor(limitAgeAtOffset(life, limitOffsetFromLife(life, degree)) - 1);
+}
+
+// 大限表（古度限度法，与年龄环同一套 limitSegments → 二者必然一致）：
+// 自命宫起逐宫一段，每段年数取 limitSegments(life)，首段=命度入宫度推算。
+function buildGuolaoLimitTable(life, birthYear){
+	const segs = limitSegments(life);
+	const rows = [];
+	let age = 1;
+	for(let k = 0; k < 12; k++){
+		const span = Math.max(0.5, segs[k] || 0);
+		const fromAge = Math.round(age);
+		const toAge = Math.round(age + span) - 1;
+		rows.push({
+			index: k + 1,
+			palace: HOUSE_BRANCH[k],
+			years: Math.round(span * 10) / 10,
+			fromAge,
+			toAge,
+			fromYear: birthYear + fromAge - 1,
+			toYear: birthYear + toAge - 1,
+		});
+		age += span;
+	}
+	return rows;
+}
+
+function currentLimitIndex(rows, age){
+	if(!Array.isArray(rows) || !Number.isFinite(age)){
+		return -1;
+	}
+	for(let i = 0; i < rows.length; i++){
+		if(age >= rows[i].fromAge && age <= rows[i].toAge){
+			return i;
+		}
+	}
+	return -1;
 }
 
 function tangentRotate(theta){
@@ -1074,10 +1151,10 @@ class GuoLaoMoiraWheel extends Component{
 		const lifeTheta = moiraThetaFromDegree(life);
 			nodes.push(...this.renderDegreeMarkBand(r(4), r(5), 'full-stellar-up', moiraThetaFromDegree, {mutedMajor: true, opacity: 0.38, anchor: 'inner'}));
 			nodes.push(...this.renderDegreeMarkBand(r(6), r(7), 'full-stellar-down', moiraThetaFromDegree, {mutedMajor: true, opacity: 0.38}));
-		for(let age = 1; age <= 106; age++){
-			const degree = limitDegreeForAge(life, age + 0.5);
-			const theta = moiraThetaFromDegree(degree);
-			if(age % 1 === 0){
+		if(this.props.showAgeRing !== false){
+			for(let age = 1; age <= 106; age++){
+				const degree = limitDegreeForAge(life, age + 0.5);
+				const theta = moiraThetaFromDegree(degree);
 				const p = point(r(10) + (r(11) - r(10)) * 0.5, theta);
 				nodes.push(
 					<text key={`limit-age-${age}`} x={p.x} y={p.y} fill={GREEN} fontSize="10.5" textAnchor="middle" dominantBaseline="central">
@@ -1144,6 +1221,7 @@ class GuoLaoMoiraWheel extends Component{
 			<g className="moira-static-twelve">
 				{nodes}
 				<circle r={r(0)} fill={MOIRA_BG} stroke={BLACK} />
+				{this.renderAspects(chart)}
 				<text x="0" y="-24" fill={GREEN} fontSize="28" fontWeight="700" textAnchor="middle">七政</text>
 				<text x="0" y="8" fill={GREEN} fontSize="28" fontWeight="700" textAnchor="middle">立命</text>
 				<text x="0" y="40" fill={GREEN} fontSize="28" fontWeight="700" textAnchor="middle">度木</text>
@@ -1202,10 +1280,19 @@ class GuoLaoMoiraWheel extends Component{
 	renderPlanetRing(chart, opt){
 		const nodes = [];
 		const placements = planetPlacements(chart, opt.inner, opt.outer, opt.dir, opt.size, opt.preferLon);
+		const showDignity = opt.kind === 'birth' && this.props.showDignity !== false;
+		const dignityById = {};
+		if(showDignity){
+			const rp = (this.props.moiraRules && this.props.moiraRules.planets) || [];
+			rp.forEach((row)=>{ if(row && row.id != null){ dignityById[row.id] = row.dignity; } });
+		}
 		placements.forEach((item, idx)=>{
 			const markTheta = moiraThetaFromDegree(item.degree);
 			const labelTheta = moiraThetaFromDegree(item.labelDegree);
 			const p = point(item.radius, labelTheta);
+			const dignity = showDignity ? dignityById[item.id] : null;
+			const color = planetColor(item.obj, opt.color, dignity);
+			const showBadge = !!dignity && (DIGNITY_STRONG.indexOf(dignity) >= 0 || DIGNITY_WEAK.indexOf(dignity) >= 0);
 			const tip = objectTooltip(item, opt.kind, this.props.moiraRules);
 			nodes.push(
 				<g key={`${opt.kind}-planet-${item.id}-${idx}`}>
@@ -1221,13 +1308,54 @@ class GuoLaoMoiraWheel extends Component{
 					{verticalText(item.label, p.x, p.y, {
 						size: opt.size,
 						maxPerCol: 1,
-						color: planetColor(item.obj, opt.color),
+						color,
 						weight: 600,
 					})}
+					{showBadge ? (
+						<text x={p.x + opt.size * 0.6} y={p.y - opt.size * 0.5} fill={color} fontSize={opt.size * 0.44} fontWeight="700" textAnchor="middle" dominantBaseline="central">{dignity.slice(0, 1)}</text>
+					) : null}
 				</g>
 			);
 		});
 		return <g className={`moira-planet-layer moira-planet-layer-${opt.kind}`}>{nodes}</g>;
+	}
+
+	renderAspects(chart){
+		const set = this.props.aspectSet || MOIRA_DEFAULT_ASPECTS;
+		if(!set || !set.length){
+			return null;
+		}
+		const objects = (chart && chart.objects) || [];
+		const preferLon = isZhengSiderealChart(chart);
+		const items = PLANET_DEFS.map((def)=>{
+			const obj = objects.find((o)=>o && o.id === def.id);
+			const deg = objectRa(obj, preferLon);
+			return (obj && deg !== null) ? {id: def.id, deg: norm(deg)} : null;
+		}).filter(Boolean);
+		const R0 = r(0) * 0.92;
+		const lines = [];
+		for(let i = 0; i < items.length; i++){
+			for(let j = i + 1; j < items.length; j++){
+				let gap = Math.abs(items[i].deg - items[j].deg);
+				if(gap > 180){ gap = 360 - gap; }
+				let hit = null;
+				for(let k = 0; k < MOIRA_ASPECTS.length; k++){
+					const sp = MOIRA_ASPECTS[k];
+					if(set.indexOf(sp.key) < 0){ continue; }
+					if(Math.abs(gap - sp.angle) <= sp.orb || (sp.alt !== undefined && Math.abs(gap - sp.alt) <= sp.orb)){
+						hit = sp;
+						break;
+					}
+				}
+				if(!hit){ continue; }
+				const a = point(R0, moiraThetaFromDegree(items[i].deg));
+				const b = point(R0, moiraThetaFromDegree(items[j].deg));
+				lines.push(
+					<line key={`asp-${items[i].id}-${items[j].id}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={hit.color} strokeWidth="1.05" strokeDasharray={hit.dash || undefined} opacity="0.8" />
+				);
+			}
+		}
+		return <g className="moira-aspect-layer">{lines}</g>;
 	}
 
 	renderPlanetLayers(birthChart, transitChart){
@@ -1268,32 +1396,46 @@ class GuoLaoMoiraWheel extends Component{
 	renderGodRing(root, chart, opt){
 		const ziGods = getZiGods(root, chart);
 		const nodes = [];
+		const kindLabel = opt.kind === 'transit' ? '流年' : '本命';
 		for(let i = 0; i < 12; i++){
 			const theta = sectorTheta(i);
 			const gods = orderedGods(collectGods(ziGods, TWELVE_SIGNS[i]), opt.order);
-			const godSize = godTextSize(gods.length);
+			const godSize = opt.size || godTextSize(gods.length);
 			const godSteps = godColumnStep(gods.length);
 			const startTheta = -30 * i;
 			const endTheta = -30 * (i + 1);
-			const title = opt.kind === 'transit' ? '流年神煞' : '本命神煞';
-			const tip = `${TWELVE_SIGNS[i]}：${title}${gods.length ? `｜${gods.join('，')}` : '｜无'}`;
+			const palaceTip = `${TWELVE_SIGNS[i]}：${kindLabel}神煞${gods.length ? `｜${gods.join('，')}` : '｜无'}`;
+			// 复刻 radialColumns 的列定位，给每个神煞单独的悬浮热区 + 判语。
+			const rawStep = gods.length <= 1 ? 0 : godSteps.arc / (gods.length - 1);
+			const step = gods.length <= 1 ? 0 : Math.min(godSteps.maxStep, rawStep);
+			const start = theta + step * (gods.length - 1) / 2;
+			const half = step > 0 ? step / 2 : 3;
 			nodes.push(
 				<g key={`${opt.kind}-god-${i}`}>
 					<path
 						className="moira-hover-zone"
 						d={annularSectorPath(opt.inner, opt.outer, endTheta, startTheta)}
-						{...this.tooltipHandlers(tip)}
+						{...this.tooltipHandlers(palaceTip)}
 					>
 					</path>
-					{radialColumns(gods, theta, opt.inner, opt.outer, {
-						size: opt.size || godSize,
-						color: opt.color || GREEN,
-						weight: opt.weight || 600,
-						arc: godSteps.arc,
-						minStep: godSteps.minStep,
-						maxStep: godSteps.maxStep,
-						fitArc: true,
-						opacity: opt.opacity,
+					{gods.map((god, idx)=>{
+						const gtheta = gods.length <= 1 ? theta : (start - idx * step);
+						return (
+							<g key={`${opt.kind}-god-${i}-${idx}`}>
+								<path
+									className="moira-hover-zone"
+									d={annularSectorPath(opt.inner, opt.outer, gtheta - half, gtheta + half)}
+									{...this.tooltipHandlers(`${kindLabel}·${guolaoShenShaTip(god)}`)}
+								>
+								</path>
+								{radialStackText(god, gtheta, opt.inner, opt.outer, {
+									size: godSize,
+									color: opt.color || GREEN,
+									weight: opt.weight || 600,
+									opacity: opt.opacity,
+								})}
+							</g>
+						);
 					})}
 				</g>
 			);
@@ -1302,17 +1444,19 @@ class GuoLaoMoiraWheel extends Component{
 	}
 
 	renderStarTables(root, chart, transitRoot, transitChart){
+		const showBirth = this.props.showBirthGods !== false;
 		const showTransit = this.props.showMoiraTransitGods !== false;
-		const birthOuter = showTransit ? r(9) - 8 : r(GOD_RING_OUTER) - 12;
+		// 本命神煞圈位置固定（r(8)+14 ~ r(9)-8），不随流年神煞圈开关移动，避免取消流年圈后本命圈外扩变形。
+		const birthOuter = r(9) - 8;
 		return (
 			<g>
 				{showTransit ? <circle className="moira-transit-god-split" r={r(9)} fill="none" stroke={BLACK} strokeWidth="0.85" /> : null}
-				{this.renderGodRing(root, chart, {
+				{showBirth ? this.renderGodRing(root, chart, {
 					kind: 'birth',
 					inner: r(GOD_RING_INNER) + 14,
 					outer: birthOuter,
 					order: BIRTH_GOD_ORDER,
-				})}
+				}) : null}
 				{showTransit ? this.renderGodRing(transitRoot || root, transitChart || chart, {
 					kind: 'transit',
 					inner: r(9) + 10,
@@ -1365,16 +1509,29 @@ class GuoLaoMoiraWheel extends Component{
 					</g>
 				);
 			});
-			for(let age = 1; age <= 106; age++){
-				const theta = moiraThetaFromDegree(limitDegreeForAge(life, age));
-				const major = age === 1 || age % 10 === 0;
+			if(this.props.showAgeRing !== false){
+				for(let age = 1; age <= 106; age++){
+					const theta = moiraThetaFromDegree(limitDegreeForAge(life, age));
+					const major = age === 1 || age % 10 === 0;
+					nodes.push(
+						<g key={`limit-age-line-${age}`}>
+							{radialLine(theta, major ? r(10) : (r(10) + r(11)) / 2, r(11), {
+								color: major ? RED : GREEN,
+								width: major ? 1.1 : 0.7,
+								opacity: major ? 0.9 : 0.68,
+							})}
+						</g>
+					);
+				}
+			}
+const curAge = (this.props.transitParams && this.props.transitParams.date ? birthYearFrom({params: this.props.transitParams}, null, null) : birthYear) - birthYear + 1;
+			if(this.props.showAgeRing !== false && curAge >= 1 && curAge <= 110){
+				const curTheta = moiraThetaFromDegree(limitDegreeForAge(life, curAge));
+				const curP = point((r(10) + r(11)) / 2, curTheta);
 				nodes.push(
-					<g key={`limit-age-line-${age}`}>
-						{radialLine(theta, major ? r(10) : (r(10) + r(11)) / 2, r(11), {
-							color: major ? RED : GREEN,
-							width: major ? 1.1 : 0.7,
-							opacity: major ? 0.9 : 0.68,
-						})}
+					<g key="limit-cur-age">
+						{radialLine(curTheta, r(10), r(11), {color: RED, width: 2.8})}
+						<circle cx={curP.x} cy={curP.y} r="4.5" fill={RED} />
 					</g>
 				);
 			}
@@ -1388,10 +1545,18 @@ class GuoLaoMoiraWheel extends Component{
 		const params = root && root.params ? root.params : {};
 		const transitParams = this.props.transitParams || {};
 		const bazi = (root && root.nongli && root.nongli.bazi) || (chart && chart.nongli && chart.nongli.bazi) || {};
-		const y = bazi.year && bazi.year.text ? bazi.year.text : stemBranchForYear(birthYear);
-		const m = bazi.month && bazi.month.text ? bazi.month.text : '';
-		const d = bazi.day && bazi.day.text ? bazi.day.text : '';
-		const h = bazi.time && bazi.time.text ? bazi.time.text : '';
+		// 四柱结构为 {stem:{cell},branch:{cell}}（非 .text）——与右栏 baziText 同源；逐柱拼干支。
+		const pillar = (col)=>{
+			if(!col){ return ''; }
+			if(col.text){ return col.text; }
+			const stem = col.stem && col.stem.cell ? col.stem.cell : '';
+			const branch = col.branch && col.branch.cell ? col.branch.cell : '';
+			return `${stem}${branch}`;
+		};
+		const y = pillar(bazi.year) || stemBranchForYear(birthYear);
+		const m = pillar(bazi.month);
+		const d = pillar(bazi.day);
+		const h = pillar(bazi.time);
 		return (
 			<g className="moira-side-text" opacity="0.96">
 					<text x="-590" y="522" fill={BLACK} fontSize="17">
@@ -1504,6 +1669,9 @@ export {
 	collectGods as moiraCollectGods,
 	orderedGods as moiraOrderedGods,
 	buildFixedStars as moiraBuildFixedStars,
+	buildGuolaoLimitTable as moiraBuildLimitTable,
+	currentLimitIndex as moiraCurrentLimitIndex,
+	lifeDegree as moiraLifeDegree,
 	BIRTH_GOD_ORDER as MOIRA_BIRTH_GOD_ORDER,
 	TRANSIT_GOD_ORDER as MOIRA_TRANSIT_GOD_ORDER,
 };
