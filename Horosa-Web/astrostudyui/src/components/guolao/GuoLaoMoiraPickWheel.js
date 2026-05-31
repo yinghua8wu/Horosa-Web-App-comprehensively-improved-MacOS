@@ -22,15 +22,19 @@ import {
 	moiraPairedRadialText as pairedRadialText,
 	moiraPoint as point,
 	moiraRadialColumns as radialColumns,
+	moiraRadialStackText as radialStackText,
 	moiraRadialLine as radialLine,
 	moiraVerticalText as verticalText,
 	moiraGetZiGods as getZiGods,
 	moiraBuildStellarRelations as buildStellarRelations,
 	MOIRA_BIRTH_GOD_ORDER as BIRTH_GOD_ORDER,
 } from './GuoLaoMoiraWheel';
+import { guolaoShenShaTip } from './GuoLaoShenShaDoc';
 import './GuoLaoMoiraWheel.less';
 
-const PICK_RING_POS = [0.19, 0.31, 0.37, 0.43, 0.51, 0.54, 0.60, 0.68, 0.71, 0.77, 0.92, 0.95, 1.0];
+// 二十八宿环占 r(4)~r(6)（两个边界圆，宽 0.09R≈Moira 0.10R）：内带刻度+宿名+外带刻度三段由 renderStellarTicks/Ring
+// 用计算半径(20%/60%/20%)切分，故 r(5)=0.57 现仅作几何参考、不再单独绘环（照抄 Moira r4~r7 宿区结构）。
+const PICK_RING_POS = [0.19, 0.31, 0.37, 0.43, 0.51, 0.57, 0.60, 0.68, 0.71, 0.77, 0.92, 0.95, 1.0];
 const PICK_RING_DRAW_TYPE = [1, 0, 0, 0, 1, -10, 1, 1, -10, 2, 0, 1, -10];
 const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const MOUNTAINS = ['子', '癸', '丑', '艮', '寅', '甲', '卯', '乙', '辰', '巽', '巳', '丙', '午', '丁', '未', '坤', '申', '庚', '酉', '辛', '戌', '乾', '亥', '壬'];
@@ -347,9 +351,17 @@ class GuoLaoMoiraPickWheel extends Component{
 	}
 
 	renderStellarTicks(){
+		// 二十八宿环：完全照抄 Moira 命盘轮结构 —— 一个由两个边界圆(r4 内圆 / r6 外圆)框住的圆环，
+		// 里层外层各一条刻度带：内带 base 贴住 r(4) 向外伸、外带 base 贴住 r(6) 向内伸（刻度底端贴两圆）。
+		// 中间留 60% 空带给宿名 + 红色宿界线（红线见 renderStellarRing，夹在两刻度带之间、不挨任一圆）。
+		const inner = r(4);
+		const outer = r(6);
+		const band = outer - inner;
+		const rA = inner + band * 0.2; // 内刻度带顶 / 宿名带底
+		const rB = outer - band * 0.2; // 宿名带顶 / 外刻度带底
 		const nodes = [
-			...this.renderDegreeMarkBand(r(4), r(5), 'pick-stellar-up', {mutedMajor: true, opacity: 0.38, anchor: 'inner'}),
-			...this.renderDegreeMarkBand(r(7), r(8), 'pick-stellar-down', {mutedMajor: true, opacity: 0.38, anchor: 'inner'}),
+			...this.renderDegreeMarkBand(inner, rA, 'pick-stellar-up', {mutedMajor: true, opacity: 0.42, anchor: 'inner'}),
+			...this.renderDegreeMarkBand(rB, outer, 'pick-stellar-down', {mutedMajor: true, opacity: 0.42}),
 		];
 		return <g className="moira-stellar-ticks">{nodes}</g>;
 	}
@@ -357,6 +369,13 @@ class GuoLaoMoiraPickWheel extends Component{
 	renderStellarRing(chart){
 		const stars = buildFixedStars(chart);
 		const relations = buildStellarRelations(chart);
+		// 与 renderStellarTicks 同一套半径：宿名居中(两圆中点)，红色宿界线只画在中间空带 rA~rB，
+		// 不挨内圆 r(4) 也不挨外圆 r(6)，与上下两条刻度带分离 —— 照抄 Moira 命盘轮 r(5)+1~r(6)-1 的做法。
+		const inner = r(4);
+		const outer = r(6);
+		const band = outer - inner;
+		const rA = inner + band * 0.2;
+		const rB = outer - band * 0.2;
 		const nodes = [];
 		stars.forEach((cur, idx)=>{
 			const nxt = stars[(idx + 1) % stars.length];
@@ -367,6 +386,7 @@ class GuoLaoMoiraPickWheel extends Component{
 			const edgeTheta = pickThetaFromDegree(cur.ra);
 			const centerTheta = pickThetaFromDegree(Number(cur.ra) + span / 2);
 			const rel = relations[idx] || {};
+			const p = point((inner + outer) / 2, centerTheta);
 			const tip = [
 				`${cur.label || cur.name}：宿距 ${span.toFixed(2)}°`,
 				`本命落入：${listText(rel.main)}`,
@@ -376,12 +396,12 @@ class GuoLaoMoiraPickWheel extends Component{
 				<g key={`pick-stellar-${idx}`}>
 					<path
 						className="moira-hover-zone"
-						d={annularSectorPath(r(4), r(5), pickThetaFromDegree(Number(cur.ra)), pickThetaFromDegree(Number(cur.ra) + span))}
+						d={annularSectorPath(inner, outer, pickThetaFromDegree(Number(cur.ra) + span), edgeTheta)}
 						{...this.tooltipHandlers(tip)}
 					>
 					</path>
-					{radialLine(edgeTheta, r(4) + 1, r(5) - 1, {color: RED, width: 1})}
-					{horizontalRingText(cur.name || cur.label, (r(4) + r(5)) / 2, centerTheta, {size: 19, color: BLACK, weight: 600})}
+					{radialLine(edgeTheta, rA + 1, rB - 1, {color: RED, width: 1})}
+					{verticalText(cur.name || cur.label, p.x, p.y, {size: 23, maxPerCol: 1, color: BLACK, weight: 600})}
 				</g>
 			);
 		});
@@ -459,23 +479,36 @@ class GuoLaoMoiraPickWheel extends Component{
 			const gods = orderedGods(collectGods(ziGods, BRANCHES[i]), BIRTH_GOD_ORDER);
 			const godSize = Math.min(25, godTextSize(gods.length));
 			const godSteps = godColumnStep(gods.length);
-			const tip = `${BRANCHES[i]}：天星择日神煞${gods.length ? `｜${gods.join('，')}` : '｜无'}`;
+			const palaceTip = `${BRANCHES[i]}：天星择日神煞${gods.length ? `｜${gods.join('，')}` : '｜无'}`;
+			const rawStep = gods.length <= 1 ? 0 : godSteps.arc / (gods.length - 1);
+			const step = gods.length <= 1 ? 0 : Math.min(godSteps.maxStep, rawStep);
+			const colStart = theta + step * (gods.length - 1) / 2;
+			const half = step > 0 ? step / 2 : 3;
 			nodes.push(
 				<g key={`pick-god-${i}`}>
 					<path
 						className="moira-hover-zone"
 						d={annularSectorPath(r(9), r(10), pickThetaFromDegree(start), pickThetaFromDegree(end))}
-						{...this.tooltipHandlers(tip)}
+						{...this.tooltipHandlers(palaceTip)}
 					>
 					</path>
-					{radialColumns(gods, theta, r(9) + 10, r(10) - 12, {
-						size: godSize,
-						color: GREEN,
-						weight: 600,
-						arc: godSteps.arc,
-						minStep: godSteps.minStep,
-						maxStep: godSteps.maxStep,
-						fitArc: true,
+					{gods.map((god, idx)=>{
+						const gtheta = gods.length <= 1 ? theta : (colStart - idx * step);
+						return (
+							<g key={`pick-god-${i}-${idx}`}>
+								<path
+									className="moira-hover-zone"
+									d={annularSectorPath(r(9), r(10), gtheta - half, gtheta + half)}
+									{...this.tooltipHandlers(`择日·${guolaoShenShaTip(god)}`)}
+								>
+								</path>
+								{radialStackText(god, gtheta, r(9) + 10, r(10) - 12, {
+									size: godSize,
+									color: GREEN,
+									weight: 600,
+								})}
+							</g>
+						);
 					})}
 				</g>
 			);

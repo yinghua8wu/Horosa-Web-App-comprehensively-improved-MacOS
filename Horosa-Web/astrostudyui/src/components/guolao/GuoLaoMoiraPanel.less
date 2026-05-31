@@ -10,8 +10,8 @@
 	border: 1px solid var(--horosa-border-soft, rgba(231, 189, 117, 0.16));
 	background: var(--horosa-panel-soft, rgba(255, 255, 255, 0.035));
 	border-radius: 6px;
-	padding: 10px;
-	margin-bottom: 10px;
+	padding: 7px 9px;
+	margin-bottom: 8px;
 }
 
 .horosa-guolao-moira-summary-title,
@@ -26,7 +26,7 @@
 .horosa-guolao-moira-pattern-detail,
 .horosa-guolao-moira-empty {
 	font-size: 12px;
-	line-height: 20px;
+	line-height: 18px;
 	color: var(--horosa-text-soft, #c8c0b2);
 }
 
@@ -38,7 +38,7 @@
 	background: rgba(205, 154, 65, 0.08);
 	color: var(--horosa-text-soft, #c8c0b2);
 	font-size: 12px;
-	line-height: 20px;
+	line-height: 18px;
 }
 
 .horosa-guolao-moira-note {
@@ -49,7 +49,7 @@
 	color: var(--horosa-text-soft, #c8c0b2);
 	background: rgba(231, 189, 117, 0.045);
 	font-size: 12px;
-	line-height: 20px;
+	line-height: 18px;
 }
 
 .horosa-guolao-moira-subtitle {
@@ -62,7 +62,7 @@
 .horosa-guolao-moira-anchor-grid {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 8px;
+	gap: 6px;
 }
 
 .horosa-guolao-moira-su-anchor-grid {
@@ -73,14 +73,14 @@
 	min-width: 0;
 	border: 1px solid var(--horosa-border-soft, rgba(255, 255, 255, 0.08));
 	border-radius: 6px;
-	padding: 8px;
+	padding: 5px 7px;
 	background: rgba(0, 0, 0, 0.12);
 }
 
 .horosa-guolao-moira-kv-grid {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 8px;
+	gap: 6px;
 	margin-top: 8px;
 }
 
@@ -88,7 +88,7 @@
 	min-width: 0;
 	border: 1px solid var(--horosa-border-soft, rgba(255, 255, 255, 0.08));
 	border-radius: 6px;
-	padding: 8px;
+	padding: 5px 7px;
 	background: rgba(0, 0, 0, 0.12);
 }
 
@@ -125,7 +125,7 @@
 .horosa-guolao-moira-planet-list,
 .horosa-guolao-moira-gods {
 	display: grid;
-	gap: 8px;
+	gap: 6px;
 }
 
 .horosa-guolao-moira-pattern,
@@ -135,7 +135,7 @@
 .horosa-guolao-moira-god {
 	border: 1px solid var(--horosa-border-soft, rgba(255, 255, 255, 0.08));
 	border-radius: 6px;
-	padding: 8px;
+	padding: 5px 7px;
 	background: rgba(0, 0, 0, 0.12);
 }
 
@@ -179,7 +179,7 @@
 .horosa-guolao-moira-planet {
 	display: grid;
 	grid-template-columns: 52px minmax(0, 1fr) 52px;
-	gap: 8px;
+	gap: 6px;
 	align-items: center;
 	font-size: 12px;
 	color: var(--horosa-text-soft, #c8c0b2);
@@ -200,8 +200,8 @@
 	grid-template-columns: 28px minmax(66px, 1fr) minmax(58px, 0.86fr) minmax(70px, 0.95fr);
 	gap: 6px;
 	align-items: center;
-	min-height: 28px;
-	padding: 6px 7px;
+	min-height: 22px;
+	padding: 3px 7px;
 	border: 1px solid var(--horosa-border-soft, rgba(255, 255, 255, 0.08));
 	border-radius: 5px;
 	background: rgba(0, 0, 0, 0.10);
@@ -235,12 +235,12 @@
 .horosa-guolao-moira-year-groups {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 8px;
+	gap: 6px;
 }
 
 .horosa-guolao-moira-god {
 	font-size: 12px;
-	line-height: 20px;
+	line-height: 18px;
 	color: var(--horosa-text-soft, #c8c0b2);
 }
 
@@ -318,4 +318,119 @@
 :root[data-horosa-appearance='light'] .horosa-guolao-moira-planet,
 :root[data-horosa-appearance='light'] .horosa-guolao-moira-god {
 	background: rgba(255, 255, 255, 0.62);
+}
+
+@keyframes horosaGuolaoShimmer {
+	0% { opacity: 0.42; }
+	50% { opacity: 0.82; }
+	100% { opacity: 0.42; }
+}
+
+.horosa-guolao-moira-skeleton {
+	display: grid;
+	gap: 10px;
+	padding: 6px 2px;
+}
+
+.horosa-guolao-moira-skeleton-row {
+	height: 46px;
+	border-radius: 6px;
+	background: var(--horosa-panel-soft, rgba(255, 255, 255, 0.05));
+	border: 1px solid var(--horosa-border-soft, rgba(231, 189, 117, 0.14));
+	animation: horosaGuolaoShimmer 1.1s ease-in-out infinite;
+}
+
+.horosa-guolao-chart-skeleton {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	min-height: 420px;
+}
+
+.horosa-guolao-chart-skeleton-ring {
+	position: absolute;
+	width: ~"min(72%, 560px)";
+	height: ~"min(72%, 560px)";
+	border-radius: 50%;
+	border: 1.5px solid var(--horosa-border-soft, rgba(231, 189, 117, 0.18));
+	animation: horosaGuolaoShimmer 1.3s ease-in-out infinite;
+}
+
+.horosa-guolao-chart-skeleton-ring.is-mid {
+	width: ~"min(50%, 388px)";
+	height: ~"min(50%, 388px)";
+}
+
+.horosa-guolao-chart-skeleton-ring.is-core {
+	width: ~"min(26%, 202px)";
+	height: ~"min(26%, 202px)";
+}
+
+.horosa-guolao-chart-skeleton-hint {
+	position: relative;
+	font-size: 13px;
+	color: var(--horosa-text-soft, #c8c0b2);
+}
+
+.horosa-guolao-moira-limit-current {
+	border-color: var(--horosa-astro-gold, #e7bd75) !important;
+	background: rgba(231, 189, 117, 0.14) !important;
+}
+
+.horosa-guolao-moira-limit-current strong,
+.horosa-guolao-moira-limit-current em {
+	color: var(--horosa-astro-gold, #e7bd75) !important;
+}
+
+.horosa-guolao-moira-tabs .ant-tabs-nav {
+	margin-bottom: 10px;
+}
+
+/* horosa-content-tabs（app.less 5256/5266）原为「单个满高面板」设计：tabpane 满高 + overflow:hidden、
+   且 `tabpane > * { height:100% !important }` 把直接子元素撑满。本面板每个 tab 是多张内容卡，会被撑成大留白。
+   用更高特异度（`.horosa-guolao-moira-tabs.ant-tabs` = 0,4,0 > app.less 的 0,3,0）覆盖：tabpane 仍满高但自身滚动，
+   各卡片按内容高、顶端对齐、不撑高。改 tab 结构勿回退此覆盖。 */
+.horosa-workspace-shell .horosa-guolao-moira-tabs.ant-tabs .ant-tabs-tabpane {
+	overflow-y: auto !important;
+	overflow-x: hidden !important;
+}
+
+.horosa-workspace-shell .horosa-guolao-moira-tabs.ant-tabs .ant-tabs-tabpane > * {
+	height: auto !important;
+	max-height: none !important;
+	min-height: 0 !important;
+}
+
+.horosa-guolao-moira-tabs .ant-tabs-tab {
+	padding: 6px 4px;
+	font-size: 13px;
+}
+
+.horosa-guolao-moira-tabs .ant-tabs-tab + .ant-tabs-tab {
+	margin-left: 14px;
+}
+
+/* 神煞卡：曜名为长串、易挤；放宽行高 + 宫名/支/曜之间留间距（卡片仍按内容紧凑高）。 */
+.horosa-guolao-moira-gods .horosa-guolao-moira-god {
+	line-height: 20px;
+}
+
+.horosa-guolao-moira-god strong {
+	display: block;
+	margin-bottom: 2px;
+}
+
+.horosa-guolao-moira-god span {
+	margin-bottom: 3px;
+}
+
+.horosa-guolao-moira-god > div {
+	line-height: 20px;
+}
+
+.horosa-guolao-moira-god > div + div {
+	margin-top: 1px;
 }

@@ -1,6 +1,7 @@
+import { XQTabs as Tabs } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { moiraMergeStellarRelationRows as mergeStellarRelationRows, } from './GuoLaoMoiraWheel';
+import { moiraMergeStellarRelationRows as mergeStellarRelationRows, moiraBuildLimitTable as buildLimitTable, moiraCurrentLimitIndex as currentLimitIndex, } from './GuoLaoMoiraWheel';
 import './GuoLaoMoiraPanel.less';
 
 const PLANET_ORDER = [
@@ -520,7 +521,7 @@ function buildPanelFallbackValue(rootValue){
 
 export default function GuoLaoMoiraPanel(props){
 	const rootValue = props.rootValue || {};
-	const value = props.value || (hasRenderableChart(rootValue) ? buildPanelFallbackValue(rootValue) : null);
+	const value = props.value || ((!props.loading && hasRenderableChart(rootValue)) ? buildPanelFallbackValue(rootValue) : null);
 	const birthChart = rootValue.chart || {};
 	const transitRoot = props.transitValue || {};
 	const transitChart = transitRoot.chart || {};
@@ -530,7 +531,7 @@ export default function GuoLaoMoiraPanel(props){
 	if(props.loading && !value){
 		return (
 			<div className="horosa-guolao-moira">
-				<div className="horosa-guolao-moira-empty">正在推演 Moira 规则层...</div>
+				{[0, 1, 2, 3, 4, 5].map((i)=>(<div className="horosa-guolao-moira-skeleton-row" key={i} />))}
 			</div>
 		);
 	}
@@ -580,7 +581,9 @@ export default function GuoLaoMoiraPanel(props){
 
 	return (
 		<div className="horosa-guolao-moira">
-			<Section title="起盘与流年">
+			<Tabs className="horosa-content-tabs horosa-guolao-tabs horosa-guolao-moira-tabs" tabPosition="top" defaultActiveKey="overview" items={[
+				{ key: 'overview', label: '概览', children: (<>
+				<Section title="起盘与流年">
 				<KeyValueGrid items={[
 					{label: '计算法', value: '地心计算法'},
 					{label: '本命时间', value: dateTextFromParams(params)},
@@ -626,8 +629,28 @@ export default function GuoLaoMoiraPanel(props){
 						<strong>{selfSuHost ? selfSuHost.value : '随盘面'}</strong>
 					</div>
 				</div>
+				{Number.isFinite(Number(life.longitude)) && Number.isFinite(birthYear) ? (()=>{
+					const limitRows = buildLimitTable(Number(life.longitude), birthYear);
+					const curIdx = Number.isFinite(age) ? currentLimitIndex(limitRows, age) : -1;
+					return (
+						<>
+							<div className="horosa-guolao-moira-subtitle">大限（古度限度法，自命度起）</div>
+							<div className="horosa-guolao-moira-house-list horosa-guolao-moira-limit-list">
+								{limitRows.map((row, idx)=>(
+									<div key={row.index} className={idx === curIdx ? 'horosa-guolao-moira-limit-current' : undefined}>
+										<strong>{row.index}. {row.palace}</strong>
+										<span>{row.fromAge}–{row.toAge} 岁</span>
+										<em>{row.fromYear}–{row.toYear}{idx === curIdx ? ' · 当前大限' : ''}</em>
+									</div>
+								))}
+							</div>
+						</>
+					);
+				})() : null}
 			</Section>
 
+				</>) },
+				{ key: 'stars', label: '星曜', children: (<>
 				<Section title="本命星曜">
 					{natalYearStars.length ? <YearSignTable rows={natalYearStars} /> : <PlanetTable rows={natalPlanetRows} />}
 				</Section>
@@ -640,7 +663,9 @@ export default function GuoLaoMoiraPanel(props){
 					<StellarRelationTable rows={stellarRelationRows} />
 				</Section>
 
-			<Section title="十二宫位">
+			</>) },
+				{ key: 'palace', label: '宫限', children: (<>
+				<Section title="十二宫位">
 				<div className="horosa-guolao-moira-house-list">
 					{houses.map((item)=>(
 						<div key={`${item.index}-${item.name}`}>
@@ -678,7 +703,9 @@ export default function GuoLaoMoiraPanel(props){
 				</div>
 			</Section>
 
-			<Section title="神煞全表">
+			</>) },
+				{ key: 'gods', label: '神煞', children: (<>
+				<Section title="神煞全表">
 				<div className="horosa-guolao-moira-gods">
 					{godHits.map((item)=>(
 							<div className="horosa-guolao-moira-god" key={`${item.house}-${item.zi}`}>
@@ -712,6 +739,8 @@ export default function GuoLaoMoiraPanel(props){
 					</Section>
 				) : null}
 
+				</>) },
+				{ key: 'pattern', label: '格局', children: (
 				<Section title="政余格局">
 				{styleWarning ? <div className="horosa-guolao-moira-warning">{styleWarning}</div> : null}
 				{patterns.length ? (
@@ -728,6 +757,8 @@ export default function GuoLaoMoiraPanel(props){
 					</div>
 				) : <div className="horosa-guolao-moira-empty">当前盘未命中已接入的 Moira 政余喜格/忌格。</div>}
 			</Section>
+				) },
+			]} />
 		</div>
 	);
 }

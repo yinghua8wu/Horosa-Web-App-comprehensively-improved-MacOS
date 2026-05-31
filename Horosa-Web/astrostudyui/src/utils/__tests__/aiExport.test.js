@@ -62,6 +62,8 @@ describe('aiExport settings', ()=>{
 		expect(options.bazi).toEqual(expect.arrayContaining(['四柱与三元', '神煞（四柱与三元）', '大运', '流年行运概略']));
 		expect(options.ziwei).toEqual(expect.arrayContaining(['起盘信息', '宫位总览']));
 		expect(options.qizhengkin).toEqual(expect.arrayContaining(['星曜', '张果断语', '命宫解读']));
+		// 七政四余(Moira) 快照四段必须与 buildGuolaoSnapshotTextV2 同步——含 [大限]，否则「AI导出设置」漏勾该段。
+		expect(options.guolao).toEqual(expect.arrayContaining(['起盘信息', '七政四余宫位与二十八宿星曜', '神煞', '大限']));
 		expect(options.tieban).toEqual(expect.arrayContaining(['十二宫', '十二宫条文', '紫微安星', '六亲佐证']));
 		expect(options.cetian).toEqual(expect.arrayContaining(['命宮', '父母宮', '星曜属性', '飞化规则', '三合组']));
 	});

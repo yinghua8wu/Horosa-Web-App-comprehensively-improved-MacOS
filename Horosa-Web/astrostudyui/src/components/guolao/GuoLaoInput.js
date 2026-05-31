@@ -5,7 +5,7 @@ import SpaceTimePanel from '../comp/SpaceTimePanel';
 import * as SZConst from '../suzhan/SZConst';
 import { XQSelect as Select, XQToggle } from '../xq-ui';
 import XQIcon from '../xq-icons';
-import { GUOLAO_CHART_STYLE_CLASSIC, GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_ASC, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_KETU, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, } from './GuoLaoChartStyle';
+import { GUOLAO_ALL_ASPECTS, GUOLAO_CHART_STYLE_CLASSIC, GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_ASC, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_KETU, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, } from './GuoLaoChartStyle';
 
 const {Option} = Select;
 
@@ -30,6 +30,8 @@ class GuoLaoInput extends Component{
 		this.onMoiraTransitGodsToggle = this.onMoiraTransitGodsToggle.bind(this);
 		this.onEngineModeChange = this.onEngineModeChange.bind(this);
 		this.onKinastroOptionChange = this.onKinastroOptionChange.bind(this);
+		this.onDisplayToggle = this.onDisplayToggle.bind(this);
+		this.toggleAspect = this.toggleAspect.bind(this);
 	}
 
 	onGenderChange(val){
@@ -205,6 +207,22 @@ class GuoLaoInput extends Component{
 		}
 	}
 
+	onDisplayToggle(key){
+		if(this.props.onGuolaoDisplayChange){
+			const cur = this.props.guolaoDisplay || {};
+			this.props.onGuolaoDisplayChange({[key]: !cur[key]});
+		}
+	}
+
+	toggleAspect(asp){
+		if(!this.props.onGuolaoDisplayChange){
+			return;
+		}
+		const cur = (this.props.guolaoDisplay && this.props.guolaoDisplay.aspects) || [];
+		const next = cur.indexOf(asp) >= 0 ? cur.filter((a)=>a !== asp) : cur.concat([asp]);
+		this.props.onGuolaoDisplayChange({aspects: next});
+	}
+
 	changeGeo(rec){
 		if(this.props.onFieldsChange){
 			let dt = this.tmHook.getValue().value;
@@ -276,10 +294,11 @@ class GuoLaoInput extends Component{
 		const kinElectionalStartDate = kinOptions.electionalStartDate || chartDateNative;
 		const kinElectionalCriteria = kinOptions.electionalCriteria || 'general';
 		const kinElectionalDays = kinOptions.electionalDays || 30;
+		const display = this.props.guolaoDisplay || {};
 		const chartStyleField = (
 			<label className="horosa-guolao-select-field">
 				<span>星盘样式</span>
-				<Select value={chartStyle} onChange={this.onChartStyleChange} size='small'>
+				<Select value={chartStyle} onChange={this.onChartStyleChange} size='small' dropdownMatchSelectWidth={false}>
 					<Option value={GUOLAO_CHART_STYLE_CLASSIC}>Horosa原盘</Option>
 					<Option value={GUOLAO_CHART_STYLE_MOIRA}>Moira圆盘</Option>
 					<Option value={GUOLAO_CHART_STYLE_PICK}>天星择日</Option>
@@ -314,14 +333,14 @@ class GuoLaoInput extends Component{
 					<div className="horosa-guolao-select-grid horosa-guolao-kinastro-options">
 						<label className="horosa-guolao-select-field">
 							<span>性别</span>
-							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small'>
+							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={0}>女</Option>
 								<Option value={1}>男</Option>
 							</Select>
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>流时</span>
-							<Select value={kinTransitMode} onChange={(val)=>this.onKinastroOptionChange('transitMode', val)} size='small'>
+							<Select value={kinTransitMode} onChange={(val)=>this.onKinastroOptionChange('transitMode', val)} size='small' dropdownMatchSelectWidth={false}>
 								<Option value="none">关闭</Option>
 								<Option value="same">同刻</Option>
 								<Option value="now">此刻</Option>
@@ -375,7 +394,7 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>择日用途</span>
-							<Select value={kinElectionalCriteria} onChange={(val)=>this.onKinastroOptionChange('electionalCriteria', val)} size='small'>
+							<Select value={kinElectionalCriteria} onChange={(val)=>this.onKinastroOptionChange('electionalCriteria', val)} size='small' dropdownMatchSelectWidth={false}>
 								<Option value="general">通用</Option>
 								<Option value="marriage">嫁娶</Option>
 								<Option value="travel">出行</Option>
@@ -396,21 +415,21 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>古籍断语</span>
-							<Select value={kinOptions.showZhangguo === false ? 'off' : 'on'} onChange={(val)=>this.onKinastroOptionChange('showZhangguo', val === 'on')} size='small'>
+							<Select value={kinOptions.showZhangguo === false ? 'off' : 'on'} onChange={(val)=>this.onKinastroOptionChange('showZhangguo', val === 'on')} size='small' dropdownMatchSelectWidth={false}>
 								<Option value="on">显示</Option>
 								<Option value="off">隐藏</Option>
 							</Select>
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>神煞</span>
-							<Select value={kinOptions.showShensha === false ? 'off' : 'on'} onChange={(val)=>this.onKinastroOptionChange('showShensha', val === 'on')} size='small'>
+							<Select value={kinOptions.showShensha === false ? 'off' : 'on'} onChange={(val)=>this.onKinastroOptionChange('showShensha', val === 'on')} size='small' dropdownMatchSelectWidth={false}>
 								<Option value="on">显示</Option>
 								<Option value="off">隐藏</Option>
 							</Select>
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>命宫解读</span>
-							<Select value={kinOptions.showMingGong === false ? 'off' : 'on'} onChange={(val)=>this.onKinastroOptionChange('showMingGong', val === 'on')} size='small'>
+							<Select value={kinOptions.showMingGong === false ? 'off' : 'on'} onChange={(val)=>this.onKinastroOptionChange('showMingGong', val === 'on')} size='small' dropdownMatchSelectWidth={false}>
 								<Option value="on">显示</Option>
 								<Option value="off">隐藏</Option>
 							</Select>
@@ -421,7 +440,7 @@ class GuoLaoInput extends Component{
 					<div className="horosa-guolao-select-grid">
 						<label className="horosa-guolao-select-field">
 							<span>性别</span>
-							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small'>
+							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={-1}>未知</Option>
 								<Option value={0}>女</Option>
 								<Option value={1}>男</Option>
@@ -429,7 +448,7 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>宿度制</span>
-							<Select value={fields.doubingSu28.value} onChange={this.onDoubingSu28Change} size='small'>
+							<Select value={fields.doubingSu28.value} onChange={this.onDoubingSu28Change} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={2}>回归今制</Option>
 								<Option value={3}>回归古制（开禧）</Option>
 								<Option value={4}>恒星制（郑式）</Option>
@@ -439,7 +458,7 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>命度</span>
-							<Select value={lifeMode} onChange={this.onLifeModeChange} size='small'>
+							<Select value={lifeMode} onChange={this.onLifeModeChange} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={GUOLAO_LIFE_MODE_ASC}>占星上升</Option>
 								<Option value={GUOLAO_LIFE_MODE_YUMAO}>遇卯安命</Option>
 								<Option value={GUOLAO_LIFE_MODE_COTRANS}>赤黄转换</Option>
@@ -447,14 +466,14 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>盘式</span>
-							<Select value={szshape} onChange={this.onChartShapeChange} size='small'>
+							<Select value={szshape} onChange={this.onChartShapeChange} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={SZConst.SZChart_Circle}>圆形盘</Option>
 								<Option value={SZConst.SZChart_Square}>方形盘</Option>
 							</Select>
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>罗计</span>
-							<Select value={nodeMode} onChange={this.onNodeModeChange} size='small'>
+							<Select value={nodeMode} onChange={this.onNodeModeChange} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={GUOLAO_NODE_MODE_NORTH_RAHU}>北罗南计</Option>
 								<Option value={GUOLAO_NODE_MODE_NORTH_KETU}>北计南罗</Option>
 							</Select>
@@ -488,6 +507,58 @@ class GuoLaoInput extends Component{
 								流年神煞圈
 							</XQToggle>
 						</div> : null}
+					</div>
+				) : null}
+				{engineMode !== 'kinastro' && (chartStyle === GUOLAO_CHART_STYLE_MOIRA || chartStyle === GUOLAO_CHART_STYLE_PICK) ? (
+					<div className="horosa-guolao-input-section">
+						<div className="horosa-guolao-field-title">
+							<XQIcon name="sliders" />
+							<span>显示</span>
+						</div>
+						<div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8}}>
+							{GUOLAO_ALL_ASPECTS.map((asp)=>{
+								const on = (display.aspects || []).indexOf(asp) >= 0;
+								return (
+									<button
+										type="button"
+										key={asp}
+										onClick={()=>this.toggleAspect(asp)}
+										style={{
+											padding: '2px 9px',
+											borderRadius: 999,
+											cursor: 'pointer',
+											fontSize: 12,
+											lineHeight: '18px',
+											border: on ? '1px solid var(--horosa-astro-gold, #e7bd75)' : '1px solid var(--horosa-border-soft, rgba(231,189,117,0.2))',
+											background: on ? 'var(--horosa-astro-gold, #e7bd75)' : 'transparent',
+											color: on ? '#1a1712' : 'var(--horosa-text-soft, #c8c0b2)',
+										}}
+									>{asp}</button>
+								);
+							})}
+						</div>
+						<div className="horosa-guolao-toggle-grid">
+							<XQToggle size="small" iconName="sideSwitch" active={display.dignity !== false} onClick={()=>this.onDisplayToggle('dignity')}>庙旺标注</XQToggle>
+							<XQToggle size="small" iconName="sideSwitch" active={display.birthGods !== false} onClick={()=>this.onDisplayToggle('birthGods')}>本命神煞圈</XQToggle>
+							<XQToggle size="small" iconName="sideSwitch" active={display.ageRing !== false} onClick={()=>this.onDisplayToggle('ageRing')}>限度年龄环</XQToggle>
+						</div>
+						{this.props.onOpenPatternDialog ? (
+							<button
+								type="button"
+								onClick={this.props.onOpenPatternDialog}
+								style={{
+									marginTop: 8,
+									width: '100%',
+									padding: '5px 10px',
+									borderRadius: 6,
+									cursor: 'pointer',
+									fontSize: 12,
+									border: '1px solid var(--horosa-border-soft, rgba(231,189,117,0.2))',
+									background: 'transparent',
+									color: 'var(--horosa-text-soft, #c8c0b2)',
+								}}
+							>政余格局 · 显示档位设置…</button>
+						) : null}
 					</div>
 				) : null}
 			</div>
