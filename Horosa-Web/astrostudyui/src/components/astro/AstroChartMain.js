@@ -17,6 +17,7 @@ import PlusMinusTime from './PlusMinusTime';
 import DateTime from '../comp/DateTime';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr} from './AstroHelper';
+import { dstAwareZoneAt } from '../../utils/timezone';
 import { getHousesOption } from '../comp/CompHelper'
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
@@ -163,6 +164,19 @@ class AstroChartMain extends Component{
 		if(this.props.onChange){
 			if(this.tmHook.getValue){
 				let tm = this.tmHook.getValue().value;
+				// 选新地点时按新坐标自动校正时区(未在 atlas 内手改时区时),与 atlas 预览/命盘事盘录入一致。
+				// setZone 仅改时区标签、保留出生钟面时刻(见 DateTime.setZone),不移位时间。
+				if(tm && tm.setZone){
+					try{
+						if(rec.zone){
+							tm.setZone(rec.zone);
+						}else{
+							const ds = tm.format ? tm.format('YYYY-MM-DD') : null;
+							const z = dstAwareZoneAt(rec.gpsLat, rec.gpsLng, ds);
+							if(z && z.offset){ tm.setZone(z.offset); }
+						}
+					}catch(e){ /* 推断失败保留原时区 */ }
+				}
 				this.props.onChange({
 					lon: convertLonToStr(rec.lng),
 					lat: convertLatToStr(rec.lat),
