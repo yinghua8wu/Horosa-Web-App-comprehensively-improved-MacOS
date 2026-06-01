@@ -25,6 +25,8 @@ const VALID_DIRECTION_SUB_TABS = new Set([
 	'ephemeris',
 	'progressions',
 	'returntimeline',
+	'distributions',
+	'agepoint',
 ]);
 
 export function normalizePrimaryDirectionSubTabKey(key){
