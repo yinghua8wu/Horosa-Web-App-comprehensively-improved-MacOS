@@ -1,4 +1,4 @@
-import { convertLatToStr, convertLonToStr, splitDegree } from '../AstroHelper';
+import { convertLatToStr, convertLonToStr, convertLatStrToDegree, convertLonStrToDegree, splitDegree } from '../AstroHelper';
 
 // 回归哨兵:gps 十进制 → 命盘录入串(NNeMM / NNwMM)。
 // 历史 bug:对西经/南纬把「分」也取负 → 产「121w0-44」畸形串 → 后端 param error、技法挂载缺失;
@@ -43,5 +43,34 @@ describe('AstroHelper 经纬度串 — 全半球无畸形(param error 哨兵)', 
 		const d = splitDegree(-122.4194);
 		expect(d[0]).toBeLessThan(0);     // 度带负号
 		expect(d[1]).toBeGreaterThanOrEqual(0);  // 分为正(若被当负数取负即重现畸形 bug)
+	});
+});
+
+// 反向解析器(串→十进制,手输经纬度时算 gpsLat/gpsLon、再喂地图点位 + 时区推断)。
+// 原 `1.0/min` 应为 `min/60`(116e24 被算成 116.04 而非 116.4)。往返误差应 < 1 角分(串只到分、丢秒)。
+describe('AstroHelper 经纬度反向解析 — 往返一致(地图/时区不偏)', ()=>{
+	const pts = [
+		{ name: '北京', lon: 116.4074, lat: 39.9042 },
+		{ name: '旧金山', lon: -122.4194, lat: 37.7749 },
+		{ name: '悉尼', lon: 151.2093, lat: -33.8688 },
+		{ name: '圣保罗', lon: -46.6333, lat: -23.5505 },
+		{ name: '伦敦', lon: -0.1276, lat: 51.5074 },
+	];
+	const TOL = 1 / 60 + 1e-9;   // 1 角分(forward 丢秒)
+	pts.forEach((p)=>{
+		test(`${p.name} forward→reverse 往返一致`, ()=>{
+			const lonBack = convertLonStrToDegree(convertLonToStr(p.lon));
+			const latBack = convertLatStrToDegree(convertLatToStr(p.lat));
+			expect(Math.abs(lonBack - p.lon)).toBeLessThan(TOL);
+			expect(Math.abs(latBack - p.lat)).toBeLessThan(TOL);
+			// 符号(半球)必须保持
+			expect(Math.sign(lonBack)).toBe(Math.sign(p.lon) || 1);
+			expect(Math.sign(latBack)).toBe(Math.sign(p.lat) || 1);
+		});
+	});
+	test('已知值精确:116e24=116.4 / 122w25≈-122.4167', ()=>{
+		expect(convertLonStrToDegree('116e24')).toBeCloseTo(116.4, 5);
+		expect(convertLonStrToDegree('122w25')).toBeCloseTo(-122.4167, 3);
+		expect(convertLatStrToDegree('39n54')).toBeCloseTo(39.9, 5);
 	});
 });

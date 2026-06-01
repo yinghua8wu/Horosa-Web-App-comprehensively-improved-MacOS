@@ -105,61 +105,38 @@ export function formatLatDms(lat){
 	return `${dms[0]}°${dms[1]}′${dms[2]}″${dir}`;
 }
 
+// 'NNnMM' / 'NNsMM' 串 → 十进制纬度。原实现 `deg + 1.0/min`(应为 min/60)+ else 分支 `*10` 均错,
+// 致手输经纬度时算出的 gpsLat 偏(116e24→116.04 而非 116.4),进而地图点位/时区推断偏。重写为标准 deg+min/60。
 export function convertLatStrToDegree(lat){
 	if(lat === undefined || lat === null){
 		return null;
 	}
+	const str = `${lat}`.toLowerCase().trim();
 	let positive = 1;
-	let latstr = lat.toLowerCase();
-	let parts = latstr.split('n');
+	let parts = str.split('n');
 	if(parts.length === 1){
-		parts = latstr.split('s');
+		parts = str.split('s');
 		positive = -1;
 	}
-	let min = parts[1];
-	if(parts[1].length === 2){
-		if(parts[1].substr(0, 1) === '0'){
-			min = min.substr(1);
-		}
-		min = parseInt(min);
-	}else{
-		min = parseInt(min) * 10;
-	}
-
-	let deg = parseInt(parts[0]);
-	if(min !== 0){
-		deg = deg + (1.0 / min);
-	}
-	return deg * positive;
+	const deg = parseInt(parts[0], 10) || 0;
+	const min = parts.length > 1 ? (parseInt(parts[1], 10) || 0) : 0;
+	return (deg + min / 60.0) * positive;
 }
 
 export function convertLonStrToDegree(lon){
 	if(lon === undefined || lon === null){
 		return null;
 	}
+	const str = `${lon}`.toLowerCase().trim();
 	let positive = 1;
-	let lonstr = lon.toLowerCase();
-	let parts = lonstr.split('e');
+	let parts = str.split('e');
 	if(parts.length === 1){
-		parts = lonstr.split('w');
+		parts = str.split('w');
 		positive = -1;
 	}
-
-	let min = parts[1];
-	if(parts[1].length === 2){
-		if(parts[1].substr(0, 1) === '0'){
-			min = min.substr(1);
-		}
-		min = parseInt(min);
-	}else{
-		min = parseInt(min) * 10;
-	}
-
-	let deg = parseInt(parts[0]);
-	if(min !== 0){
-		deg = deg + (1.0 / min);
-	}
-	return deg * positive;
+	const deg = parseInt(parts[0], 10) || 0;
+	const min = parts.length > 1 ? (parseInt(parts[1], 10) || 0) : 0;
+	return (deg + min / 60.0) * positive;
 }
 
 export function getDignityText(ary){
