@@ -124,17 +124,30 @@ export default class UranianDialMain extends Component {
 			// 行运/SA 地点可调(null=同本命)。SA 一般地心黄经无需地点,但允许覆盖以方便 relocated 想法。
 			transitLat: null, transitLon: null,
 			saLat: null, saLon: null,
+			// viewport 高度(用于动态算盘 size + 左右栏滚动 maxHeight;props.height 不含底部 Dock 安全距离,
+			// 须用 window.innerHeight 实测 + 减去顶栏/tab/Dock 估算)。
+			vh: typeof window !== 'undefined' ? window.innerHeight : 900,
 		};
 		this.unmounted = false;
 		this.requestNatalTnp = this.requestNatalTnp.bind(this);
 		this.requestTransit = this.requestTransit.bind(this);
 		this.onReadout = this.onReadout.bind(this);
 		this.onSaArc = this.onSaArc.bind(this);
+		this._onResize = this._onResize.bind(this);
 		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.requestNatalTnp(); if (this.state.showTransit) this.requestTransit(); } };
 	}
 
-	componentDidMount(){ this.unmounted = false; this.requestNatalTnp(); if (this.state.showTransit) this.requestTransit(); }
-	componentWillUnmount(){ this.unmounted = true; }
+	componentDidMount(){
+		this.unmounted = false;
+		this.requestNatalTnp();
+		if (this.state.showTransit) this.requestTransit();
+		if (typeof window !== 'undefined') window.addEventListener('resize', this._onResize);
+	}
+	componentWillUnmount(){
+		this.unmounted = true;
+		if (typeof window !== 'undefined') window.removeEventListener('resize', this._onResize);
+	}
+	_onResize(){ if (!this.unmounted) this.setState({ vh: window.innerHeight }); }
 	componentDidUpdate(prev, prevState){
 		if (prev.fields !== this.props.fields) {
 			// 改本命 → 拨回默认地点(null=同本命),否则用旧本命的覆盖坐标算新本命的行运,误导。
@@ -323,7 +336,14 @@ export default class UranianDialMain extends Component {
 		const height = this.props.height ? this.props.height : 760;
 		const rings = this.buildRings();
 		const natalPts = rings[0].points;
-		const size = Math.max(480, Math.min(height - 2, 1000));
+		// 中间盘 size:三方钳位——① props.height(父容器)、② 实测 viewport 减顶栏/tab/底部 Dock 安全(260px:
+		// 顶 60 + sub-tabs 40 + Dock 100 + 留白 60)、③ 上限 960(留底部呼吸)。原版盘下沿被底部 Dock 遮(props.height
+		// 含 Dock 占位但未减它),实测 vh=1220 时盘 1000 → bottom=1136 → vh-bottom=84 不够 Dock 高度。
+		const vh = this.state.vh || 900;
+		const size = Math.max(420, Math.min(height - 2, vh - 260, 960));
+		// 左右栏滚动 maxHeight:与盘同步,且至少 380(再小就让用户内部滚动);overflowY:auto 即可独立下滑,
+		// 修「窗口过小时左/右栏被遮挡且无法下滑」(用户验收口径)。inner div 须 width:100% 否则收缩 h=0。
+		const sideMaxH = Math.max(380, vh - 220);
 		// 中点树仅本命点(同 §11);TNP 过滤已在 natalPoints() 入口完成。
 		const treeOpts = { personal: PERSONAL_POINTS, onlyPersonal: this.state.onlyPersonal };
 		const tree = this.state.showPicture ? midpointTree(natalPts, this.state.dialBase, this.state.orb, treeOpts) : {};
@@ -414,18 +434,20 @@ export default class UranianDialMain extends Component {
 		);
 
 		// 列宽:左 4 / 中 16 / 右 4 = 24(从 4/17/3 调整;右栏 +1 防换行,中栏只 -1 仍占主体)。
+		// 左右两个 Col 用内层 div 套 maxHeight+overflowY:auto;盘 col 也加底部 paddingBottom 防 Dock 遮挡。
+		const sideScroll = { width: '100%', maxHeight: sideMaxH, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 };
 		return (
 			<div className="horosa-midpoint-host">
 				<div className="horosa-midpoint-workbench">
 					<Row className="horosa-midpoint-layout" gutter={10}>
-						<Col span={4} className="horosa-midpoint-side-col">{settings}</Col>
+						<Col span={4} className="horosa-midpoint-side-col"><div style={sideScroll}>{settings}</div></Col>
 						<Col span={16} className="horosa-midpoint-chart-col">
 							{natalPts.length === 0 ? (
 								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: size, color: 'var(--horosa-text-soft)', textAlign: 'center', padding: 24 }}>
 									{this.state.dataNote || '请先排出本命盘后查看中点盘'}
 								</div>
 							) : (
-								<div>
+								<div style={{ paddingBottom: 24 }}>
 									{this.renderDial(size, rings)}
 									{this.state.dataNote ? (
 										<div style={{ textAlign: 'center', color: 'var(--horosa-text-soft)', fontSize: 12, marginTop: 6 }}>
@@ -435,7 +457,7 @@ export default class UranianDialMain extends Component {
 								</div>
 							)}
 						</Col>
-						<Col span={4} className="horosa-midpoint-side-col">{rightCol}</Col>
+						<Col span={4} className="horosa-midpoint-side-col"><div style={sideScroll}>{rightCol}</div></Col>
 					</Row>
 				</div>
 			</div>
