@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { cursorReadout, spreadDialAngles } from '../../utils/uranianDial';
+import { cursorReadout, spreadDialAngles, antiscion } from '../../utils/uranianDial';
 
 // 真 360° 多环模数盘（与折叠盘并列的另一种汉堡技法）：三层同心环按真实黄道位置画行星，
 // 中央叠一圈可读的模数刻度盘 + 可拖红指针；除本命外每环可拖动旋转，拖指针/环读「指针所指真实度数」
@@ -31,7 +31,7 @@ export default class UranianModulusDial extends Component {
 	}
 	componentDidMount(){ this.draw(); }
 	componentDidUpdate(prev){
-		if (prev.base !== this.props.base || prev.rings !== this.props.rings || prev.size !== this.props.size || prev.showTnp !== this.props.showTnp) this.draw();
+		if (prev.base !== this.props.base || prev.rings !== this.props.rings || prev.size !== this.props.size || prev.showTnp !== this.props.showTnp || prev.showAntiscia !== this.props.showAntiscia) this.draw();
 	}
 	componentWillUnmount(){ this._detach(); }
 
@@ -181,10 +181,31 @@ export default class UranianModulusDial extends Component {
 					.text(glyphCh);
 				gl.append('title').text(ring.label + ' · ' + (AstroText.AstroMsgCN[p.id] || p.id) + ' ' + norm360(p.lon).toFixed(2) + '°');
 				labels.push({ node: gl, x: lx, y: ly });
+				// 逆行 ℞ 小标(lonspeed<0):随环标签反向旋转保持竖直。
+				if (p.speed != null && p.speed < 0){
+					const rgL = g.append('text').attr('x', lx + baseSz * 0.5).attr('y', ly - baseSz * 0.42)
+						.attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+						.attr('font-size', baseSz * 0.5).attr('fill', tone).attr('opacity', 0.85)
+						.attr('font-family', 'system-ui, -apple-system, sans-serif').style('pointer-events', 'none').text('℞');
+					labels.push({ node: rgL, x: lx + baseSz * 0.5, y: ly - baseSz * 0.42 });
+				}
 			});
 			this._ringGroups[ring.key] = { group: g, labels, inner: rInner, outer: rOuter };
 			this.rotations[ring.key] = this.rotations[ring.key] || 0;
 		});
+
+		// —— 映点 Spiegelpunkt 标记(本命环;空心圈=回照真实黄经位)——
+		if (this.props.showAntiscia){
+			const ng = this._ringGroups['natal'];
+			if (ng){
+				const ag = root.append('g');
+				(rings[0].points || []).filter((p) => showTnp || !AstroText.isUranian(p.id)).forEach((p) => {
+					const [ax, ay] = polar(cx, cy, ng.outer, norm360(antiscion(p.lon)));
+					ag.append('circle').attr('cx', ax).attr('cy', ay).attr('r', 3).attr('fill', 'none').attr('stroke', stroke).attr('stroke-width', 0.9).attr('opacity', 0.45)
+						.append('title').text('映点 Spiegelpunkt · ' + (AstroText.AstroMsgCN[p.id] || p.id));
+				});
+			}
+		}
 
 		// —— 中央模数刻度盘（0..base 绕一圈，读指针折叠位）——
 		root.append('circle').attr('cx', cx).attr('cy', cy).attr('r', Rmod).attr('fill', 'var(--horosa-card-bg, rgba(255,255,255,0.6))').attr('stroke', stroke).attr('stroke-width', 0.8).attr('opacity', 0.85);

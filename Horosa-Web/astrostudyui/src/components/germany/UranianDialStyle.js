@@ -33,6 +33,10 @@ const DEFAULTS = {
 	showSolarArc: false,
 	onlyPersonal: true,
 	saKey: 'naibod', // 太阳弧换算：naibod / oneDeg
+	showPlanetPicture: false, // 行星图 A+B−C=D 解算面板
+	showMidpointList: false,  // 中点扁平排序列表
+	showAntiscia: false,      // 映点 Spiegelpunkt（盘上标记 + 接触列表）
+	openPanels: ['readout', 'tree', 'pic', 'list', 'spiegel'], // 右栏可收放卡片的展开项
 };
 
 export function getStoredUranianDisplay(){
@@ -50,6 +54,10 @@ export function getStoredUranianDisplay(){
 			showSolarArc: obj.showSolarArc === undefined ? DEFAULTS.showSolarArc : !!obj.showSolarArc,
 			onlyPersonal: obj.onlyPersonal === undefined ? DEFAULTS.onlyPersonal : !!obj.onlyPersonal,
 			saKey: obj.saKey === 'oneDeg' ? 'oneDeg' : DEFAULTS.saKey,
+			showPlanetPicture: obj.showPlanetPicture === undefined ? DEFAULTS.showPlanetPicture : !!obj.showPlanetPicture,
+			showMidpointList: obj.showMidpointList === undefined ? DEFAULTS.showMidpointList : !!obj.showMidpointList,
+			showAntiscia: obj.showAntiscia === undefined ? DEFAULTS.showAntiscia : !!obj.showAntiscia,
+			openPanels: Array.isArray(obj.openPanels) ? obj.openPanels : DEFAULTS.openPanels,
 		};
 	} catch (e) {
 		return { ...DEFAULTS };

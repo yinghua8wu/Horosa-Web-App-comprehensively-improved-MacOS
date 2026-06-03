@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { XQTabs as Tabs } from '../xq-ui';
 import AstroMidpoint from './AstroMidpoint';
 import UranianDialMain from './UranianDialMain';
+import UranianGraphicEphemeris from './UranianGraphicEphemeris';
 
 const TabPane = Tabs.TabPane;
 
@@ -14,6 +15,7 @@ class AstroGermany extends Component{
 			hook: {
 				Midpoint: { fun: null },
 				Dial: { fun: null },
+				GraphicEphem: { fun: null },
 			},
 		}
 
@@ -80,6 +82,14 @@ class AstroGermany extends Component{
 							chart={this.props.chart}
 							planetDisplay={this.props.planetDisplay}
 							hook={hook.Dial}
+						/>
+					</TabPane>
+					<TabPane tab="图形星历" key="GraphicEphem">
+						<UranianGraphicEphemeris
+							height={childHeight}
+							fields={this.props.fields}
+							chart={this.props.chart}
+							hook={hook.GraphicEphem}
 						/>
 					</TabPane>
 				</Tabs>

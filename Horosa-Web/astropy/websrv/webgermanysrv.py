@@ -9,9 +9,10 @@ from flatlib.ephem import ephem as flatlib_ephem
 
 
 def _build_uranian_tnp(perchart):
-    """8 颗汉堡虚星(TNP)，用 perchart 现成 dateTime/pos 纯读计算——
-    不进 objlists、不动 MidPoint.aspects(逐字节不变)。"""
+    """8 颗汉堡虚星(TNP)，用 perchart 现成 dateTime/pos 纯读计算(Swiss Ephemeris body 40-47)。
+    返回 (out, errors)：errors 非空时前端可提示「TNP 历表不可用」而非静默消失(原裸 except 会吞错)。"""
     out = []
+    errors = []
     for oid in const.LIST_URANIAN:
         try:
             o = flatlib_ephem.getObject(oid, perchart.dateTime, perchart.pos)
@@ -23,9 +24,10 @@ def _build_uranian_tnp(perchart):
                 'sign': o.sign,
                 'signlon': o.signlon,
             })
-        except Exception:
+        except Exception as e:
             traceback.print_exc()
-    return out
+            errors.append({'id': oid, 'msg': '{0}'.format(e)})
+    return out, errors
 
 
 class GermanyAstroSrv:
@@ -53,10 +55,22 @@ class GermanyAstroSrv:
             if missing:
                 return jsonpickle.encode({'err': 'missing_param', 'missing': missing}, unpicklable=False)
 
+            # orb 可配(默认 1° Witte 严格口径);前端传盘上容许度。
+            try:
+                orb = float(data.get('orb', 1.0))
+            except (TypeError, ValueError):
+                orb = 1.0
+            if not (0 < orb <= 10):
+                orb = 1.0
+
             perchart = PerChart(data)
-            midpoint = MidPoint(perchart)
+            # uranian=True:中点对纳入 Asc/MC + 8 TNP、近中点单算、跨 0° 归一、TNP 作相位目标。
+            midpoint = MidPoint(perchart, orb=orb, uranian=True)
             mids = midpoint.calculate()
-            mids['tnp'] = _build_uranian_tnp(perchart)  # 增量字段；midpoints/aspects 不变
+            tnp, tnpErr = _build_uranian_tnp(perchart)
+            mids['tnp'] = tnp
+            if tnpErr:
+                mids['tnpError'] = tnpErr
 
             res = jsonpickle.encode(mids, unpicklable=False)
             return res

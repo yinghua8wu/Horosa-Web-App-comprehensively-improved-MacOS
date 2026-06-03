@@ -6,6 +6,14 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { planetaryPictures, midpointList, spiegelContacts } from '../../utils/uranianDial';
+
+// AI 快照口径:个人点 / TNP 集合(同盘交互层),供行星图/映点/中点列表的锚点剪枝与优先级排序。
+const SNAP_PERSONAL = new Set([
+	AstroConst.SUN, AstroConst.MOON, AstroConst.ASC, AstroConst.MC,
+	AstroConst.NORTH_NODE, AstroConst.SOUTH_NODE, AstroConst.ARIES_POINT,
+]);
+const SNAP_URANIAN = new Set(AstroConst.LIST_URANIAN);
 
 function fieldsToParams(fields){
 	const params = {
@@ -208,6 +216,45 @@ function buildGermanySnapshotText(params, chartObj, result, fields){
 		dialFactors.sort((a, b)=>a.fold - b.fold).forEach((f)=>{
 			lines.push(`${msg(f.id)} = ${f.fold.toFixed(2)}°`);
 		});
+	}
+
+	// 行星图 / 映点 / 中点列表(与盘交互层同口径:base=90、orb=1 Witte 标准),供 AI 完整读盘。
+	const dialPoints = [];
+	const pushPoint = (id, lon) => { const n = Number(lon); if (id && Number.isFinite(n)) dialPoints.push({ id, lon: n }); };
+	(innerChart.objects || []).forEach((o)=>{ if(DIAL_IDS.has(o.id)) pushPoint(o.id, o.lon); });
+	(innerChart.angles || []).forEach((o)=>{ if(DIAL_IDS.has(o.id)) pushPoint(o.id, o.lon); });
+	tnpList.forEach((t)=>pushPoint(t.id, t.lon));
+	pushPoint(AstroConst.ARIES_POINT, 0);
+	const SNAP_BASE = 90, SNAP_ORB = 1;
+	const scanOpts = { personal: SNAP_PERSONAL, uranian: SNAP_URANIAN };
+
+	lines.push('');
+	lines.push('[行星图]');
+	const pics = planetaryPictures(dialPoints, SNAP_BASE, SNAP_ORB, { ...scanOpts, limit: 40 });
+	if(pics.length === 0){
+		lines.push('暂无行星图');
+	}else{
+		lines.push('（敏感点和差式 A+B−C=D，含个人点/TNP 优先）');
+		pics.forEach((p)=>lines.push(`${msg(p.a)} + ${msg(p.b)} − ${msg(p.c)} = ${msg(p.d)}（误差${p.sep.toFixed(2)}°）`));
+	}
+
+	lines.push('');
+	lines.push('[映点]');
+	const sp = spiegelContacts(dialPoints, SNAP_BASE, SNAP_ORB, scanOpts);
+	if(sp.length === 0){
+		lines.push('暂无映点接触');
+	}else{
+		lines.push('（Spiegelpunkt 回照接触；90°盘上回照与对映折叠重合）');
+		sp.forEach((s)=>lines.push(`${msg(s.a)} ⟷ ${msg(s.b)}（误差${s.sep.toFixed(2)}°）`));
+	}
+
+	lines.push('');
+	lines.push('[中点列表]');
+	const mpl = midpointList(dialPoints, SNAP_BASE, scanOpts);
+	if(mpl.length === 0){
+		lines.push('暂无中点');
+	}else{
+		mpl.slice(0, 120).forEach((m)=>lines.push(`${msg(m.a)} / ${msg(m.b)} = ${m.lon.toFixed(2)}°`));
 	}
 
 	return lines.join('\n');

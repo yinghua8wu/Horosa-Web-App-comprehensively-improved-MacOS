@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { projectToDial, cursorReadout, spreadDialAngles } from '../../utils/uranianDial';
+import { projectToDial, cursorReadout, spreadDialAngles, antiscion } from '../../utils/uranianDial';
 
 const TAU = Math.PI * 2;
 const norm360 = (x) => ((x % 360) + 360) % 360;
@@ -38,7 +38,7 @@ export default class UranianDial extends Component {
 	}
 	componentDidMount(){ this.draw(); }
 	componentDidUpdate(prev){
-		if (prev.base !== this.props.base || prev.rings !== this.props.rings || prev.size !== this.props.size || prev.showTnp !== this.props.showTnp) {
+		if (prev.base !== this.props.base || prev.rings !== this.props.rings || prev.size !== this.props.size || prev.showTnp !== this.props.showTnp || prev.showAntiscia !== this.props.showAntiscia) {
 			this.draw();
 		}
 	}
@@ -213,10 +213,32 @@ export default class UranianDial extends Component {
 					.text(glyphCh);
 				gl.append('title').text(ring.label + ' · ' + (AstroText.AstroMsgCN[p.id] || p.id));
 				labels.push({ node: gl, x: lx, y: ly });
+				// 逆行 ℞ 小标(lonspeed<0,主要用于 TNP/行星):随环标签反向旋转保持竖直。
+				if (p.speed != null && p.speed < 0){
+					const rgL = g.append('text').attr('x', lx + baseSz * 0.5).attr('y', ly - baseSz * 0.42)
+						.attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+						.attr('font-size', baseSz * 0.5).attr('fill', tone).attr('opacity', 0.85)
+						.attr('font-family', 'system-ui, -apple-system, sans-serif').style('pointer-events', 'none').text('℞');
+					labels.push({ node: rgL, x: lx + baseSz * 0.5, y: ly - baseSz * 0.42 });
+				}
 			});
 			this._ringGroups[ring.key] = { group: g, labels, inner: rInner, outer: rOuter, rPlanet };
 			this.rotations[ring.key] = this.rotations[ring.key] || 0;
 		});
+
+		// —— 映点 Spiegelpunkt 标记(本命环;空心圈=该点的回照 180−lon 折叠位)——
+		// 本命环恒不旋转,故直接画在固定层,空心圈区别于实星点。
+		if (this.props.showAntiscia){
+			const ng = this._ringGroups['natal'];
+			if (ng){
+				const ag = root.append('g');
+				(rings[0].points || []).filter((p) => showTnp || !AstroText.isUranian(p.id)).forEach((p) => {
+					const [ax, ay] = polar(cx, cy, ng.outer, projectToDial(antiscion(p.lon), base));
+					ag.append('circle').attr('cx', ax).attr('cy', ay).attr('r', 3).attr('fill', 'none').attr('stroke', stroke).attr('stroke-width', 0.9).attr('opacity', 0.45)
+						.append('title').text('映点 Spiegelpunkt · ' + (AstroText.AstroMsgCN[p.id] || p.id));
+				});
+			}
+		}
 
 		// 中心 hub
 		root.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 3.2).attr('fill', stroke).attr('opacity', 0.5);

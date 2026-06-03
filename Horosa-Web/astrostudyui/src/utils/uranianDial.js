@@ -78,3 +78,89 @@ export function spreadDialAngles(items, minGap){
 	}
 	return sorted;
 }
+
+// ── 映点 Spiegelpunkte(汉堡/古典通用)─────────────────────────────
+// antiscion(回照)= 跨「日至轴」0°巨蟹/0°摩羯 镜像;contraAntiscion(对映)= 跨「分至轴」0°白羊/0°天秤 镜像。
+// 校验:15°白羊(15)→ 回照 165(15°处女)、对映 345(15°双鱼)。公式与 Swiss Ephemeris/古典占星口径一致。
+export function antiscion(lon){ return norm360(180 - lon); }
+export function contraAntiscion(lon){ return norm360(360 - lon); }
+
+// ── 行星图 Planetenbilder:敏感点和差式 A + B − C = D ───────────────
+// 以「锚点」(个人点/TNP)为 A|B,遍历 C、D;D 落在 (A+B−C) 的 orb 内即一张行星图。
+// points:[{id,lon}]。opts.personal / opts.uranian = Set(剪枝 + 排序:含个人点 > 含 TNP > 其他)。
+// opts.limit 默认 40(防 O(n⁴) 组合过载,只截最相关者)。去重键 sorted(A,B)|C|D(A,B 对称)。
+export function planetaryPictures(points, base, orb, opts){
+	const personal = (opts && opts.personal) ? opts.personal : null;
+	const uranian = (opts && opts.uranian) ? opts.uranian : null;
+	const limit = (opts && opts.limit) ? opts.limit : 40;
+	const anchorAll = !personal && !uranian;
+	const isAnchor = (id) => anchorAll || (personal && personal.has(id)) || (uranian && uranian.has(id));
+	const out = []; const seen = new Set(); const n = points.length;
+	for (let i = 0; i < n; i++){
+		for (let j = 0; j < n; j++){
+			if (i === j) continue;
+			const A = points[i], B = points[j];
+			if (!isAnchor(A.id) && !isAnchor(B.id)) continue; // 至少一锚点
+			for (let k = 0; k < n; k++){
+				if (k === i || k === j) continue;
+				const C = points[k];
+				const lon = norm360(A.lon + B.lon - C.lon);
+				for (let m = 0; m < n; m++){
+					if (m === i || m === j || m === k) continue;
+					const D = points[m];
+					const sep = dialSeparation(lon, D.lon, base);
+					if (sep > orb) continue;
+					const key = [A.id, B.id].sort().join('|') + '|' + C.id + '|' + D.id;
+					if (seen.has(key)) continue;
+					seen.add(key);
+					const ids = [A.id, B.id, C.id, D.id];
+					const hasPersonal = personal ? ids.some((id) => personal.has(id)) : false;
+					const hasTnp = uranian ? ids.some((id) => uranian.has(id)) : false;
+					out.push({ a: A.id, b: B.id, c: C.id, d: D.id, lon, sep, hasPersonal, hasTnp });
+				}
+			}
+		}
+	}
+	const rank = (p) => (p.hasPersonal ? 0 : (p.hasTnp ? 1 : 2));
+	return out.sort((x, y) => rank(x) - rank(y) || x.sep - y.sep).slice(0, limit);
+}
+
+// ── 中点扁平表:所有无序对的近中点,按 含个人点 > 含 TNP > 其他 再按盘位排序 ──
+// 供「中点列表」面板与 AI 导出(树视图之外的可检索清单)。每对只算一个近中点(与 midpoint() 同口径)。
+export function midpointList(points, base, opts){
+	const personal = (opts && opts.personal) ? opts.personal : null;
+	const uranian = (opts && opts.uranian) ? opts.uranian : null;
+	const out = [];
+	for (let i = 0; i < points.length; i++){
+		for (let j = i + 1; j < points.length; j++){
+			const A = points[i], B = points[j];
+			const lon = midpoint(A.lon, B.lon);
+			const hasPersonal = personal ? (personal.has(A.id) || personal.has(B.id)) : false;
+			const hasTnp = uranian ? (uranian.has(A.id) || uranian.has(B.id)) : false;
+			out.push({ a: A.id, b: B.id, lon, dial: projectToDial(lon, base), hasPersonal, hasTnp });
+		}
+	}
+	const rank = (p) => (p.hasPersonal ? 0 : (p.hasTnp ? 1 : 2));
+	return out.sort((x, y) => rank(x) - rank(y) || x.lon - y.lon);
+}
+
+// ── 映点接触 Spiegelpunkt:B 落在 A 的回照(180−lonA)折叠盘位 orb 内即一对接触 ──
+// 注:90°/45°/22.5° 盘上「回照」与「对映」相差 180°≡0(折叠重合),故盘上为单一「映点」概念,
+//   不再区分 anti/contra(那只在 360° 全圈才有别)。供「映点」面板与盘上标记。
+export function spiegelContacts(points, base, orb, opts){
+	const personal = (opts && opts.personal) ? opts.personal : null;
+	const uranian = (opts && opts.uranian) ? opts.uranian : null;
+	const out = [];
+	for (let i = 0; i < points.length; i++){
+		for (let j = i + 1; j < points.length; j++){
+			const A = points[i], B = points[j];
+			const sep = dialSeparation(antiscion(A.lon), B.lon, base);
+			if (sep > orb) continue;
+			const hasPersonal = personal ? (personal.has(A.id) || personal.has(B.id)) : false;
+			const hasTnp = uranian ? (uranian.has(A.id) || uranian.has(B.id)) : false;
+			out.push({ a: A.id, b: B.id, sep, hasPersonal, hasTnp });
+		}
+	}
+	const rank = (p) => (p.hasPersonal ? 0 : (p.hasTnp ? 1 : 2));
+	return out.sort((x, y) => rank(x) - rank(y) || x.sep - y.sep);
+}

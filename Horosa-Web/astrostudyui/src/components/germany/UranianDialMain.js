@@ -1,12 +1,12 @@
 import { Component } from 'react';
-import { Row, Col, Select, Switch, Slider, Tree, Card, Radio, DatePicker, InputNumber } from 'antd';
+import { Row, Col, Select, Switch, Slider, Tree, Card, Radio, DatePicker, InputNumber, Collapse } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import UranianDial from './UranianDial';
 import UranianModulusDial from './UranianModulusDial';
-import { midpointTree } from '../../utils/uranianDial';
+import { midpointTree, planetaryPictures, midpointList, spiegelContacts } from '../../utils/uranianDial';
 import { getStoredUranianDisplay, saveUranianDisplay, URANIAN_DIAL_BASES, dialBaseLabel } from './UranianDialStyle';
 
 const Option = Select.Option;
@@ -22,6 +22,12 @@ const PERSONAL_POINTS = new Set([
 	AstroConst.SUN, AstroConst.MOON, AstroConst.ASC, AstroConst.MC,
 	AstroConst.NORTH_NODE, AstroConst.SOUTH_NODE, AstroConst.ARIES_POINT,
 ]);
+
+// 8 颗 TNP 虚星 id 集合——供行星图/中点列表/映点的「含 TNP」优先级排序与锚点剪枝。
+const URANIAN_SET = new Set(AstroConst.LIST_URANIAN);
+
+// 行星图常用「盘基」快捷:90°(4 次谐波,默认)/45°(8 次谐波,Ebertin 宇宙生物学)/22.5°(16 次谐波)。
+const QUICK_BASES = [90, 45, 22.5];
 
 function sunLon(chartRoot){
 	const inner = (chartRoot && chartRoot.chart) ? chartRoot.chart : (chartRoot || {});
@@ -84,9 +90,10 @@ function fieldsToParams(fields){
 function chartToPoints(chartRoot){
 	const inner = (chartRoot && chartRoot.chart) ? chartRoot.chart : (chartRoot || {});
 	const out = []; const seen = new Set();
-	const push = (id, lon) => { if (id && Number.isFinite(Number(lon)) && !seen.has(id)) { out.push({ id, lon: Number(lon) }); seen.add(id); } };
-	(inner.objects || []).forEach((o) => { if (DIAL_BODY_IDS.has(o.id)) push(o.id, o.lon); });
-	(inner.angles || []).forEach((o) => { if (DIAL_BODY_IDS.has(o.id)) push(o.id, o.lon); });
+	const sp = (v) => (Number.isFinite(Number(v)) ? Number(v) : null); // lonspeed:逆行标记用,缺失=null
+	const push = (id, lon, speed) => { if (id && Number.isFinite(Number(lon)) && !seen.has(id)) { out.push({ id, lon: Number(lon), speed: sp(speed) }); seen.add(id); } };
+	(inner.objects || []).forEach((o) => { if (DIAL_BODY_IDS.has(o.id)) push(o.id, o.lon, o.lonspeed); });
+	(inner.angles || []).forEach((o) => { if (DIAL_BODY_IDS.has(o.id)) push(o.id, o.lon, o.lonspeed); });
 	return out;
 }
 
@@ -127,14 +134,18 @@ export default class UranianDialMain extends Component {
 			// viewport 高度(用于动态算盘 size + 左右栏滚动 maxHeight;props.height 不含底部 Dock 安全距离,
 			// 须用 window.innerHeight 实测 + 减去顶栏/tab/Dock 估算)。
 			vh: typeof window !== 'undefined' ? window.innerHeight : 900,
+			// 中间盘列的实测可用宽/高(中点盘按 min(列宽, 列高) 最大化,永不超出列的方框)。
+			colW: 0,
+			colH: 0,
 		};
 		this.unmounted = false;
+		this._measure = this._measure.bind(this);
 		this.requestNatalTnp = this.requestNatalTnp.bind(this);
 		this.requestTransit = this.requestTransit.bind(this);
 		this.onReadout = this.onReadout.bind(this);
 		this.onSaArc = this.onSaArc.bind(this);
 		this._onResize = this._onResize.bind(this);
-		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.requestNatalTnp(); if (this.state.showTransit) this.requestTransit(); } };
+		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.requestNatalTnp(); if (this.state.showTransit) this.requestTransit(); this._measure(); } };
 	}
 
 	componentDidMount(){
@@ -142,12 +153,27 @@ export default class UranianDialMain extends Component {
 		this.requestNatalTnp();
 		if (this.state.showTransit) this.requestTransit();
 		if (typeof window !== 'undefined') window.addEventListener('resize', this._onResize);
+		// 监听中间盘列尺寸变化(含 tab 由隐藏→显示时 0→真实尺寸),据此最大化盘 size。
+		if (typeof ResizeObserver !== 'undefined' && this._host){
+			this._ro = new ResizeObserver(() => this._measure());
+			this._ro.observe(this._host);
+		}
+		this._measure();
 	}
 	componentWillUnmount(){
 		this.unmounted = true;
 		if (typeof window !== 'undefined') window.removeEventListener('resize', this._onResize);
+		if (this._ro){ try { this._ro.disconnect(); } catch (e) { /* noop */ } this._ro = null; }
 	}
-	_onResize(){ if (!this.unmounted) this.setState({ vh: window.innerHeight }); }
+	_onResize(){ if (!this.unmounted) { this.setState({ vh: window.innerHeight }); this._measure(); } }
+	// 实测中间盘列的内容框宽/高(列为 grid 居中 + overflow:hidden,故按其 client 尺寸取 min 即「方框内最大」)。
+	_measure(){
+		if (this.unmounted || !this._host) return;
+		const col = this._host.querySelector('.horosa-midpoint-chart-col');
+		if (!col) return;
+		const w = col.clientWidth, h = col.clientHeight;
+		if (w > 0 && h > 0 && (Math.abs(w - this.state.colW) > 2 || Math.abs(h - this.state.colH) > 2)) this.setState({ colW: w, colH: h });
+	}
 	componentDidUpdate(prev, prevState){
 		if (prev.fields !== this.props.fields) {
 			// 改本命 → 拨回默认地点(null=同本命),否则用旧本命的覆盖坐标算新本命的行运,误导。
@@ -198,8 +224,8 @@ export default class UranianDialMain extends Component {
 			const chartObj = chartData && chartData[Constants.ResultKey] ? chartData[Constants.ResultKey] : null;
 			const mp = mpData && mpData[Constants.ResultKey] ? mpData[Constants.ResultKey] : null;
 			const pts = chartToPoints(chartObj);
-			// TNP 透传(过滤交给 buildRings 统一裁剪,避免开关时还需重发请求)。
-			if (mp && Array.isArray(mp.tnp)) mp.tnp.forEach((t) => pts.push({ id: t.id, lon: t.lon }));
+			// TNP 透传(过滤交给 buildRings 统一裁剪,避免开关时还需重发请求);带 lonspeed 供逆行标记。
+			if (mp && Array.isArray(mp.tnp)) mp.tnp.forEach((t) => pts.push({ id: t.id, lon: t.lon, speed: Number.isFinite(Number(t.lonspeed)) ? Number(t.lonspeed) : null }));
 			if (!this.unmounted) this.setState({ transitPoints: pts });
 		} catch (e) { /* 静默 */ }
 	}
@@ -207,7 +233,7 @@ export default class UranianDialMain extends Component {
 	natalPoints(){
 		const pts = chartToPoints(this.props.chart);
 		// 全量入 + filterByTnp 在出口处裁剪,这样 TNP 开关切换无需重发后端请求,即时反映。
-		(this.state.natalTnp || []).forEach((t) => pts.push({ id: t.id, lon: t.lon }));
+		(this.state.natalTnp || []).forEach((t) => pts.push({ id: t.id, lon: t.lon, speed: Number.isFinite(Number(t.lonspeed)) ? Number(t.lonspeed) : null }));
 		pts.push({ id: AstroConst.ARIES_POINT, lon: 0 }); // 白羊点/世界轴 = 0°（=AR 对称图）
 		return filterByTnp(pts, this.state.showTnp);
 	}
@@ -302,6 +328,7 @@ export default class UranianDialMain extends Component {
 			rings, base: this.state.dialBase, orb: this.state.orb,
 			showTnp: this.state.showTnp, size, onCursorChange: this.onReadout, onSaArc: this.onSaArc,
 			personal: PERSONAL_POINTS, onlyPersonal: this.state.onlyPersonal,
+			showAntiscia: this.state.showAntiscia,
 		};
 		return this.state.dialStyle === 'modulus'
 			? <UranianModulusDial {...common} />
@@ -336,17 +363,24 @@ export default class UranianDialMain extends Component {
 		const height = this.props.height ? this.props.height : 760;
 		const rings = this.buildRings();
 		const natalPts = rings[0].points;
-		// 中间盘 size:三方钳位——① props.height(父容器)、② 实测 viewport 减顶栏/tab/底部 Dock 安全(260px:
-		// 顶 60 + sub-tabs 40 + Dock 100 + 留白 60)、③ 上限 960(留底部呼吸)。原版盘下沿被底部 Dock 遮(props.height
-		// 含 Dock 占位但未减它),实测 vh=1220 时盘 1000 → bottom=1136 → vh-bottom=84 不够 Dock 高度。
+		// 中间盘 size:按实测「中间列」的内容框最大化——取列宽、列高(减盘下 24 padding)较小者,填满方框且永不超出被裁。
+		// 列尺寸由 _measure(ResizeObserver)实测;未测得时用 viewport 估算兜底;vh-140 为防底部 Dock 的二级兜底。
 		const vh = this.state.vh || 900;
-		const size = Math.max(420, Math.min(height - 2, vh - 260, 960));
+		const fbColW = Math.round((typeof window !== 'undefined' ? window.innerWidth : 1280) * 0.56);
+		const colW = this.state.colW || fbColW;
+		const colH = this.state.colH || (vh - 240);
+		const size = Math.max(420, Math.min(colW - 8, colH - 28, vh - 140));
 		// 左右栏滚动 maxHeight:与盘同步,且至少 380(再小就让用户内部滚动);overflowY:auto 即可独立下滑,
 		// 修「窗口过小时左/右栏被遮挡且无法下滑」(用户验收口径)。inner div 须 width:100% 否则收缩 h=0。
 		const sideMaxH = Math.max(380, vh - 220);
 		// 中点树仅本命点(同 §11);TNP 过滤已在 natalPoints() 入口完成。
 		const treeOpts = { personal: PERSONAL_POINTS, onlyPersonal: this.state.onlyPersonal };
 		const tree = this.state.showPicture ? midpointTree(natalPts, this.state.dialBase, this.state.orb, treeOpts) : {};
+		// 行星图(A+B−C=D)/中点列表/映点接触:都在本命点集上算(锚点=个人点∪TNP,排序同优先级)。
+		const scanOpts = { personal: PERSONAL_POINTS, uranian: URANIAN_SET };
+		const pictures = this.state.showPlanetPicture ? planetaryPictures(natalPts, this.state.dialBase, this.state.orb, { ...scanOpts, limit: 40 }) : [];
+		const mpList = this.state.showMidpointList ? midpointList(natalPts, this.state.dialBase, scanOpts) : [];
+		const spiegel = this.state.showAntiscia ? spiegelContacts(natalPts, this.state.dialBase, this.state.orb, scanOpts) : [];
 		const ringTone = { 本命: 'var(--horosa-text-strong, currentColor)', 行运: '#c0392b', 太阳弧: '#1f7a5a' };
 		const cardProps = { size: 'small', bordered: true, className: 'horosa-uranian-card', headStyle: { fontSize: 13, fontWeight: 600, minHeight: 34, padding: '0 12px' }, bodyStyle: { padding: '10px 12px' }, style: { marginBottom: 10 } };
 		const rowSty = { display: 'flex', justifyContent: 'space-between', alignItems: 'center' };
@@ -363,6 +397,18 @@ export default class UranianDialMain extends Component {
 					<Select value={this.state.dialBase} onChange={(v) => this.saveDisp({ dialBase: Number(v) })} style={{ width: '100%' }} size="small">
 						{URANIAN_DIAL_BASES.map((b) => <Option key={b} value={b}>{dialBaseLabel(b)} 盘</Option>)}
 					</Select>
+					{/* 常用盘基快捷:90°(H4 默认)/45°(H8 宇宙生物学)/22.5°(H16)。 */}
+					<div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+						{QUICK_BASES.map((b) => (
+							<button key={b} type="button" onClick={() => this.saveDisp({ dialBase: b })}
+								style={{ flex: 1, fontSize: 11, padding: '2px 0', cursor: 'pointer', borderRadius: 4,
+									border: '1px solid var(--horosa-border-soft, rgba(0,0,0,0.12))',
+									background: this.state.dialBase === b ? 'var(--horosa-accent-soft, rgba(91,100,112,0.16))' : 'transparent',
+									color: 'inherit', fontWeight: this.state.dialBase === b ? 600 : 400 }}>
+								{dialBaseLabel(b)}
+							</button>
+						))}
+					</div>
 				</Card>
 
 				<Card {...cardProps} title="叠盘层（除本命外可拖动）">
@@ -402,7 +448,10 @@ export default class UranianDialMain extends Component {
 				<Card {...cardProps} title="显示与读数">
 					<div style={{ ...rowSty, marginBottom: 8 }}><span>TNP 虚星</span><Switch size="small" checked={this.state.showTnp} onChange={(v) => this.saveDisp({ showTnp: v })} /></div>
 					<div style={{ ...rowSty, marginBottom: 8 }}><span>中点树扫描</span><Switch size="small" checked={this.state.showPicture} onChange={(v) => this.saveDisp({ showPicture: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 10 }}><span>仅含个人点</span><Switch size="small" checked={this.state.onlyPersonal} onChange={(v) => this.saveDisp({ onlyPersonal: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>仅含个人点</span><Switch size="small" checked={this.state.onlyPersonal} onChange={(v) => this.saveDisp({ onlyPersonal: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>行星图解算 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>A+B−C=D</span></span><Switch size="small" checked={this.state.showPlanetPicture} onChange={(v) => this.saveDisp({ showPlanetPicture: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>中点列表</span><Switch size="small" checked={this.state.showMidpointList} onChange={(v) => this.saveDisp({ showMidpointList: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 10 }}><span>映点 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>Spiegelpunkt</span></span><Switch size="small" checked={this.state.showAntiscia} onChange={(v) => this.saveDisp({ showAntiscia: v })} /></div>
 					<div style={{ marginBottom: 2, fontSize: 12 }}>容许度 <b>{this.state.orb}°</b></div>
 					<Slider min={0.5} max={3} step={0.5} value={this.state.orb} onChange={(v) => this.saveDisp({ orb: v })} />
 				</Card>
@@ -426,18 +475,61 @@ export default class UranianDialMain extends Component {
 			? <div style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>容许度内暂无中点结构</div>
 			: <Tree treeData={treeData} showLine={{ showLeafIcon: false }} blockNode selectable={false} defaultExpandedKeys={treeData.slice(0, 3).map((n) => n.key)} />;
 
+		const rowLine = { lineHeight: 1.9, fontSize: 13, whiteSpace: 'nowrap' };
+		const soft = { color: 'var(--horosa-text-soft)' };
+		const empty = (t) => <div style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>{t}</div>;
+		// 行星图 A+B−C=D:个人点/TNP 锚点,命中目标 D 高亮。
+		const pictureBody = pictures.length === 0 ? empty('容许度内暂无行星图')
+			: pictures.map((p, i) => (
+				<div key={i} style={rowLine}>
+					{glyphOf(p.a)}<span style={soft}> + </span>{glyphOf(p.b)}<span style={soft}> − </span>{glyphOf(p.c)}<span style={soft}> = </span><b>{glyphOf(p.d)}</b><span style={soft}> · {p.sep.toFixed(2)}°</span>
+				</div>
+			));
+		// 中点扁平列表(含个人点 > TNP > 其他):显中点黄经位。
+		const mpListBody = mpList.length === 0 ? empty('暂无中点')
+			: mpList.slice(0, 150).map((m, i) => (
+				<div key={i} style={rowLine}>
+					{glyphOf(m.a)}<span style={soft}>/</span>{glyphOf(m.b)}<span style={soft}> · {m.lon.toFixed(2)}°</span>
+				</div>
+			));
+		// 映点 Spiegelpunkt 接触对。
+		const spiegelBody = spiegel.length === 0 ? empty('容许度内暂无映点接触')
+			: spiegel.map((s, i) => (
+				<div key={i} style={rowLine}>
+					{glyphOf(s.a)}<span style={soft}> ⟷ </span>{glyphOf(s.b)}<span style={soft}> · {s.sep.toFixed(2)}°</span>
+				</div>
+			));
+		// 右栏:可收放卡片(antd Collapse),头部左为标题/副标、右为数量徽标;展开项持久化 openPanels。
+		const hdr = (title, sub, n) => (
+			<span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+				<span style={{ fontWeight: 600, fontSize: 13 }}>{title}{sub ? <span style={{ ...soft, fontSize: 11, fontWeight: 400, marginLeft: 5 }}>{sub}</span> : null}</span>
+				{n != null ? <span className="horosa-panel-count">{n}</span> : null}
+			</span>
+		);
+		const panelDefs = [
+			{ key: 'readout', header: hdr('指针读数', null, this.state.readout.length || null), body: readoutBody, mh: 0.5 },
+			{ key: 'tree', header: hdr('中点树', null, treeData.length || null), body: treeBody, mh: 0.42 },
+			this.state.showPlanetPicture && { key: 'pic', header: hdr('行星图', 'A+B−C=D', pictures.length), body: pictureBody, mh: 0.4 },
+			this.state.showMidpointList && { key: 'list', header: hdr('中点列表', null, mpList.length), body: mpListBody, mh: 0.4 },
+			this.state.showAntiscia && { key: 'spiegel', header: hdr('映点', 'Spiegelpunkt', spiegel.length), body: spiegelBody, mh: 0.36 },
+		].filter(Boolean);
+		const openKeys = Array.isArray(this.state.openPanels) ? this.state.openPanels : ['readout', 'tree', 'pic', 'list', 'spiegel'];
 		const rightCol = (
-			<div style={{ width: '100%' }}>
-				<Card {...cardProps} title="指针读数" bodyStyle={{ padding: '8px 12px', maxHeight: Math.round(size * 0.52), overflowY: 'auto', overflowX: 'auto' }}>{readoutBody}</Card>
-				<Card {...cardProps} title="中点树" bodyStyle={{ padding: '8px 12px', maxHeight: Math.round(size * 0.4), overflowY: 'auto', overflowX: 'auto' }}>{treeBody}</Card>
-			</div>
+			<Collapse className="horosa-uranian-panels" activeKey={openKeys}
+				onChange={(keys) => this.saveDisp({ openPanels: Array.isArray(keys) ? keys : [keys] })}>
+				{panelDefs.map((p) => (
+					<Collapse.Panel key={p.key} header={p.header}>
+						<div style={{ maxHeight: Math.round(size * p.mh), overflowY: 'auto', overflowX: 'auto' }}>{p.body}</div>
+					</Collapse.Panel>
+				))}
+			</Collapse>
 		);
 
 		// 列宽:左 4 / 中 16 / 右 4 = 24(从 4/17/3 调整;右栏 +1 防换行,中栏只 -1 仍占主体)。
 		// 左右两个 Col 用内层 div 套 maxHeight+overflowY:auto;盘 col 也加底部 paddingBottom 防 Dock 遮挡。
 		const sideScroll = { width: '100%', maxHeight: sideMaxH, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 };
 		return (
-			<div className="horosa-midpoint-host">
+			<div className="horosa-midpoint-host" ref={(el) => { this._host = el; }}>
 				<div className="horosa-midpoint-workbench">
 					<Row className="horosa-midpoint-layout" gutter={10}>
 						<Col span={4} className="horosa-midpoint-side-col"><div style={sideScroll}>{settings}</div></Col>

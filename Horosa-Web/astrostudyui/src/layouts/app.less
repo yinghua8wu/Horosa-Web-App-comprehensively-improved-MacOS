@@ -4363,6 +4363,63 @@
         padding: 6px 10px 8px !important;
     }
 
+    /* 90°中点盘 右栏:可收放数据卡片(指针读数 / 中点树 / 行星图 / 中点列表 / 映点)美化 */
+    .horosa-uranian-panels.ant-collapse {
+        width: 100%;
+        background: transparent;
+        border: none;
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item {
+        margin-bottom: 9px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--horosa-panel-soft);
+        box-shadow: var(--horosa-small-shadow);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item:last-child {
+        margin-bottom: 0;
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item:hover {
+        border-color: var(--horosa-border-strong);
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item > .ant-collapse-header {
+        align-items: center;
+        padding: 9px 13px;
+        color: inherit;
+        transition: background 0.15s ease;
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item > .ant-collapse-header:hover {
+        background: var(--horosa-accent-soft);
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item.ant-collapse-item-active > .ant-collapse-header {
+        background: var(--horosa-panel-bg);
+        border-bottom: 1px solid var(--horosa-border);
+    }
+    .horosa-uranian-panels .ant-collapse-content {
+        border-top: none;
+        background: transparent;
+        color: inherit;
+    }
+    .horosa-uranian-panels .ant-collapse-content-box {
+        padding: 7px 11px 9px !important;
+        font-variant-numeric: tabular-nums; /* 度数等宽对齐,读起来整齐 */
+    }
+    /* 数量徽标 pill */
+    .horosa-uranian-panels .horosa-panel-count {
+        display: inline-block;
+        min-width: 20px;
+        padding: 0 8px;
+        line-height: 18px;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--horosa-accent-strong);
+        background: var(--horosa-accent-soft);
+        border-radius: 9px;
+    }
+
     .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-control-grid {
         width: 100%;
         max-width: 430px;

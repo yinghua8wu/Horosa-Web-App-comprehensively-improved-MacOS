@@ -1,4 +1,4 @@
-import { projectToDial, midpoint, dialSeparation, cursorReadout, midpointTree, spreadDialAngles } from '../uranianDial';
+import { projectToDial, midpoint, dialSeparation, cursorReadout, midpointTree, spreadDialAngles, antiscion, contraAntiscion, planetaryPictures, midpointList, spiegelContacts } from '../uranianDial';
 
 test('90°盘投影 = lon mod 90 映 0..360', () => {
 	expect(projectToDial(207.958, 90)).toBeCloseTo(27.958 / 90 * 360, 2); // Cupido fixture ≈111.832
@@ -93,4 +93,47 @@ test('规格 §11.2 1975盘 90°折叠位 金标对拍 + 硬相位聚类自检',
 	expect(dialSeparation(17.4167, 107.3833, 90)).toBeLessThan(0.1);
 	// 规格自检点②：金 28.16 ≈ 天 28.80 → 金天硬相位（规格图左下 ♀⛢ 相邻）。
 	expect(dialSeparation(118.15, 208.80, 90)).toBeLessThan(0.7);
+});
+
+test('映点 Spiegelpunkte 公式(日至轴/分至轴镜像)', () => {
+	expect(antiscion(15)).toBeCloseTo(165, 6);        // 15°♈ → 回照 15°♍
+	expect(contraAntiscion(15)).toBeCloseTo(345, 6);  // 15°♈ → 对映 15°♓
+	expect(antiscion(90)).toBeCloseTo(90, 6);         // 0°♋ 在日至轴上 = 自身
+	expect(contraAntiscion(0)).toBeCloseTo(0, 6);     // 0°♈ 在分至轴上 = 自身
+	expect(antiscion(0)).toBeCloseTo(180, 6);         // 0°♈ → 0°♎(=30°♍ 边界)
+});
+
+test('近中点取短弧(两点相隔 > 90°)', () => {
+	// A=350,B=130:平均 240,|240−350|=110>90 → +180 → 60(近 350 的短弧中点)。
+	expect(midpoint(350, 130)).toBeCloseTo(60, 6);
+});
+
+test('行星图 A+B−C=D 解算(锚点剪枝 + 命中)', () => {
+	const personal = new Set(['a']);
+	const P = [{ id: 'a', lon: 0 }, { id: 'b', lon: 80 }, { id: 'c', lon: 30 }, { id: 'd', lon: 50 }];
+	const pics = planetaryPictures(P, 90, 1, { personal });
+	expect(pics.length).toBeGreaterThanOrEqual(1);
+	// 0+80−30=50 命中 d
+	expect(pics.some((p) => p.d === 'd' && Math.round(p.lon) === 50 && p.sep < 1)).toBe(true);
+	// 锚点剪枝:每张图必含锚点 a(a 永远是 A 或 B)
+	expect(pics.every((p) => [p.a, p.b, p.c, p.d].includes('a'))).toBe(true);
+});
+
+test('中点列表:含个人点排前 + 近中点正确', () => {
+	const personal = new Set(['Sun']);
+	const P = [{ id: 'Sun', lon: 10 }, { id: 'Moon', lon: 50 }, { id: 'X', lon: 100 }, { id: 'Y', lon: 200 }];
+	const list = midpointList(P, 90, { personal });
+	expect(list.length).toBe(6); // C(4,2)=6 对
+	expect(list[0].a === 'Sun' || list[0].b === 'Sun').toBe(true); // 含个人点的对在最前
+	const sm = list.find((m) => (m.a === 'Sun' && m.b === 'Moon') || (m.a === 'Moon' && m.b === 'Sun'));
+	expect(sm.lon).toBeCloseTo(30, 6); // Sun/Moon 近中点 = 30
+});
+
+test('映点接触 Spiegelpunkt(回照折叠)', () => {
+	// A=30,antiscion(30)=150 → B=150 与 A 互成回照接触(30+150=180)。
+	expect(spiegelContacts([{ id: 'A', lon: 30 }, { id: 'B', lon: 150 }], 90, 1, {}).length).toBe(1);
+	// 90°盘上回照与对映折叠重合:B=330(=对映 360−30) 也判接触(330 与 150 在 90°盘同折叠位 60)。
+	expect(spiegelContacts([{ id: 'A', lon: 30 }, { id: 'B', lon: 330 }], 90, 1, {}).length).toBe(1);
+	// 无接触:A=30、B=200(折叠位 20,远离 60)→ 空。
+	expect(spiegelContacts([{ id: 'A', lon: 30 }, { id: 'B', lon: 200 }], 90, 1, {}).length).toBe(0);
 });
