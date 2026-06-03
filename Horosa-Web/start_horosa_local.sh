@@ -779,6 +779,7 @@ JAVA_LAUNCH_CMD+=(
   # localhost/127.0.0.1 默认 bypass,本地 :9999/:8899 不受影响;无系统代理则等同直连。
   "${JAVA_BIN}" -Djava.net.useSystemProxies=true -Dhorosa.runtime.owner=horosa-desktop -jar "${JAR}"
   --server.port="${BACKEND_PORT}"
+  --server.address=127.0.0.1
   --astrosrv=http://127.0.0.1:${CHART_PORT}
   --mongodb.ip=127.0.0.1
   --redis.ip=127.0.0.1

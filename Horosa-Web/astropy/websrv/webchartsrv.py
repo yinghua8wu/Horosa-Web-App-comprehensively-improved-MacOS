@@ -52,6 +52,7 @@ from websrv.kentang.registry import mount_kentang_services
 class WebChartSrv:
     exposed = True
     PD_SYNC_REV = 'pd_method_sync_v10'
+    WARMED = False  # PD warmup 完成置 True;/healthz 据此报「真就绪」(P0 启动稳健化,纯增量)
     PD_WARMUP_SAMPLE = {
         'date': '2028/04/06',
         'time': '09:33:00',
@@ -75,6 +76,13 @@ class WebChartSrv:
         'pdTimeKey': 'Ptolemy',
         'pdaspects': [0, 60, 90, 120, 180],
     }
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    def healthz(self):
+        # 免签名就绪探针(P0):warmup 完成后 warm=True;能连通即存活,warm 区分「真就绪」。纯增量,不影响既有路由。
+        enable_crossdomain()
+        return jsonpickle.encode({'ok': True, 'service': 'chart', 'warm': WebChartSrv.WARMED, 'pdSyncRev': WebChartSrv.PD_SYNC_REV}, unpicklable=False)
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -122,6 +130,10 @@ class WebChartSrv:
                     'pdtype': perchart.pdtype,
                     'pdMethod': perchart.pdMethod,
                     'pdTimeKey': perchart.pdTimeKey,
+                    'pdDirect': 1 if perchart.pdDirect else 0,
+                    'pdConverse': 1 if perchart.pdConverse else 0,
+                    'pdAntiscia': 1 if perchart.pdAntiscia else 0,
+                    'pdTerms': 1 if perchart.pdTerms else 0,
                     'pdSyncRev': self.PD_SYNC_REV,
                 },
                 'chart': perchart.getChartObj(),
@@ -190,6 +202,10 @@ class WebChartSrv:
                     'pdtype': perchart.pdtype,
                     'pdMethod': perchart.pdMethod,
                     'pdTimeKey': perchart.pdTimeKey,
+                    'pdDirect': 1 if perchart.pdDirect else 0,
+                    'pdConverse': 1 if perchart.pdConverse else 0,
+                    'pdAntiscia': 1 if perchart.pdAntiscia else 0,
+                    'pdTerms': 1 if perchart.pdTerms else 0,
                     'pdSyncRev': self.PD_SYNC_REV,
                 },
                 'chart': perchart.getChartObj(),
@@ -344,6 +360,7 @@ if __name__ == '__main__':
         t0 = time.perf_counter()
         warm_chart = PerChart(dict(WebChartSrv.PD_WARMUP_SAMPLE))
         warm_chart.getPredict().getPrimaryDirection()
+        WebChartSrv.WARMED = True
         print('pd warmup ready in {0:.3f}s'.format(time.perf_counter() - t0))
     except Exception:
         traceback.print_exc()
@@ -374,4 +391,6 @@ if __name__ == '__main__':
     ensure_chart_port_free('127.0.0.1', chart_port)
 
     cherrypy.engine.start()
+    # P0 启动握手:监听后向 stdout 报端口,壳/launcher 可确认「此端口确为本次起的 chart 后端」(消 TOCTOU/误判)。
+    print('HOROSA_READY chart_port={0}'.format(chart_port), flush=True)
     cherrypy.engine.block()

@@ -771,6 +771,27 @@ GUO_TEST="${REPO_ROOT}/Horosa-Web/astropy/tests/test_guolao_su28_moira.py"
 [ "${GUO34_BAD}" = "0" ] && ok "[34] 七政四余 28 距星表 + 严格岁差 + 黄道置宿 + 回归测试 均在"
 
 
+# [35] 启动/运行稳健化(P0):白屏兜底 + 后端就绪契约 + Java 绑 127.0.0.1 + Windows 镜像清单
+#  - 前端 StartupGate(白屏兜底覆盖层)存在且挂载到 layouts/app.js
+#  - webchartsrv.py: /healthz 就绪探针 + HOROSA_READY stdout 握手
+#  - start_horosa_local.sh: --server.address=127.0.0.1(根治 Windows 防火墙弹窗,镜像 Windows spec)
+#  - docs/windows-启动稳健化-镜像清单.md 在(给 Windows Electron 壳的镜像 spec)
+echo "[35] 启动/运行稳健化(P0)"
+ST35_BAD=0
+ST_GATE="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/common/StartupGate.js"
+ST_APP="${REPO_ROOT}/Horosa-Web/astrostudyui/src/layouts/app.js"
+ST_CHART="${REPO_ROOT}/Horosa-Web/astropy/websrv/webchartsrv.py"
+ST_START="${REPO_ROOT}/Horosa-Web/start_horosa_local.sh"
+ST_WINDOC="${REPO_ROOT}/docs/windows-启动稳健化-镜像清单.md"
+[ -f "${ST_GATE}" ] || { bad "[35] 缺 StartupGate.js(白屏兜底覆盖层)"; ST35_BAD=1; }
+{ [ -f "${ST_APP}" ] && grep -q "StartupGate" "${ST_APP}"; } || { bad "[35] layouts/app.js 未挂载 StartupGate —— 白屏兜底失效"; ST35_BAD=1; }
+{ [ -f "${ST_CHART}" ] && grep -q "def healthz" "${ST_CHART}"; } || { bad "[35] webchartsrv.py 缺 /healthz 就绪探针"; ST35_BAD=1; }
+{ [ -f "${ST_CHART}" ] && grep -q "HOROSA_READY" "${ST_CHART}"; } || { bad "[35] webchartsrv.py 缺 HOROSA_READY stdout 握手"; ST35_BAD=1; }
+{ [ -f "${ST_START}" ] && grep -q "server.address=127.0.0.1" "${ST_START}"; } || { bad "[35] start_horosa_local.sh 缺 --server.address=127.0.0.1(根治防火墙弹窗)"; ST35_BAD=1; }
+[ -f "${ST_WINDOC}" ] || { bad "[35] 缺 docs/windows-启动稳健化-镜像清单.md(Windows 镜像 spec)"; ST35_BAD=1; }
+[ "${ST35_BAD}" = "0" ] && ok "[35] StartupGate 挂载 + /healthz + HOROSA_READY + 127.0.0.1 绑定 + Windows 镜像清单 均在"
+
+
 echo "== 结果 =="
 if [ "${fail}" -ne 0 ]; then echo "pre-flight 有 ❌,先修再发。" >&2; exit 1; fi
 echo "pre-flight 全部通过 ✅(注意:功能层 e2e 仍需另测,如 AI 用真 key、八字切换显示)。"
