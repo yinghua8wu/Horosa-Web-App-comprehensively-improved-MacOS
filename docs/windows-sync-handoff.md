@@ -20,6 +20,38 @@
 
 ---
 
+## 汉堡量化盘(Uranian)全面补全与纠错(commit `6ecac88`,2026-06-03)— **Java 0 改动 → Windows 仅需同前端 + Python**
+
+> 详见 [`docs/汉堡量化盘-补全与纠错.md`](汉堡量化盘-补全与纠错.md)。本批**无版本号 bump**(只搬业务改动,发版由用户单独决定);GitHub `main` 已含本 commit(`883855d..6ecac88`)。
+
+### 同步要点
+- **后端 Python**(同步后 `pkill -9 -f cherrypy && python astrostudy/server.py &` 重启;**不需重编 jar**):
+  - `astropy/astrostudy/germany/midpoint.py`:`MidPoint` 加 `uranian` 开关。`uranian=True`(量化盘 `/germany/midpoint` 专用)时:中点对来源纳入 **8 颗 TNP**(`flatlib_ephem.getObject` 走 Swiss Ephemeris body 40-47)**+ Asc/MC**;无序对单算近中点;相位判断**跨 0° 归一**(`d=abs(a-b)%360; if d>180: d=360-d`);**orb 可配**;TNP 也作相位目标。**`uranian=False`(默认)路径逐字节不变 → 合盘 `modern/chartcomp.py` 复用零影响**。
+  - `astropy/websrv/webgermanysrv.py`:`midpoint()` 透传 `orb` + `MidPoint(..., uranian=True)`;`_build_uranian_tnp` 返 `(out, errors)`,失败写 `tnpError`(不再静默吞)。
+- **前端**(改完 `npm run build && npm run build:file`,顺序):
+  - 引擎 `utils/uranianDial.js`:新增 `antiscion`/`contraAntiscion`(映点)、`planetaryPictures`(A+B−C=D 解算)、`midpointList`、`spiegelContacts`。
+  - `components/germany/UranianDialMain.js`:右栏改 **`Collapse` 可收放卡片** + 数量徽标;新增行星图/中点列表/映点三面板;TNP 逆行 ℞;盘基 90/45/22.5 快捷;**中点盘按实测列宽/列高最大化**(`ResizeObserver` + `_measure`)。
+  - `UranianDial.js` / `UranianModulusDial.js`:逆行 ℞ 小标 + 映点空心圈标记(`showAntiscia`)。
+  - `UranianDialStyle.js`:新增持久项 `showPlanetPicture/showMidpointList/showAntiscia/openPanels`。
+  - **新增** `components/germany/UranianGraphicEphemeris.js` + `AstroGermany.js` 加「**图形星历**」tab(复用 `/astroextra/ephemeris` 的 `dailyPositions`)。
+  - `components/germany/AstroMidpoint.js`:AI 快照 `buildGermanySnapshotText` 增 `[行星图]`/`[映点]`/`[中点列表]` 三段(调 uranianDial.js 纯函数)。
+  - `utils/aiExport.js`:`AI_EXPORT_SETTINGS_VERSION` + `AI_EXPORT_SECTION_MIGRATION_VERSION` **16→17**,germany 预设增三段(union 并入式迁移,不删用户项)。
+  - `layouts/app.less`:`.horosa-uranian-panels` 右栏卡片美化(圆角/阴影/pill 徽标/等宽数字)。
+- **新增测试**:`astropy/tests/test_germany_midpoint.py`(6 例);`utils/__tests__/uranianDial.test.js` +5。
+
+### 关键不变量 / 坑
+- **合盘零侵入**:`MidPoint` 默认 `uranian=False` 与历史逐字节一致;只有 `/germany/midpoint` 传 `uranian=True`。同步后务必跑 `test_germany_midpoint.py::test_composite_default_path_excludes_tnp_and_angles`。
+- **TNP 字形无标准 Unicode**(U+2BE0+ 经调研证伪未编码)→ 保留二字母缩写(Cu/Ha/…),勿引外部码位。
+- **图形星历高度**:按 `vh` 钳位防 Dock 遮挡;`vh` 必须在 constructor + `_onResize` 都赋值(曾因只设 `vw` 漏 `vh` 致高度卡 600)。
+- **中点盘最大化**:`size = min(列宽-8, 列高-28, vh-140)`,列尺寸由 `_measure` 经 `ResizeObserver` 实测(tab 隐藏→显示时 0→真实尺寸);列为 `overflow:hidden` grid 居中,故取 min 即「不超出方框」。
+
+### 验证
+- `cd Horosa-Web/astropy && python -m pytest tests/test_germany_midpoint.py -q`(6 全绿)
+- `cd Horosa-Web/astrostudyui && npx umi-test`(193 全绿)+ `npm run build && npm run build:file`
+- 真栈:辅盘→量化盘→「90°中点盘」右栏可收放 + 行星图/中点列表/映点出数 + TNP 逆行 ℞ + 映点盘上空心圈 + 盘填满中间栏;「图形星历」折线填满高度;「行星中点」的中点/中点相位含 TNP 与四轴。
+
+---
+
 ## v2.5.4 — 七政四余宿度对齐(自有恒星案三制)+ 主限法 Placidus 方位法 + 主限法 time-key 公式化(**Java 0 改动 → Windows 仅需同前端 + Python**)
 
 > **本地标记版本**:Mac 端 v2.5.4 在本地 commit + 本地 build 中,**未发到 GitHub**(GitHub 远程仍维持 v2.5.3 已发态 `49179c8`)。Windows 端无需 mirror 发布,只需把本批 Horosa-Web 改动同步进 Windows 仓库,等用户单独签字后再各自发版本。
