@@ -315,6 +315,11 @@ class PerChart:
         self.pdMethod = 'core_alchabitius'
         self.pdTimeKey = 'Ptolemy'
         self.pdYears = 100
+        # 自研引擎方位法的开关(仅公开方法生效；core/legacy 不受影响）。
+        self.pdDirect = True      # 顺向 direct(默认开)
+        self.pdConverse = False   # 逆向 converse(可与 direct 同时开)
+        self.pdAntiscia = False   # 映点/反映点作 promissor
+        self.pdTerms = False      # 界(terms)边界作 promissor
 
         self.isBC = False
         if 'ad' in data.keys():
@@ -361,7 +366,8 @@ class PerChart:
             self.pdMethod = data['pdMethod']
             # whitelist 与 perpredict._PD_METHOD_REGISTRY 保持同步；未识别 method 一律
             # 回退到默认 Alcabitius (core_alchabitius)，护住默认路径字节级一致。
-            if self.pdMethod not in ('core_alchabitius', 'horosa_legacy', 'placidus'):
+            if self.pdMethod not in ('core_alchabitius', 'horosa_legacy', 'placidus',
+                                     'regiomontanus', 'campanus', 'topocentric'):
                 self.pdMethod = 'core_alchabitius'
 
         if 'pdTimeKey' in data.keys():
@@ -372,6 +378,19 @@ class PerChart:
                 self.pdYears = max(1, min(180, int(round(float(data['pdYears'])))))
             except (TypeError, ValueError):
                 self.pdYears = 100
+
+        def _truthy(v):
+            return v is True or v == 1 or v == '1' or v == 'true'
+        if 'pdDirect' in data.keys():
+            # 顺向默认开;仅当显式传 0/false 才关。
+            v = data['pdDirect']
+            self.pdDirect = not (v is False or v == 0 or v == '0' or v == 'false')
+        if 'pdConverse' in data.keys():
+            self.pdConverse = _truthy(data['pdConverse'])
+        if 'pdAntiscia' in data.keys():
+            self.pdAntiscia = _truthy(data['pdAntiscia'])
+        if 'pdTerms' in data.keys():
+            self.pdTerms = _truthy(data['pdTerms'])
 
         # 容许度自定义：orbs(逐星 id->度) / orbScale(全局倍数)。默认 None → 盘对象 orb() 回退默认表，零回归。
         self.orbOverrides = None

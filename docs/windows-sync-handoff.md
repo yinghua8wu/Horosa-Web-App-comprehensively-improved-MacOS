@@ -52,7 +52,7 @@
 
 ---
 
-## v2.5.4 — 七政四余宿度对齐(自有恒星案三制)+ 主限法 Placidus 方位法 + 主限法 time-key 公式化(**Java 0 改动 → Windows 仅需同前端 + Python**)
+## v2.5.4 — 七政四余宿度对齐(自有恒星案三制)+ 主限法方位法引擎 + time-key 公式化 + 【v10 方位法补遗】(**P0 Java 0 改动;v10 补遗 Java 改动→必重编 jar,见下补遗段**)
 
 > **本地标记版本**:Mac 端 v2.5.4 在本地 commit + 本地 build 中,**未发到 GitHub**(GitHub 远程仍维持 v2.5.3 已发态 `49179c8`)。Windows 端无需 mirror 发布,只需把本批 Horosa-Web 改动同步进 Windows 仓库,等用户单独签字后再各自发版本。
 
@@ -95,6 +95,19 @@
 - `npm test`(全 184 + 6 PD 新增 = 190 全绿)
 - preflight `[32]` 阻断「Alcabitius byteperfect 失效 / Ptolemy != 1.0 / _byZCoreKernel 改名」;`[33]` 阻断「方位法白名单缺 / PD_SYNC_REV 未升 / Naibod 表格仍降级 / aiContext 仍硬编码」。
 - 真栈手测:启动 desktop app,主限法表格 + 主限法盘下拉应当出现 `SUPPORTED_PD_METHODS` 各方位法 + Ptolemy/Naibod/Cardano/Plantiko/Wollner/符号度/太阳弧符号;默认 Alchabitius+Ptolemy 表格逐行与 v2.5.3 完全一致;切换方法 + 各 timeKey 表格能渲染、盘能画。
+
+### v2.5.4 补遗 — 主限法全方位法 v10 (2026-06-03,P1~P4 完成;**Java 改动→必重编 jar**)
+> 在 P0 基础上补全:方位法引擎 + 黄道/世俗 + 顺逆同选 + 映点/界 + 真太阳弧(表格&盘) + 主限法盘投影 + AI 四同步。time-key 收敛回 **Ptolemy/Naibod/TrueSolarArc**(撤经验常数,守纯公式铁律)。
+>
+> **⚠️ 真因纠正(关键)**:用户报「推运方向选了没用」的最深根源是 **Java `PredictiveController.getParams()` 只透传 pdtype/pdMethod/pdTimeKey,丢弃了 pdDirect/pdConverse/pdAntiscia/pdTerms**;而 `AstroHelper.request()` 用 **ParamHashCache(键=params 哈希,24h)** 缓存,导致 direct/converse 的 params 哈希相同 → 命中同一缓存 → 切换无效果。**修法=Java getParams 补这 4 个透传 + `_wireRev` v8→v10(让旧缓存全失效)→ 重编 astrostudyboot.jar**。这与早期 P0 的「Java 0 改动」假设不同——P0 只动 pdMethod/pdTimeKey(已透传),v10 的新开关必须补 Java + 重编。
+
+- **新增后端文件(必同步)**:`Horosa-Web/astropy/astrostudy/pd_engine.py`(自研主限法引擎:通用球面原语/数值法 house_pos + 真太阳弧正逆 + 映点/界)。
+- **Java 改动(必重编 jar)**:`astrostudysrv/astrostudy/.../controller/PredictiveController.java` getParams() 补 `pdDirect/pdConverse/pdAntiscia/pdTerms` 透传 + `_wireRev` → `pd_method_sync_v10`。重编:`cd Horosa-Web/astrostudysrv && JAVA_HOME=<JDK17> mvn -f astrostudy/pom.xml install -DskipTests && mvn -f astrostudyboot/pom.xml clean package -DskipTests`(**clean 必须**),`javap -c -p` 验内嵌 `BOOT-INF/lib/astrostudy-1.0.0.jar` 的 PredictiveController 含 pdConverse/pdDirect。
+- **Python 后端改动**:`perpredict.py`(ZEngine 顺逆拼接 + 真太阳弧盘 `solar_arc_for_years` + 世俗路由) + `perchart.py`(方位法白名单 + `pdDirect` 解析) + `helper.py` + `websrv/webchartsrv.py`(**PD_SYNC_REV 升 `pd_method_sync_v10`,与前端 + Java _wireRev 对齐**)。改完重启 CherryPy。
+- **前端改动文件**:`utils/primaryDirectionSync.js`(SYNC v10 + 方位法白名单 + 持久化 pdDirect 等) + `components/astro/AstroPrimaryDirection.js`(顶部**单行**工具栏:方法/度数/方向类型/向运☑顺☑逆/年数/附加☐映点☐界,无第二行) + `components/astro/AstroPrimaryDirectionChart.js`(盘右栏 + 保留进阶设置不 clobber) + `components/direction/AstroDirectMain.js`(请求链贯通 + AI 快照设置段 + tab「主/界限法」→「主限法」) + `components/astro/AstroChartMain.js`(dock label) + `utils/aiAnalysisContext.js` + `utils/localcharts.js`。改完 `npm run build && npm run build:file`(顺序)。
+- **新增/更新测试**:`tests/test_pd_engine.py`(+真太阳弧逆/converse负弧/映点界) + `tests/test_pd_method_matrix.py`(+pdDirect解析/顺逆拼接/皆关回退/世俗R≠C/真太阳弧日期偏移)。注:`scripts/内部脚本.py` 已删(收敛)。
+- **验证**:`cd Horosa-Web/astropy && python -m pytest tests/ -q`(59 全绿) ;`cd ../astrostudyui && npx umi-test`(195 全绿) ;preflight `[33]` v10 门禁(后端 SYNC 对齐 / 方位法白名单 / pdDirect / 单行工具栏 / tab 名)。
+- **真栈手测**:主限法表格下拉 6 方位法(Alchabitius/各核验方位法) + 度数换算 Ptolemy/Naibod/真太阳弧;选 **世俗** 时 不同方位法日期应不同;Ptolemy ≠ 真太阳弧(日期不同);顺+逆同勾表格行数增;盘右栏改方法/向运盘随之重绘;默认 Alchabitius+Ptolemy 逐行不变。
 
 ---
 

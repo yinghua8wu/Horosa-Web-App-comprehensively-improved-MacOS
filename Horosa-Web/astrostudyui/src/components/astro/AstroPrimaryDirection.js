@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Row, Col } from 'antd';
+import { Checkbox } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
@@ -12,10 +12,16 @@ import { XQButton as Button, XQInput as Input, XQInputNumber as InputNumber, XQS
 import XQIcon from '../xq-icons';
 
 const Option = Select.Option;
-const PD_SYNC_REV = 'pd_method_sync_v8';
+// 与 utils/primaryDirectionSync.js 保持一致（P0 曾漏改本地 v8→v9 致始终重算,P1 统一到 v10）。
+const PD_SYNC_REV = 'pd_method_sync_v10';
 const DEFAULT_PD_METHOD = 'core_alchabitius';
 const DEFAULT_PD_TIME_KEY = 'Ptolemy';
 const DEFAULT_PD_TYPE = 0;
+// 与后端 perpredict._PD_METHOD_REGISTRY + perchart 白名单同步的方位法白名单。
+const SUPPORTED_PD_METHODS = [
+	'core_alchabitius', 'horosa_legacy', 'placidus',
+	'regiomontanus', 'campanus', 'topocentric',
+];
 const CORE_PD_SUPPORTED_BASE_IDS = new Set([
 	AstroConst.SUN,
 	AstroConst.MOON,
@@ -43,6 +49,12 @@ class AstroPrimaryDirection extends Component{
 			pdMethodValue: props.pdMethod ? props.pdMethod : 'core_alchabitius',
 			pdTimeKeyValue: props.pdTimeKey ? props.pdTimeKey : 'Ptolemy',
 			pdYearsValue: props.pdYears ? props.pdYears : 100,
+			// 方向类型(0黄道/1世俗 in mundo)、向运(顺 direct / 逆 converse,可同时选)、映点、界 — 进阶开关。
+			pdTypeValue: props.pdType === 1 ? 1 : 0,
+			pdDirectValue: props.pdDirect === 0 ? 0 : 1,
+			pdConverseValue: props.pdConverse ? 1 : 0,
+			pdAntisciaValue: props.pdAntiscia ? 1 : 0,
+			pdTermsValue: props.pdTerms ? 1 : 0,
 		}
 
 		this.searchInput = null;
@@ -77,6 +89,16 @@ class AstroPrimaryDirection extends Component{
 		this.handlePdYearsChange = this.handlePdYearsChange.bind(this);
 		this.normalizePdYears = this.normalizePdYears.bind(this);
 		this.getSelectedPdYears = this.getSelectedPdYears.bind(this);
+		this.handlePdTypeChange = this.handlePdTypeChange.bind(this);
+		this.handlePdDirectChange = this.handlePdDirectChange.bind(this);
+		this.handlePdConverseChange = this.handlePdConverseChange.bind(this);
+		this.handlePdAntisciaChange = this.handlePdAntisciaChange.bind(this);
+		this.handlePdTermsChange = this.handlePdTermsChange.bind(this);
+		this.getSelectedPdType = this.getSelectedPdType.bind(this);
+		this.getSelectedPdDirect = this.getSelectedPdDirect.bind(this);
+		this.getSelectedPdConverse = this.getSelectedPdConverse.bind(this);
+		this.getSelectedPdAntiscia = this.getSelectedPdAntiscia.bind(this);
+		this.getSelectedPdTerms = this.getSelectedPdTerms.bind(this);
 
 			this.objs = AstroConst.LIST_OBJECTS.slice(0);
 			this.objs.push(AstroConst.ASC);
@@ -92,17 +114,39 @@ class AstroPrimaryDirection extends Component{
 		// 「旧存盘 pdMethod 规范化≠原 prop → 无限 setState 白屏」（内层 state-diff 守卫亦保留作双保险）。
 		if(prevProps.pdMethod === this.props.pdMethod
 			&& prevProps.pdTimeKey === this.props.pdTimeKey
-			&& prevProps.pdYears === this.props.pdYears){
+			&& prevProps.pdYears === this.props.pdYears
+			&& prevProps.pdType === this.props.pdType
+			&& prevProps.pdDirect === this.props.pdDirect
+			&& prevProps.pdConverse === this.props.pdConverse
+			&& prevProps.pdAntiscia === this.props.pdAntiscia
+			&& prevProps.pdTerms === this.props.pdTerms){
 			return;
 		}
 		const nextMethod = this.normalizePdMethod(this.props.pdMethod);
 		const nextTimeKey = this.normalizePdTimeKey(this.props.pdTimeKey);
 		const nextYears = this.normalizePdYears(this.props.pdYears);
-		if(this.state.pdMethodValue !== nextMethod || this.state.pdTimeKeyValue !== nextTimeKey || this.state.pdYearsValue !== nextYears){
+		const nextType = this.props.pdType === 1 ? 1 : 0;
+		const nextDirect = this.props.pdDirect === 0 ? 0 : 1;
+		const nextConverse = this.props.pdConverse ? 1 : 0;
+		const nextAntiscia = this.props.pdAntiscia ? 1 : 0;
+		const nextTerms = this.props.pdTerms ? 1 : 0;
+		if(this.state.pdMethodValue !== nextMethod
+			|| this.state.pdTimeKeyValue !== nextTimeKey
+			|| this.state.pdYearsValue !== nextYears
+			|| this.state.pdTypeValue !== nextType
+			|| this.state.pdDirectValue !== nextDirect
+			|| this.state.pdConverseValue !== nextConverse
+			|| this.state.pdAntisciaValue !== nextAntiscia
+			|| this.state.pdTermsValue !== nextTerms){
 			this.setState({
 				pdMethodValue: nextMethod,
 				pdTimeKeyValue: nextTimeKey,
 				pdYearsValue: nextYears,
+				pdTypeValue: nextType,
+				pdDirectValue: nextDirect,
+				pdConverseValue: nextConverse,
+				pdAntisciaValue: nextAntiscia,
+				pdTermsValue: nextTerms,
 			});
 		}
 	}
@@ -286,6 +330,59 @@ class AstroPrimaryDirection extends Component{
 		});
 	}
 
+	_checkboxChecked(e){
+		return e && e.target ? !!e.target.checked : !!e;
+	}
+
+	handlePdTypeChange(value){
+		this.setState({ pdTypeValue: value === 1 ? 1 : 0, });
+	}
+
+	handlePdDirectChange(e){
+		const checked = this._checkboxChecked(e);
+		// 顺向/逆向至少保留其一,避免「两者皆关」的空向运态。
+		if(!checked && this.getSelectedPdConverse() !== 1){
+			return;
+		}
+		this.setState({ pdDirectValue: checked ? 1 : 0, });
+	}
+
+	handlePdConverseChange(e){
+		const checked = this._checkboxChecked(e);
+		if(!checked && this.getSelectedPdDirect() !== 1){
+			return;
+		}
+		this.setState({ pdConverseValue: checked ? 1 : 0, });
+	}
+
+	handlePdAntisciaChange(e){
+		this.setState({ pdAntisciaValue: this._checkboxChecked(e) ? 1 : 0, });
+	}
+
+	handlePdTermsChange(e){
+		this.setState({ pdTermsValue: this._checkboxChecked(e) ? 1 : 0, });
+	}
+
+	getSelectedPdType(){
+		return this.state.pdTypeValue === 1 ? 1 : 0;
+	}
+
+	getSelectedPdDirect(){
+		return this.state.pdDirectValue === 0 ? 0 : 1;
+	}
+
+	getSelectedPdConverse(){
+		return this.state.pdConverseValue === 1 ? 1 : 0;
+	}
+
+	getSelectedPdAntiscia(){
+		return this.state.pdAntisciaValue === 1 ? 1 : 0;
+	}
+
+	getSelectedPdTerms(){
+		return this.state.pdTermsValue === 1 ? 1 : 0;
+	}
+
 	handlePdCalculate(){
 		if(!this.needsPdRecompute()){
 			return;
@@ -294,24 +391,31 @@ class AstroPrimaryDirection extends Component{
 			this.props.onPdConfigApply(
 				this.state.pdMethodValue,
 				this.state.pdTimeKeyValue,
-				this.getSelectedPdYears()
+				this.getSelectedPdYears(),
+				{
+					pdtype: this.getSelectedPdType(),
+					direct: this.getSelectedPdDirect() === 1,
+					converse: this.getSelectedPdConverse() === 1,
+					antiscia: this.getSelectedPdAntiscia() === 1,
+					terms: this.getSelectedPdTerms() === 1,
+				}
 			);
 		}
 	}
 
 	normalizePdMethod(value){
-		// P0 白名单：与后端 perpredict._PD_METHOD_REGISTRY + perchart 白名单同步。
+		// 白名单：与后端 perpredict._PD_METHOD_REGISTRY + perchart 白名单同步。
 		// 未识别 method 回退到默认 (core_alchabitius)，护住 Alcabitius+Ptolemy 字节级一致。
-		if(value === 'horosa_legacy' || value === 'core_alchabitius' || value === 'placidus'){
+		if(SUPPORTED_PD_METHODS.indexOf(value) >= 0){
 			return value;
 		}
 		return DEFAULT_PD_METHOD;
 	}
 
 	normalizePdTimeKey(value){
-		// 白名单：与后端 perpredict.STATIC_TIME_KEY_SCALES 同步,只收公式可证的 key。
+		// 白名单：与后端同步,只收公式/真算法 key（Ptolemy/Naibod 静态,TrueSolarArc 动态真太阳弧）。
 		// 未识别 timeKey 回退到默认 Ptolemy (scale=1.0)。
-		const VALID = ['Ptolemy', 'Naibod'];
+		const VALID = ['Ptolemy', 'Naibod', 'TrueSolarArc'];
 		if(VALID.indexOf(value) >= 0){
 			return value;
 		}
@@ -358,7 +462,11 @@ class AstroPrimaryDirection extends Component{
 			hasCompleteParams,
 			pdMethod: this.normalizePdMethod(hasMethod ? params.pdMethod : this.props.pdMethod),
 			pdTimeKey: this.normalizePdTimeKey(hasTimeKey ? params.pdTimeKey : this.props.pdTimeKey),
-			pdtype: this.normalizePdType(hasPdType ? params.pdtype : DEFAULT_PD_TYPE),
+			pdtype: this.normalizePdType(hasPdType ? params.pdtype : (this.props.pdType === 1 ? 1 : DEFAULT_PD_TYPE)),
+			pdDirect: ((params.pdDirect !== undefined && params.pdDirect !== null ? params.pdDirect : (this.props.pdDirect !== undefined ? this.props.pdDirect : 1)) === 0) ? 0 : 1,
+			pdConverse: (params.pdConverse !== undefined && params.pdConverse !== null ? params.pdConverse : this.props.pdConverse) ? 1 : 0,
+			pdAntiscia: (params.pdAntiscia !== undefined && params.pdAntiscia !== null ? params.pdAntiscia : this.props.pdAntiscia) ? 1 : 0,
+			pdTerms: (params.pdTerms !== undefined && params.pdTerms !== null ? params.pdTerms : this.props.pdTerms) ? 1 : 0,
 			pdYears: this.normalizePdYears(params.pdYears !== undefined && params.pdYears !== null ? params.pdYears : this.props.pdYears),
 			syncRev,
 		};
@@ -379,10 +487,23 @@ class AstroPrimaryDirection extends Component{
 		if(this.getSelectedPdYears() !== appliedPdState.pdYears){
 			return true;
 		}
-		if(!appliedPdState.hasCompleteParams){
+		// 方向类型(黄道/世俗)、向运(顺/逆)、映点、界 任一与已落库不同 → 需重算。
+		if(this.getSelectedPdType() !== appliedPdState.pdtype){
 			return true;
 		}
-		if(appliedPdState.pdtype !== DEFAULT_PD_TYPE){
+		if(this.getSelectedPdDirect() !== appliedPdState.pdDirect){
+			return true;
+		}
+		if(this.getSelectedPdConverse() !== appliedPdState.pdConverse){
+			return true;
+		}
+		if(this.getSelectedPdAntiscia() !== appliedPdState.pdAntiscia){
+			return true;
+		}
+		if(this.getSelectedPdTerms() !== appliedPdState.pdTerms){
+			return true;
+		}
+		if(!appliedPdState.hasCompleteParams){
 			return true;
 		}
 		return !(Array.isArray(pds) && pds.length > 0);
@@ -401,13 +522,17 @@ class AstroPrimaryDirection extends Component{
 				filterKeys: filterKeys,
 			};
 		}
+		// showPdBounds(显示界限法)只对 core_alchabitius 旧路径有意义(它恒算界限法、由此开关显隐)。
+		// 新方位法的「界(T_)」行只在用户勾选 pdTerms 时才由引擎产出,故应直接显示,不再被 showPdBounds 隐藏
+		// (否则用户勾了「界」却因 showPdBounds 关而看不到任何变化——映点同理由 pdAntiscia 控制、非 core 不隐藏)。
+		const hideBoundRows = !showPdBounds && appliedPdMethod === 'core_alchabitius';
 		let res = [];
 		for(let i=0; i<pds.length; i++){
 			let pd = pds[i];
 			if(hideUnsupportedCoreRows && this.isCoreUnsupportedRow(pd)){
 				continue;
 			}
-			if(!showPdBounds && this.isBoundRow(pd)){
+			if(hideBoundRows && this.isBoundRow(pd)){
 				continue;
 			}
 			if(hideAntisciaRows && this.isAntisciaRow(pd)){
@@ -529,10 +654,10 @@ class AstroPrimaryDirection extends Component{
 			? document.documentElement.clientWidth
 			: 1440;
 		const compactControls = viewportWidth < 1280;
-		const stackedControls = viewportWidth < 920;
 
 		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 50;
-		const controlHeight = stackedControls ? 110 : (compactControls ? 82 : 54);
+		// 顶部工具栏强制单行(无第二行,否则会遮挡表格),空间不够时下拉收窄 + 横向滚动兜底。
+		const controlHeight = 56;
 		const controlBottom = 10;
 		const bottomSafeReserve = 18;
 		const tableReserve = controlHeight + controlBottom + 60 + bottomSafeReserve;
@@ -557,49 +682,58 @@ class AstroPrimaryDirection extends Component{
 		let filterKeys = dsres.filterKeys;
 		const appliedPdState = this.getAppliedPdState();
 		const appliedPdTimeKey = appliedPdState.pdTimeKey;
-		const tableKey = `${chart.chartId ? chart.chartId : 'pd'}:${appliedPdMethod}:${appliedPdTimeKey}:${this.props.showPdBounds === 0 || this.props.showPdBounds === false ? 0 : 1}:${appliedPdState.syncRev || 'nosync'}`;
-		const pdTypeOutOfSync = appliedPdState.pdtype !== DEFAULT_PD_TYPE;
+		const tableKey = `${chart.chartId ? chart.chartId : 'pd'}:${appliedPdMethod}:${appliedPdTimeKey}:${appliedPdState.pdtype}:${appliedPdState.pdDirect}:${appliedPdState.pdConverse}:${appliedPdState.pdAntiscia}:${appliedPdState.pdTerms}:${this.props.showPdBounds === 0 || this.props.showPdBounds === false ? 0 : 1}:${appliedPdState.syncRev || 'nosync'}`;
 		const isPdConfigDirty = (
 			this.getSelectedPdMethod() !== appliedPdState.pdMethod
 			|| this.getSelectedPdTimeKey() !== appliedPdState.pdTimeKey
 			|| this.getSelectedPdYears() !== appliedPdState.pdYears
-			|| pdTypeOutOfSync
+			|| this.getSelectedPdType() !== appliedPdState.pdtype
+			|| this.getSelectedPdDirect() !== appliedPdState.pdDirect
+			|| this.getSelectedPdConverse() !== appliedPdState.pdConverse
+			|| this.getSelectedPdAntiscia() !== appliedPdState.pdAntiscia
+			|| this.getSelectedPdTerms() !== appliedPdState.pdTerms
 			|| !appliedPdState.hasCompleteParams
 		);
 		const needsPdRecompute = this.needsPdRecompute();
-		const controlBoxStyle = {
+		// 单行工具栏:一个横向 flex 条,nowrap + 横向滚动兜底(绝不换行遮挡表格)。
+		// 空间不够时各下拉自动收窄(width 固定值),不遮挡文字。
+		const toolbarStyle = {
 			border: '1px solid var(--horosa-border, #d9d9d9)',
 			borderRadius: 4,
 			backgroundColor: 'var(--horosa-panel-bg, #fff)',
-			padding: compactControls ? '8px 10px' : '6px 10px',
-			minHeight: stackedControls ? 48 : 40,
+			padding: '6px 10px',
+			marginBottom: controlBottom,
+			flex: '0 0 auto',
 			display: 'flex',
 			alignItems: 'center',
-			flexWrap: compactControls ? 'wrap' : 'nowrap',
-			gap: 8,
-			height: '100%',
+			flexWrap: 'nowrap',
+			gap: compactControls ? 8 : 12,
+			overflowX: 'auto',
+			whiteSpace: 'nowrap',
+		};
+		const groupStyle = {
+			display: 'inline-flex',
+			alignItems: 'center',
+			gap: 6,
+			flex: '0 0 auto',
 		};
 		const labelStyle = {
 			whiteSpace: 'nowrap',
 			color: 'var(--horosa-text, #333)',
 			flex: '0 0 auto',
 		};
-		const selectStyle = {
-			flex: '1 1 180px',
-			minWidth: stackedControls ? '100%' : 0,
-		};
-		const buttonWrapStyle = {
-			height: '100%',
-			display: 'flex',
-			alignItems: stackedControls ? 'stretch' : 'center',
-			justifyContent: stackedControls ? 'stretch' : 'flex-end',
-		};
+		// 方位法名称最长,给稍宽;其余收窄到刚好不遮文字。
+		const methodSelectStyle = { width: compactControls ? 108 : 124, flex: '0 0 auto', };
+		const timeKeySelectStyle = { width: compactControls ? 88 : 96, flex: '0 0 auto', };
+		// 方向类型显示英文 In Zodiaco / In Mundo,稍加宽避免截断。
+		const typeSelectStyle = { width: compactControls ? 90 : 100, flex: '0 0 auto', };
+		const yearsInputStyle = { width: compactControls ? 64 : 72, flex: '0 0 auto', };
 		const buttonStyle = {
-			minWidth: 96,
-			width: stackedControls ? '100%' : 'auto',
-			height: compactControls ? 36 : 32,
+			minWidth: 84,
+			height: 30,
+			flex: '0 0 auto',
 		};
-		
+
 		let columns = [{
 			title: isHorosaLegacy ? '赤经' : 'Arc',
 			dataIndex: 'Degree',
@@ -658,65 +792,96 @@ class AstroPrimaryDirection extends Component{
 		
 		return (
 			<div className={`${styles.scrollbar} horosa-primary-direction-page`} style={style}>
-				<Row className='horosa-primary-direction-toolbar' gutter={[8, 8]} style={{marginBottom: controlBottom, flex: '0 0 auto'}}>
-					<Col xs={24} md={12} lg={7}>
-						<div style={controlBoxStyle}>
-							<span style={labelStyle}>推运方法</span>
-							<Select
-								size='small'
-								style={selectStyle}
-								value={this.getSelectedPdMethod()}
-								onChange={this.handlePdMethodChange}
-								dropdownMatchSelectWidth={false}
-							>
-								<Option value='core_alchabitius'>Alchabitius</Option>
-								<Option value='placidus'>Placidus</Option>
-								<Option value='horosa_legacy'>Horosa原方法</Option>
-							</Select>
-						</div>
-					</Col>
-					<Col xs={24} sm={12} md={8} lg={5}>
-						<div style={controlBoxStyle}>
-							<span style={labelStyle}>度数换算</span>
-							<Select
-								size='small'
-								style={selectStyle}
-								value={this.getSelectedPdTimeKey()}
-								onChange={this.handlePdTimeKeyChange}
-								dropdownMatchSelectWidth={false}
-							>
-								<Option value='Ptolemy'>Ptolemy</Option>
-								<Option value='Naibod'>Naibod</Option>
-							</Select>
-						</div>
-					</Col>
-					<Col xs={24} sm={12} md={8} lg={5}>
-						<div style={controlBoxStyle}>
-							<span style={labelStyle}>推运年数</span>
-							<InputNumber
-								size='small'
-								min={1}
-								max={180}
-								step={1}
-								precision={0}
-								style={selectStyle}
-								value={this.getSelectedPdYears()}
-								onChange={this.handlePdYearsChange}
-							/>
-						</div>
-					</Col>
-					<Col xs={24} sm={12} md={4} lg={7} style={buttonWrapStyle}>
-						<Button
-							type='primary'
+				<div className='horosa-primary-direction-toolbar' style={toolbarStyle}>
+					<span style={groupStyle}>
+						<span style={labelStyle}>方法</span>
+						<Select
 							size='small'
-							style={buttonStyle}
-							onClick={this.handlePdCalculate}
-							disabled={!needsPdRecompute}
+							style={methodSelectStyle}
+							value={this.getSelectedPdMethod()}
+							onChange={this.handlePdMethodChange}
+							dropdownMatchSelectWidth={false}
 						>
-							{needsPdRecompute ? (isPdConfigDirty ? '重新计算' : '计算') : '已同步'}
-						</Button>
-					</Col>
-				</Row>
+							<Option value='core_alchabitius'>Alchabitius</Option>
+							<Option value='placidus'>Placidus（半弧）</Option>
+							<Option value='regiomontanus'>Regiomontanus</Option>
+							<Option value='campanus'>Campanus</Option>
+							<Option value='topocentric'>Topocentric</Option>
+							<Option value='horosa_legacy'>Horosa原方法</Option>
+						</Select>
+					</span>
+					<span style={groupStyle}>
+						<span style={labelStyle}>度数</span>
+						<Select
+							size='small'
+							style={timeKeySelectStyle}
+							value={this.getSelectedPdTimeKey()}
+							onChange={this.handlePdTimeKeyChange}
+							dropdownMatchSelectWidth={false}
+						>
+							<Option value='Ptolemy'>Ptolemy</Option>
+							<Option value='Naibod'>Naibod</Option>
+							<Option value='TrueSolarArc'>真太阳弧</Option>
+						</Select>
+					</span>
+					<span style={groupStyle}>
+						<span style={labelStyle}>方向</span>
+						<Select
+							size='small'
+							style={typeSelectStyle}
+							value={this.getSelectedPdType()}
+							onChange={this.handlePdTypeChange}
+							dropdownMatchSelectWidth={false}
+						>
+							<Option value={0}>In Zodiaco</Option>
+							<Option value={1}>In Mundo</Option>
+						</Select>
+					</span>
+					<span style={groupStyle}>
+						<span style={labelStyle}>向运</span>
+						<Checkbox
+							checked={this.getSelectedPdDirect() === 1}
+							onChange={this.handlePdDirectChange}
+						>顺</Checkbox>
+						<Checkbox
+							checked={this.getSelectedPdConverse() === 1}
+							onChange={this.handlePdConverseChange}
+						>逆</Checkbox>
+					</span>
+					<span style={groupStyle}>
+						<span style={labelStyle}>年数</span>
+						<InputNumber
+							size='small'
+							min={1}
+							max={180}
+							step={1}
+							precision={0}
+							style={yearsInputStyle}
+							value={this.getSelectedPdYears()}
+							onChange={this.handlePdYearsChange}
+						/>
+					</span>
+					<span style={groupStyle}>
+						<span style={labelStyle}>附加</span>
+						<Checkbox
+							checked={this.getSelectedPdAntiscia() === 1}
+							onChange={this.handlePdAntisciaChange}
+						>映点</Checkbox>
+						<Checkbox
+							checked={this.getSelectedPdTerms() === 1}
+							onChange={this.handlePdTermsChange}
+						>界</Checkbox>
+					</span>
+					<Button
+						type='primary'
+						size='small'
+						style={{...buttonStyle, marginLeft: 'auto'}}
+						onClick={this.handlePdCalculate}
+						disabled={!needsPdRecompute}
+					>
+						{needsPdRecompute ? (isPdConfigDirty ? '重新计算' : '计算') : '已同步'}
+					</Button>
+				</div>
 				<div style={tableWrapStyle}>
 					<Table
 						className='horosa-primary-direction-table'

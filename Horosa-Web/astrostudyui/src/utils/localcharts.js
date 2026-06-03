@@ -278,6 +278,15 @@ export function buildLocalChartRecord(values){
 		timeAlg: values.timeAlg !== undefined && values.timeAlg !== null
 			? parseInt(values.timeAlg + '', 10)
 			: undefined,
+		// 主限法视图配置(方法/时间换算/方向类型/顺逆/映点/界):随命盘存档,AI 挂载时 recordToFields 复原,
+		// 否则重新打开/挂载会回退默认 Alcabitius+Ptolemy+黄道,与保存时的推运视图不一致。仅在 values 提供时落库。
+		pdMethod: values.pdMethod !== undefined && values.pdMethod !== null ? values.pdMethod : undefined,
+		pdTimeKey: values.pdTimeKey !== undefined && values.pdTimeKey !== null ? values.pdTimeKey : undefined,
+		pdtype: values.pdtype !== undefined && values.pdtype !== null ? parseInt(values.pdtype + '', 10) : undefined,
+		pdDirect: values.pdDirect !== undefined && values.pdDirect !== null ? parseInt(values.pdDirect + '', 10) : undefined,
+		pdConverse: values.pdConverse !== undefined && values.pdConverse !== null ? parseInt(values.pdConverse + '', 10) : undefined,
+		pdAntiscia: values.pdAntiscia !== undefined && values.pdAntiscia !== null ? parseInt(values.pdAntiscia + '', 10) : undefined,
+		pdTerms: values.pdTerms !== undefined && values.pdTerms !== null ? parseInt(values.pdTerms + '', 10) : undefined,
 	};
 	return record;
 }

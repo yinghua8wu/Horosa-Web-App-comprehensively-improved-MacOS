@@ -137,14 +137,8 @@ class ChartDisplaySelector extends Component{
 				</XQCheckList>
 				<XQSectionTitle>解释与计算</XQSectionTitle>
 				<XQCheckList>
-					<XQCheckItem
-						checked={this.props.showPdBounds !== 0}
-						onClick={()=>this.changeShowPdBounds({target: {checked: !(this.props.showPdBounds !== 0)}})}
-					>
-						<span style={labelStyle}>
-							主/界限法显示界限法
-						</span>
-					</XQCheckItem>
+					{/* 「主/界限法显示界限法」(showPdBounds) 已删:功能与主限法表格顶部的「界」开关(pdTerms)重复。
+					    新方位法的界限法行由「界」勾选控制;core_alchabitius 仍恒显其界限法行(showPdBounds 默认显示)。 */}
 					<XQCheckItem
 						checked={this.props.showPlanetHouseInfo === 1 || this.props.showPlanetHouseInfo === true}
 						onClick={()=>this.changeShowPlanetHouseInfo({target: {checked: !(this.props.showPlanetHouseInfo === 1 || this.props.showPlanetHouseInfo === true)}})}

@@ -156,3 +156,81 @@ def test_pd_method_registry_includes_p0_additions():
     assert 'placidus' in _PD_METHOD_REGISTRY
     # Iron Rule ①: default key must point to the original kernel
     assert _PD_METHOD_REGISTRY['core_alchabitius'] == 'getPrimaryDirectionByZCoreKernel'
+
+
+# ---------------------------------------------------------------------------
+# v10 进阶开关:方向类型(黄道/世俗) / 向运(顺逆同选) / 真太阳弧动态钥匙
+# ---------------------------------------------------------------------------
+def _engine_chart():
+    """取第一张样本盘并强制走自研引擎方位法(placidus)。"""
+    cd = dict(SAMPLE_CHARTS[0])
+    cd['pdMethod'] = 'placidus'
+    cd['pdTimeKey'] = 'Ptolemy'
+    return cd
+
+
+def test_pddirect_parsing_default_and_off():
+    """pdDirect 默认 True;仅显式 0/'0'/false 才关。"""
+    cd = _engine_chart()
+    assert perchart.PerChart(cd).pdDirect is True  # 缺省
+    cd0 = dict(cd); cd0['pdDirect'] = 0
+    assert perchart.PerChart(cd0).pdDirect is False
+    cd1 = dict(cd); cd1['pdDirect'] = '0'
+    assert perchart.PerChart(cd1).pdDirect is False
+    cd2 = dict(cd); cd2['pdDirect'] = 1
+    assert perchart.PerChart(cd2).pdDirect is True
+
+
+def test_direct_and_converse_co_select_concatenates():
+    """顺向+逆向可同时选:行数应为「仅顺」与「仅逆」之和(各跑一遍拼接)。"""
+    cd = _engine_chart()
+    cd['pdtype'] = 0
+    d = dict(cd); d['pdDirect'] = 1; d['pdConverse'] = 0
+    c = dict(cd); c['pdDirect'] = 0; c['pdConverse'] = 1
+    b = dict(cd); b['pdDirect'] = 1; b['pdConverse'] = 1
+    n_d = len(perpredict.PerPredict(perchart.PerChart(d)).getPrimaryDirection())
+    n_c = len(perpredict.PerPredict(perchart.PerChart(c)).getPrimaryDirection())
+    n_b = len(perpredict.PerPredict(perchart.PerChart(b)).getPrimaryDirection())
+    assert n_d > 0 and n_c > 0
+    assert n_b == n_d + n_c, f'co-select should concat: {n_b} vs {n_d}+{n_c}'
+
+
+def test_neither_direction_falls_back_to_direct():
+    """顺逆皆关时回退顺向(绝不产出空向运)。"""
+    cd = _engine_chart()
+    cd['pdtype'] = 0
+    none_sel = dict(cd); none_sel['pdDirect'] = 0; none_sel['pdConverse'] = 0
+    only_d = dict(cd); only_d['pdDirect'] = 1; only_d['pdConverse'] = 0
+    n_none = len(perpredict.PerPredict(perchart.PerChart(none_sel)).getPrimaryDirection())
+    n_d = len(perpredict.PerPredict(perchart.PerChart(only_d)).getPrimaryDirection())
+    assert n_none == n_d and n_none > 0
+
+
+def test_mundo_pdtype_diverges_regio_campanus():
+    """pdtype=1(世俗 in mundo):Regiomontanus 与 Campanus 的行集应明显不同(Bug1 修复点)。"""
+    cd = _engine_chart()
+    cd['pdtype'] = 1
+    r = dict(cd); r['pdMethod'] = 'regiomontanus'
+    c = dict(cd); c['pdMethod'] = 'campanus'
+    rows_r = perpredict.PerPredict(perchart.PerChart(r)).getPrimaryDirection()
+    rows_c = perpredict.PerPredict(perchart.PerChart(c)).getPrimaryDirection()
+    ar = {(x[1], x[2]): round(x[0], 4) for x in rows_r}
+    ac = {(x[1], x[2]): round(x[0], 4) for x in rows_c}
+    common = set(ar) & set(ac)
+    diff = sum(1 for k in common if abs(ar[k] - ac[k]) > 1e-4)
+    assert common and diff > 0, f'in-mundo Regio vs Campanus should diverge ({diff}/{len(common)})'
+
+
+def test_truesolararc_dates_differ_from_ptolemy():
+    """真太阳弧(动态钥匙)日期须与 Ptolemy 不同(Bug2 修复点);弧不变。"""
+    cd = _engine_chart()
+    cd['pdtype'] = 0
+    pt = dict(cd); pt['pdTimeKey'] = 'Ptolemy'
+    sa = dict(cd); sa['pdTimeKey'] = 'TrueSolarArc'
+    rows_pt = perpredict.PerPredict(perchart.PerChart(pt)).getPrimaryDirection()
+    rows_sa = perpredict.PerPredict(perchart.PerChart(sa)).getPrimaryDirection()
+    dp = {(x[1], x[2]): x[4] for x in rows_pt}
+    ds = {(x[1], x[2]): x[4] for x in rows_sa}
+    common = set(dp) & set(ds)
+    diff = sum(1 for k in common if dp[k] != ds[k])
+    assert common and diff > 0, 'TrueSolarArc dates must differ from Ptolemy'

@@ -103,6 +103,11 @@ describe('AstroDirectMain primary direction sync', ()=>{
 				pdMethod: 'horosa_legacy',
 				pdTimeKey: 'Ptolemy',
 				pdYears: 100,
+				pdtype: 0,
+				pdDirect: 1,
+				pdConverse: false,
+				pdAntiscia: false,
+				pdTerms: false,
 			},
 		});
 		expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({

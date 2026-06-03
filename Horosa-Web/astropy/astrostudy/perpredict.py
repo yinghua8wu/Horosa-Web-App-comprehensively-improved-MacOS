@@ -112,6 +112,9 @@ _PD_METHOD_REGISTRY = {
     'core_alchabitius': 'getPrimaryDirectionByZCoreKernel',
     'horosa_legacy': 'getPrimaryDirectionByZLegacy',
     'placidus': 'getPrimaryDirectionByZCoreKernel',
+    'regiomontanus': 'getPrimaryDirectionByZRegiomontanus',
+    'campanus': 'getPrimaryDirectionByZCampanus',
+    'topocentric': 'getPrimaryDirectionByZTopocentric',
 }
 
 
@@ -348,25 +351,93 @@ class PerPredict:
                 pdlist.append(item)
         return pdlist
 
-    def getPrimaryDirectionByZCoreKernel(self):
-        """
-        Self-developed In Zodiaco primary direction kernel for the Placidus method.
+    # ---- 自研主限法引擎(半弧 / Regiomontanus / Campanus / Topocentric)----
+    # 这些方位法走 astrostudy.pd_engine(通用球面三角 + swisseph 原语),与默认 Alcabitius
+    # 完全独立;Alcabitius+Ptolemy 字节级路径绝不受影响(铁律①)。
 
-        Placidus is the modern mainstream primary-direction method, derived from
-        time-circle (semi-arc) trisection of the natal sphere. Output is iterated
-        over the same (promissor, significator, aspect) space as the default
-        Alcabitius kernel, but the projection follows Placidian semi-arc geometry
-        rather than the Alcabitius oblique-ascension trisection (and without the
-        Alcabitius-specific ML correction layer, which is reserved exclusively
-        for the byte-perfect default path).
-        """
+    _PD_ENGINE_SIGNIFICATORS = [
+        const.ASC, const.MC, const.SUN, const.MOON, const.MERCURY,
+        const.VENUS, const.MARS, const.JUPITER, const.SATURN,
+    ]
+    _PD_ENGINE_PROMISSORS = [
+        const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS,
+        const.JUPITER, const.SATURN, const.URANUS, const.NEPTUNE, const.PLUTO,
+    ]
+
+    def _pdEngineChartData(self):
+        """从本命盘取 pd_engine 所需:bodies/angles/armc/phi/eps/jd。"""
         chart = self.perchart.getChart()
-        pd = PrimaryDirections(chart)
-        pdlist = []
-        for item in pd.getList(self.perchart.pdaspects):
-            if len(item) > 3 and item[3] == 'Z':
-                pdlist.append(item)
-        return pdlist
+        jd = float(chart.date.jd)
+        phi = float(chart.pos.lat)
+        geolon = float(chart.pos.lon)
+        eps = float(swisseph.calc_ut(jd, swisseph.ECL_NUT)[0][0])
+        armc = float(swisseph.houses_ex(jd, phi, geolon, b'P')[1][2])
+        angle_ids = (const.ASC, const.MC, const.DESC, const.IC)
+        bodies = {}
+        needed = set(self._PD_ENGINE_PROMISSORS) | set(self._PD_ENGINE_SIGNIFICATORS)
+        for name in needed:
+            if name in angle_ids:
+                continue
+            try:
+                o = chart.get(name)
+                bodies[name] = {'lon': float(o.lon), 'lat': float(o.lat)}
+            except Exception:
+                continue
+        angles = {}
+        for aid in angle_ids:
+            try:
+                angles[aid] = float(chart.get(aid).lon)
+            except Exception:
+                continue
+        return bodies, angles, armc, phi, eps, jd
+
+    def getPrimaryDirectionByZEngine(self, method, zodiacal=True):
+        """通用引擎主限法表格:闭式/数值逐对算弧,产出 pdlist 行。
+        zodiacal=True 黄道向运;False 世俗向运(in mundo,相位在房屋空间,Regio≠Campanus)。
+        顺向(direct)/ 逆向(converse) 可同时开(各跑一遍 build_directions 后拼接,arc 正负号天然区分);
+        映点 / 界 由 perchart 开关控制。"""
+        from astrostudy import pd_engine
+        bodies, angles, armc, phi, eps, jd = self._pdEngineChartData()
+        aspects = list(self.perchart.pdaspects) if self.perchart.pdaspects else [0, 60, 90, 120, 180]
+        max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
+        include_antiscia = bool(getattr(self.perchart, 'pdAntiscia', False))
+        include_terms = bool(getattr(self.perchart, 'pdTerms', False))
+        # 向运方向:顺(direct)默认开,逆(converse)默认关;两者皆关时回退顺向。
+        want_direct = getattr(self.perchart, 'pdDirect', True)
+        want_direct = True if want_direct is None else bool(want_direct)
+        want_converse = bool(getattr(self.perchart, 'pdConverse', False))
+        if not want_direct and not want_converse:
+            want_direct = True
+
+        def _build(converse):
+            return pd_engine.build_directions(
+                bodies, angles, armc, phi, eps, method,
+                self._PD_ENGINE_SIGNIFICATORS, self._PD_ENGINE_PROMISSORS,
+                aspects=aspects, max_arc=max_arc, zodiacal=zodiacal,
+                converse=converse, include_antiscia=include_antiscia,
+                include_terms=include_terms)
+
+        rows = []
+        if want_direct:
+            rows.extend(_build(False))
+        if want_converse:
+            rows.extend(_build(True))
+        # 顺逆同开时,direct(正弧)与 converse(负弧)两批要按「年龄」交错显示,而非先全顺再全逆。
+        # 年龄 ∝ |arc|(同一时间钥匙下 |弧|越大日期越晚),故按 |arc| 升序统一排序。
+        rows.sort(key=lambda r: (abs(r[0]), r[0], r[1], r[2]))
+        return rows
+
+    def getPrimaryDirectionByZCoreKernel(self):
+        return self.getPrimaryDirectionByZEngine('placidus')
+
+    def getPrimaryDirectionByZRegiomontanus(self):
+        return self.getPrimaryDirectionByZEngine('regiomontanus')
+
+    def getPrimaryDirectionByZCampanus(self):
+        return self.getPrimaryDirectionByZEngine('campanus')
+
+    def getPrimaryDirectionByZTopocentric(self):
+        return self.getPrimaryDirectionByZEngine('topocentric')
 
     def _isNodeDirectionId(self, ID):
         txt = '{0}'.format(ID if ID is not None else '')
@@ -807,9 +878,15 @@ class PerPredict:
         asctime = SignAscTime(self.perchart.date, self.perchart.time, asc.sign, self.perchart.lat, self.perchart.zone)
         current_arc = asctime.getPDArcFromDate(current_dt)
         # 度数换算 key：统一走 _pdTimeKeyScale 注册表 (见模块顶部 STATIC_TIME_KEY_SCALES)。
-        # Ptolemy 缩放 == 1.0，护住默认路径字节级一致；其它 time key 按表缩放弧 (不碰表格)。
+        # Ptolemy 缩放 == 1.0，护住默认路径字节级一致；其它 static key 按表缩放弧 (不碰表格)。
         pd_time_key = '{0}'.format(getattr(self.perchart, 'pdTimeKey', 'Ptolemy') or 'Ptolemy')
-        current_arc = current_arc * _pdTimeKeyScale(pd_time_key, chart=chart)
+        # 真太阳弧(动态钥匙):盘也要逐盘真算,用 key 的逆 solar_arc_for_years(年→赤经弧),
+        # 与表格 getDateFromPDArc(弧→年) round-trip 一致;否则盘会把它当 Ptolemy(scale 1.0)致盘表不符。
+        if pd_time_key.lower() in ('truesolararc', 'placidus_key'):
+            from astrostudy import pd_engine
+            current_arc = float(pd_engine.solar_arc_for_years(float(current_arc), float(chart.date.jd)))
+        else:
+            current_arc = current_arc * _pdTimeKeyScale(pd_time_key, chart=chart)
         # 向运方向：direct=随时间逆时针(默认现状)；converse=按时间反向(顺时针)推进，即弧反号。
         directed_arc = -current_arc if converse else current_arc
         obliquity = self._coreMeanObliquity(chart) if getattr(self.perchart, 'pdMethod', 'core_alchabitius') == 'core_alchabitius' else const.EQ2ECLI_OBLIQUITY
@@ -988,6 +1065,13 @@ class PerPredict:
         return pdlist
 
     def getPrimaryDirectionByM(self):
+        # 世俗向运(in mundo)。新方位法走自研引擎(相位在房屋空间,Regio≠Campanus);
+        # core/legacy 仍走 flatlib 'M' 行。
+        method = getattr(self.perchart, 'pdMethod', 'core_alchabitius') or 'core_alchabitius'
+        if method in ('placidus', 'regiomontanus', 'campanus', 'topocentric'):
+            pdlist = self.getPrimaryDirectionByZEngine(method, zodiacal=False)
+            self.appendDateStr(pdlist)
+            return pdlist
         chart = self.perchart.getChart()
         pdlist = []
         pd = PrimaryDirections(chart)
@@ -1020,13 +1104,22 @@ class PerPredict:
         # 仅缩放日期、不动弧/动星/应星；Ptolemy scale == 1.0 逐字节不变，
         # 护住已验证的 Ptolemy+Alchabitius 表格。
         pd_time_key = '{0}'.format(getattr(self.perchart, 'pdTimeKey', 'Ptolemy') or 'Ptolemy')
+        # 真太阳弧(Placidus key)是动态钥匙:逐弧查星历求真太阳走到 natal_sun_ra+arc 的天数(1天=1年),
+        # 非静态缩放。Ptolemy/Naibod 等仍走 _pdTimeKeyScale 静态表(Ptolemy 锁 1.0 字节级一致)。
+        use_solar_arc = pd_time_key.lower() in ('truesolararc', 'placidus_key')
+        natal_jd = float(chart.date.jd) if use_solar_arc else None
         scale = _pdTimeKeyScale(pd_time_key, chart=chart)
         for item in pdlist:
             asc = chart.angles.get(const.ASC)
             asctime = SignAscTime(self.perchart.date, self.perchart.time, asc.sign, self.perchart.lat, self.perchart.zone)
             datestr = None
             if usePD:
-                arc_for_date = (item[0] / scale) if scale and scale != 1.0 else item[0]
+                if use_solar_arc:
+                    from astrostudy import pd_engine
+                    # 真太阳弧:把方向弧换算为年(Ptolemy 等效 1°=1年),再走同一日期函数。
+                    arc_for_date = float(pd_engine.key_placidus_true_solar_arc(float(item[0]), natal_jd))
+                else:
+                    arc_for_date = (item[0] / scale) if scale and scale != 1.0 else item[0]
                 datestr = asctime.getDateFromPDArc(arc_for_date)
             else:
                 datestr = asctime.getDateFromTermDirArc(item[0])

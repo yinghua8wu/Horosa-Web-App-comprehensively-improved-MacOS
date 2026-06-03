@@ -276,11 +276,16 @@ function buildFieldObject(record){
 		houseStartMode: { value: 0 },
 		predictive: { value: 1 },
 		showPdBounds: { value: 1 },
-		pdtype: { value: 0 },
+		pdtype: { value: record.pdtype === 1 ? 1 : 0 },
 		// P0 起 record 可能持久化用户实选 (placidus / 其它 timeKey)；优先读 record，
 		// 不存在时回退到默认 Alcabitius+Ptolemy (守 v2.5.3 默认路径字节级一致)。
 		pdMethod: { value: record.pdMethod || 'core_alchabitius' },
 		pdTimeKey: { value: record.pdTimeKey || 'Ptolemy' },
+		// 主限法进阶开关(向运顺逆 / 映点 / 界):顺向默认开,其余默认关。
+		pdDirect: { value: record.pdDirect === 0 ? 0 : 1 },
+		pdConverse: { value: record.pdConverse ? 1 : 0 },
+		pdAntiscia: { value: record.pdAntiscia ? 1 : 0 },
+		pdTerms: { value: record.pdTerms ? 1 : 0 },
 		pdaspects: { value: DEFAULT_PD_ASPECTS.slice(0) },
 		// 时间算法(0=真太阳时按经度校正 / 1=直接时间用钟表时)+ 晚子时口径须从存盘读取,
 		// 否则 canping/heluo 等八字类快照会对「直接时间」盘错用真太阳时校正、忽略晚子时设置(口径与显示不一致)。
@@ -320,6 +325,10 @@ function fieldParams(fields){
 		pdtype: fields.pdtype.value,
 		pdMethod: fields.pdMethod.value,
 		pdTimeKey: fields.pdTimeKey.value,
+		pdDirect: fields.pdDirect ? fields.pdDirect.value : 1,
+		pdConverse: fields.pdConverse ? fields.pdConverse.value : 0,
+		pdAntiscia: fields.pdAntiscia ? fields.pdAntiscia.value : 0,
+		pdTerms: fields.pdTerms ? fields.pdTerms.value : 0,
 		pdaspects: fields.pdaspects.value,
 		name: fields.name.value,
 		pos: fields.pos.value,

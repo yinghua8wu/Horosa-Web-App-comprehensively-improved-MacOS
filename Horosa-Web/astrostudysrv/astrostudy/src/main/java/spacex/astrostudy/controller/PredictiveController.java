@@ -55,7 +55,7 @@ public class PredictiveController {
 		params.put("lat", TransData.get("lat"));
 		params.put("lon", TransData.get("lon"));
 		// Bust legacy local/runtime cache entries after PD method/time-key response wiring changes.
-		params.put("_wireRev", "pd_method_sync_v8");
+		params.put("_wireRev", "pd_method_sync_v10");
 		params.put("hsys", TransData.getValueAsInt("hsys", 0));
 		params.put("tradition", TransData.getValueAsBool("tradition", false));
 		params.put("predictive", TransData.getValueAsBool("predictive", false));
@@ -75,6 +75,20 @@ public class PredictiveController {
 		}
 		if(TransData.containsParam("pdTimeKey")) {
 			params.put("pdTimeKey", TransData.get("pdTimeKey"));
+		}
+		// 主限法 v10 进阶开关:顺向(direct)/逆向(converse) 可同选 + 映点 + 界。
+		// 必须透传给 Python compute,否则「推运方向/映点/界」选了不生效(选项与显示对不上)。
+		if(TransData.containsParam("pdDirect")) {
+			params.put("pdDirect", TransData.get("pdDirect"));
+		}
+		if(TransData.containsParam("pdConverse")) {
+			params.put("pdConverse", TransData.get("pdConverse"));
+		}
+		if(TransData.containsParam("pdAntiscia")) {
+			params.put("pdAntiscia", TransData.get("pdAntiscia"));
+		}
+		if(TransData.containsParam("pdTerms")) {
+			params.put("pdTerms", TransData.get("pdTerms"));
 		}
 		if(TransData.containsParam("pdYears")) {
 			params.put("pdYears", TransData.get("pdYears"));

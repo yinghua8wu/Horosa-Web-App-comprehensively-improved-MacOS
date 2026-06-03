@@ -4,7 +4,7 @@ from flatlib import const
 
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 
-PD_SYNC_REV = 'pd_method_sync_v8'
+PD_SYNC_REV = 'pd_method_sync_v10'
 
 
 def includePrimaryDirection(data):

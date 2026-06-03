@@ -15,6 +15,7 @@ import {
 	DEFAULT_PD_METHOD,
 	DEFAULT_PD_TIME_KEY,
 	DEFAULT_PD_TYPE,
+	SUPPORTED_PD_METHODS,
 	mergePrimaryDirectionChartObj,
 	getPdMethodLabel,
 	getPdTimeKeyLabel,
@@ -555,16 +556,16 @@ class AstroPrimaryDirectionChart extends Component{
 	}
 
 	normalizePdMethod(value){
-		// P0 白名单：与后端 perpredict._PD_METHOD_REGISTRY 同步。
-		if(value === 'horosa_legacy' || value === 'core_alchabitius' || value === 'placidus'){
+		// 白名单：与后端 perpredict._PD_METHOD_REGISTRY 同步。
+		if(SUPPORTED_PD_METHODS.indexOf(value) >= 0){
 			return value;
 		}
 		return DEFAULT_PD_METHOD;
 	}
 
 	normalizePdTimeKey(value){
-		// 白名单：与后端 perpredict.STATIC_TIME_KEY_SCALES 同步,只收公式可证的 key。
-		const VALID = ['Ptolemy', 'Naibod'];
+		// 白名单：与后端同步,只收公式/真算法 key（Ptolemy/Naibod 静态,TrueSolarArc 动态真太阳弧）。
+		const VALID = ['Ptolemy', 'Naibod', 'TrueSolarArc'];
 		if(VALID.indexOf(value) >= 0){
 			return value;
 		}
@@ -621,9 +622,8 @@ class AstroPrimaryDirectionChart extends Component{
 		if(!applied.hasCompleteParams){
 			return true;
 		}
-		if(applied.pdtype !== DEFAULT_PD_TYPE){
-			return true;
-		}
+		// pdtype(黄道/世俗)等进阶开关是表格侧的真实选项,盘不暴露;盘的「计算」只同步方法/时间换算,
+		// 不再因 pdtype!=0 强制重算(否则会把表格的世俗/进阶设置 clobber 回黄道)。
 		return !(Array.isArray(pds) && pds.length > 0);
 	}
 
@@ -700,7 +700,12 @@ class AstroPrimaryDirectionChart extends Component{
 			southchart: params.southchart !== undefined ? params.southchart : false,
 			predictive: true,
 			showPdBounds: params.showPdBounds === 0 ? 0 : 1,
-			pdtype: DEFAULT_PD_TYPE,
+			// 盘的「计算」会重算表格,须保留表格侧的进阶设置(方向类型/顺逆/映点/界),否则会被 clobber 回默认。
+			pdtype: params.pdtype === 1 ? 1 : DEFAULT_PD_TYPE,
+			pdDirect: params.pdDirect === 0 ? 0 : 1,
+			pdConverse: params.pdConverse ? 1 : 0,
+			pdAntiscia: params.pdAntiscia ? 1 : 0,
+			pdTerms: params.pdTerms ? 1 : 0,
 			pdMethod: this.getSelectedPdMethod(),
 			pdTimeKey: this.getTablePdTimeKey(),
 			pdaspects: params.pdaspects || [0, 60, 90, 120, 180],
@@ -747,6 +752,11 @@ class AstroPrimaryDirectionChart extends Component{
 			showPdBounds: req.showPdBounds,
 			pdMethod: this.getSelectedPdMethod(),
 			pdTimeKey: this.getTablePdTimeKey(),
+			pdtype: req.pdtype,
+			pdDirect: req.pdDirect,
+			pdConverse: req.pdConverse,
+			pdAntiscia: req.pdAntiscia,
+			pdTerms: req.pdTerms,
 			name: req.name,
 			pos: req.pos,
 		});
@@ -954,7 +964,10 @@ class AstroPrimaryDirectionChart extends Component{
 									<div style={{marginBottom: 8}}>推运方法</div>
 									<Select value={this.state.pdMethodValue} onChange={this.handlePdMethodChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
 										<Option value='core_alchabitius'>Core-Alchabitius</Option>
-										<Option value='placidus'>Placidus</Option>
+										<Option value='placidus'>Placidus（半弧）</Option>
+										<Option value='regiomontanus'>Regiomontanus</Option>
+										<Option value='campanus'>Campanus</Option>
+										<Option value='topocentric'>Topocentric</Option>
 										<Option value='horosa_legacy'>Horosa原方法</Option>
 									</Select>
 								</Col>
@@ -963,6 +976,7 @@ class AstroPrimaryDirectionChart extends Component{
 									<Select value={this.state.pdTimeKeyValue} onChange={this.handlePdTimeKeyChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
 										<Option value='Ptolemy'>Ptolemy</Option>
 										<Option value='Naibod'>Naibod</Option>
+										<Option value='TrueSolarArc'>真太阳弧</Option>
 									</Select>
 								</Col>
 							</Row>

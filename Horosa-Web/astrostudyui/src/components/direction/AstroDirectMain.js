@@ -228,11 +228,13 @@ function buildPrimaryDirectSnapshotText(chartObj){
 	const pdMethod = obj.params && obj.params.pdMethod ? obj.params.pdMethod : 'core_alchabitius';
 	const pdTimeKey = obj.params && obj.params.pdTimeKey ? obj.params.pdTimeKey : 'Ptolemy';
 	const degreeLabel = pdMethod === 'horosa_legacy' ? '赤经' : 'Arc';
+	// 与表格 convertToDataSource 口径一致:showPdBounds 只隐藏 core_alchabitius 的界限法行;
+	// 新方位法的界(T_)行只在 pdTerms 勾选时产出,应随导出/挂载显示(否则用户勾了界、AI 导出却没有)。
 	const pds = allPds.filter((pd)=>{
 		if(pdMethod === 'core_alchabitius' && isCoreUnsupportedDirectionRow(pd)){
 			return false;
 		}
-		if(!showPdBounds && isBoundDirectionRow(pd)){
+		if(!showPdBounds && pdMethod === 'core_alchabitius' && isBoundDirectionRow(pd)){
 			return false;
 		}
 		return true;
@@ -240,10 +242,24 @@ function buildPrimaryDirectSnapshotText(chartObj){
 
 	appendBirthAndChartInfo(lines, obj);
 
+	const pdParams = obj.params || {};
+	const pdTypeText = pdParams.pdtype === 1 ? '世俗（In Mundo）' : '黄道（In Zodiaco）';
+	const wantDirect = pdParams.pdDirect === 0 ? false : true;
+	const wantConverse = !!pdParams.pdConverse;
+	let pdDirText = '顺向 Direct';
+	if(wantDirect && wantConverse){
+		pdDirText = '顺向 Direct + 逆向 Converse';
+	}else if(wantConverse){
+		pdDirText = '逆向 Converse';
+	}
 	lines.push('');
 	lines.push('[主/界限法设置]');
 	lines.push(`推运方法：${primaryDirectionMethodText(pdMethod)}`);
 	lines.push(`度数换算：${primaryDirectionTimeKeyText(pdTimeKey)}`);
+	lines.push(`方向类型：${pdTypeText}`);
+	lines.push(`向运方向：${pdDirText}`);
+	lines.push(`映点迫星：${pdParams.pdAntiscia ? '是' : '否'}`);
+	lines.push(`界迫星：${pdParams.pdTerms ? '是' : '否'}`);
 	lines.push(`显示界限法：${showPdBounds ? '是' : '否'}`);
 
 	lines.push('');
@@ -308,10 +324,16 @@ function normalizePdYears(v){
 	return Math.max(1, Math.min(180, n));
 }
 
-function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTimeKey, pdYears){
+function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTimeKey, pdYears, options){
 	const fields = {
 		...(baseFields || {}),
 	};
+	const opt = options || {};
+	const pdtypeVal = (opt.pdtype === 1) ? 1 : 0;
+	const pdDirectVal = (opt.direct === false) ? 0 : 1;
+	const pdConverseVal = opt.converse ? 1 : 0;
+	const pdAntisciaVal = opt.antiscia ? 1 : 0;
+	const pdTermsVal = opt.terms ? 1 : 0;
 	const params = chartObj && chartObj.params ? chartObj.params : {};
 	const birth = `${params.birth || ''}`.trim();
 	if(birth){
@@ -406,7 +428,23 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
 	};
 	fields.pdtype = {
 		...(fields.pdtype || { name: ['pdtype'] }),
-		value: 0,
+		value: pdtypeVal,
+	};
+	fields.pdDirect = {
+		...(fields.pdDirect || { name: ['pdDirect'] }),
+		value: pdDirectVal,
+	};
+	fields.pdConverse = {
+		...(fields.pdConverse || { name: ['pdConverse'] }),
+		value: pdConverseVal,
+	};
+	fields.pdAntiscia = {
+		...(fields.pdAntiscia || { name: ['pdAntiscia'] }),
+		value: pdAntisciaVal,
+	};
+	fields.pdTerms = {
+		...(fields.pdTerms || { name: ['pdTerms'] }),
+		value: pdTermsVal,
 	};
 	fields.pdMethod = {
 		...(fields.pdMethod || { name: ['pdMethod'] }),
@@ -587,6 +625,23 @@ class AstroDirectMain extends Component{
 		const chart = chartObj || this.props.chartObj || {};
 		const params = chart.params || {};
 		const fields = this.props.fields || {};
+		// 解析顺序:override(本次「计算」选择) → chart.params(已落库) → fields(表单) → 默认。
+		const pick = (key)=>{
+			if(override[key] !== undefined && override[key] !== null){
+				return override[key];
+			}
+			if(params[key] !== undefined && params[key] !== null){
+				return params[key];
+			}
+			if(fields[key] && fields[key].value !== undefined && fields[key].value !== null){
+				return fields[key].value;
+			}
+			return undefined;
+		};
+		const toFlag = (v)=>(v === true || v === 1 || v === '1' || v === 'true') ? 1 : 0;
+		const directRaw = pick('pdDirect');
+		// 顺向默认开:仅显式 0/false 才关。
+		const pdDirect = (directRaw === 0 || directRaw === '0' || directRaw === false || directRaw === 'false') ? 0 : 1;
 		return {
 			pdMethod: override.pdMethod || (params.pdMethod
 				? params.pdMethod
@@ -597,6 +652,11 @@ class AstroDirectMain extends Component{
 			pdYears: normalizePdYears(override.pdYears !== undefined && override.pdYears !== null ? override.pdYears
 				: (params.pdYears !== undefined && params.pdYears !== null ? params.pdYears
 				: (fields.pdYears ? fields.pdYears.value : 100))),
+			pdtype: toFlag(pick('pdtype')),
+			pdDirect,
+			pdConverse: toFlag(pick('pdConverse')),
+			pdAntiscia: toFlag(pick('pdAntiscia')),
+			pdTerms: toFlag(pick('pdTerms')),
 		};
 	}
 
@@ -608,7 +668,14 @@ class AstroDirectMain extends Component{
 			chart,
 			desired.pdMethod,
 			desired.pdTimeKey,
-			desired.pdYears
+			desired.pdYears,
+			{
+				pdtype: desired.pdtype,
+				direct: desired.pdDirect === 1,
+				converse: desired.pdConverse === 1,
+				antiscia: desired.pdAntiscia === 1,
+				terms: desired.pdTerms === 1,
+			}
 		);
 		const dateValue = nextFields.date && nextFields.date.value;
 		const timeValue = nextFields.time && nextFields.time.value;
@@ -641,10 +708,14 @@ class AstroDirectMain extends Component{
 			predictive: true,
 			includePrimaryDirection: true,
 			showPdBounds: nextFields.showPdBounds ? nextFields.showPdBounds.value : 1,
-			pdtype: DEFAULT_PD_TYPE,
+			pdtype: desired.pdtype,
 			pdMethod: desired.pdMethod,
 			pdTimeKey: desired.pdTimeKey,
 			pdYears: desired.pdYears,
+			pdDirect: desired.pdDirect,
+			pdConverse: desired.pdConverse,
+			pdAntiscia: desired.pdAntiscia,
+			pdTerms: desired.pdTerms,
 			pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
 			name: nextFields.name ? nextFields.name.value : null,
 			pos: nextFields.pos ? nextFields.pos.value : null,
@@ -679,9 +750,8 @@ class AstroDirectMain extends Component{
 		if(!hasCompleteParams){
 			return true;
 		}
-		if(Number(params.pdtype) !== DEFAULT_PD_TYPE){
-			return true;
-		}
+		// pdtype/pdDirect/pdConverse/pdAntiscia/pdTerms 现为真实选项,已随 chart.params 持久化;
+		// desired(无 override)即取自 params,故自动加载不因开关而误触发(显式重算走表格「计算」按钮)。
 		return pds.length === 0;
 	}
 
@@ -695,6 +765,11 @@ class AstroDirectMain extends Component{
 			pdMethod: req.pdMethod,
 			pdTimeKey: req.pdTimeKey,
 			pdYears: req.pdYears,
+			pdtype: req.pdtype,
+			pdDirect: req.pdDirect,
+			pdConverse: req.pdConverse,
+			pdAntiscia: req.pdAntiscia,
+			pdTerms: req.pdTerms,
 			name: req.name,
 			pos: req.pos,
 			chartId: options.chartId,
@@ -740,6 +815,10 @@ class AstroDirectMain extends Component{
 			pdYears: req.pdYears,
 			showPdBounds: req.showPdBounds,
 			pdtype: req.pdtype,
+			pdDirect: req.pdDirect,
+			pdConverse: req.pdConverse,
+			pdAntiscia: req.pdAntiscia,
+			pdTerms: req.pdTerms,
 			pdaspects: req.pdaspects,
 		});
 		if(this.primaryDirectionInflightKey === reqKey){
@@ -922,10 +1001,11 @@ class AstroDirectMain extends Component{
 		});
 	}
 
-	applyPrimaryDirectionConfig(pdMethod, pdTimeKey, pdYears){
+	applyPrimaryDirectionConfig(pdMethod, pdTimeKey, pdYears, options){
 		if(!this.props.dispatch || !this.props.fields){
 			return;
 		}
+		const opt = options || {};
 		const resolvedPdYears = pdYears !== undefined && pdYears !== null
 			? normalizePdYears(pdYears)
 			: this.getDesiredPdConfig(this.props.chartObj).pdYears;
@@ -935,6 +1015,11 @@ class AstroDirectMain extends Component{
 				pdMethod,
 				pdTimeKey,
 				pdYears: resolvedPdYears,
+				pdtype: opt.pdtype === 1 ? 1 : 0,
+				pdDirect: opt.direct === false ? 0 : 1,
+				pdConverse: !!opt.converse,
+				pdAntiscia: !!opt.antiscia,
+				pdTerms: !!opt.terms,
 			},
 		});
 		const nextFields = buildPrimaryDirectionFetchFields(
@@ -942,7 +1027,8 @@ class AstroDirectMain extends Component{
 			this.props.chartObj,
 			pdMethod,
 			pdTimeKey,
-			resolvedPdYears
+			resolvedPdYears,
+			opt
 		);
 		this.props.dispatch({
 			type: 'astro/save',
@@ -956,6 +1042,13 @@ class AstroDirectMain extends Component{
 			pdMethod,
 			pdTimeKey,
 			pdYears: resolvedPdYears,
+			// 把本次「计算」选择的进阶开关作为 override 直传,优先级高于已落库 params,
+			// 确保用户新选的 方向类型/顺逆/映点/界 立即进入 /predict/pd 请求体。
+			pdtype: opt.pdtype === 1 ? 1 : 0,
+			pdDirect: opt.direct === false ? 0 : 1,
+			pdConverse: opt.converse ? 1 : 0,
+			pdAntiscia: opt.antiscia ? 1 : 0,
+			pdTerms: opt.terms ? 1 : 0,
 			runHook: true,
 		});
 	}
@@ -973,6 +1066,16 @@ class AstroDirectMain extends Component{
 		const appliedPdYears = normalizePdYears(chartParams.pdYears !== undefined && chartParams.pdYears !== null
 			? chartParams.pdYears
 			: (this.props.fields && this.props.fields.pdYears ? this.props.fields.pdYears.value : 100));
+		// In Zodiaco(0,黄道) / In Mundo(1,世俗) + 向运方向(converse) + 映点 / 界 开关——
+		// 均从已落库 chart.params 读取(applyPrimaryDirectionConfig 写入),缺省回退黄道/顺向/关。
+		const appliedPdType = chartParams.pdtype === 1 ? 1 : 0;
+		// 顺向 direct 默认开:仅当已落库显式为 0 才关(缺省/未定义都按开)。
+		// 漏传此 prop 会让表格 componentDidUpdate 把「顺」误判为 undefined→默认 1,
+		// 导致选「仅逆」算完后「顺」又自动勾上,显示与实算对不上。
+		const appliedPdDirect = chartParams.pdDirect === 0 ? 0 : 1;
+		const appliedPdConverse = chartParams.pdConverse ? 1 : 0;
+		const appliedPdAntiscia = chartParams.pdAntiscia ? 1 : 0;
+		const appliedPdTerms = chartParams.pdTerms ? 1 : 0;
 
 		return (
 			<div className="horosa-direction-page xq-chart-renderer xq-chart-renderer-direction">
@@ -1004,13 +1107,18 @@ class AstroDirectMain extends Component{
 							/>
 						</TabPane>
 
-					<TabPane tab="主/界限法" key="primarydirect">
-							<AstroPrimaryDirection  
+					<TabPane tab="主限法" key="primarydirect">
+							<AstroPrimaryDirection
 								value={this.props.chartObj} height={height}
 								showPdBounds={this.props.fields && this.props.fields.showPdBounds ? this.props.fields.showPdBounds.value : 1}
 								pdMethod={appliedPdMethod}
 								pdTimeKey={appliedPdTimeKey}
 								pdYears={appliedPdYears}
+								pdType={appliedPdType}
+								pdDirect={appliedPdDirect}
+								pdConverse={appliedPdConverse}
+								pdAntiscia={appliedPdAntiscia}
+								pdTerms={appliedPdTerms}
 								onPdConfigApply={this.applyPrimaryDirectionConfig}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
@@ -1052,6 +1160,12 @@ class AstroDirectMain extends Component{
 								showPdBounds={this.props.fields && this.props.fields.showPdBounds ? this.props.fields.showPdBounds.value : 1}
 								pdMethod={appliedPdMethod}
 								pdTimeKey={appliedPdTimeKey}
+								pdYears={appliedPdYears}
+								pdType={appliedPdType}
+								pdDirect={appliedPdDirect}
+								pdConverse={appliedPdConverse}
+								pdAntiscia={appliedPdAntiscia}
+								pdTerms={appliedPdTerms}
 								fields={this.props.fields}
 								dispatch={this.props.dispatch}
 								onPdConfigApply={this.applyPrimaryDirectionConfig}

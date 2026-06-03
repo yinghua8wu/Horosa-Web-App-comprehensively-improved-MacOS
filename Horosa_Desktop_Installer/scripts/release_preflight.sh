@@ -670,12 +670,15 @@ fi
 [ "${PD32_BAD}" = "0" ] && ok "[32] 铁律① Alcabitius+Ptolemy 字节级守卫 + byte-perfect 测试基线 均在"
 
 
-# [33] 主限法方位+时间补全·strategy 分发完整性 + 前端选项扩
-#  - perchart.py: pdMethod 白名单含 'placidus'
-#  - 前端 primaryDirectionSync.js: PD_SYNC_REV = 'pd_method_sync_v9' + SUPPORTED_PD_METHODS/TIMEKEYS 暴露
-#  - 前端 AstroPrimaryDirectionChart.js getTablePdTimeKey 不再强制降级 Naibod
+# [33] 主限法方位+时间补全·strategy 分发完整性 + 前端选项扩 (v10 全方位法)
+#  - perchart.py: pdMethod 白名单含 placidus/方位法 + pdDirect 解析
+#  - 前端 primaryDirectionSync.js: PD_SYNC_REV = 'pd_method_sync_v10' + SUPPORTED_PD_METHODS(方位法引擎)
+#  - 后端 helper.py / webchartsrv.py: PD_SYNC_REV 对齐 v10(否则新盘恒误判重算)
+#  - pd_engine.py: build_directions + solar_arc_for_years(真太阳弧动态钥匙逆函数)
+#  - 表格工具栏单行(无 advanced 第二行,不遮表格);TabPane 名「主限法」
+#  - AstroPrimaryDirectionChart.js getTablePdTimeKey 不再强制降级 Naibod
 #  - aiAnalysisContext.js 主限法 case 不再硬编码覆盖 pdMethod/pdTimeKey
-echo "[33] 主限法方位+时间补全·strategy 分发 + 前端选项扩"
+echo "[33] 主限法方位+时间补全·strategy 分发 + 前端选项扩 (v10)"
 PD33_BAD=0
 PERCHART="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/perchart.py"
 if [ -f "${PERCHART}" ] && ! grep -q "'placidus'" "${PERCHART}"; then
@@ -684,14 +687,56 @@ if [ -f "${PERCHART}" ] && ! grep -q "'placidus'" "${PERCHART}"; then
 fi
 PD_SYNC="${UISRC}/utils/primaryDirectionSync.js"
 if [ -f "${PD_SYNC}" ]; then
-  if ! grep -q "pd_method_sync_v9" "${PD_SYNC}"; then
-    bad "[33] primaryDirectionSync.js PD_SYNC_REV 未升到 'pd_method_sync_v9' —— 旧 v8 缓存不重算,新 method/timeKey 不生效"
+  if ! grep -q "pd_method_sync_v10" "${PD_SYNC}"; then
+    bad "[33] primaryDirectionSync.js PD_SYNC_REV 未升到 'pd_method_sync_v10' —— 旧缓存不重算,新 方位法/世俗/顺逆/真太阳弧 不生效"
     PD33_BAD=1
   fi
   if ! grep -q "SUPPORTED_PD_METHODS" "${PD_SYNC}"; then
     bad "[33] primaryDirectionSync.js 缺 SUPPORTED_PD_METHODS 白名单"
     PD33_BAD=1
   fi
+  # v10:方位法引擎必须全在前端白名单(否则下拉选了被 normalize 回退默认)
+  for m in regiomontanus campanus topocentric; do
+    grep -q "'${m}'" "${PD_SYNC}" || { bad "[33] primaryDirectionSync.js SUPPORTED_PD_METHODS 缺 '${m}'"; PD33_BAD=1; }
+  done
+fi
+# v10:后端 PD_SYNC_REV 必须与前端一致(均 v10),否则每张新盘首查都误判需重算
+for f in "${REPO_ROOT}/Horosa-Web/astropy/astrostudy/helper.py" "${REPO_ROOT}/Horosa-Web/astropy/websrv/webchartsrv.py"; do
+  [ -f "$f" ] && { grep -q "pd_method_sync_v10" "$f" || { bad "[33] 后端 $(basename $f) PD_SYNC_REV 未对齐到 v10(与前端不一致→新盘恒误判重算)"; PD33_BAD=1; }; }
+done
+# v10:perchart 白名单含方位法引擎 + pdDirect 解析存在(顺逆同选)
+if [ -f "${PERCHART}" ]; then
+  for m in regiomontanus campanus topocentric; do
+    grep -q "'${m}'" "${PERCHART}" || { bad "[33] perchart.py pdMethod 白名单缺 '${m}'"; PD33_BAD=1; }
+  done
+  grep -q "pdDirect" "${PERCHART}" || { bad "[33] perchart.py 缺 pdDirect 解析(顺向 direct,顺逆同选的前提)"; PD33_BAD=1; }
+fi
+# v10:pd_engine 必备(动态真太阳弧逆函数 solar_arc_for_years + 世俗数值法)
+PD_ENGINE="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/pd_engine.py"
+if [ -f "${PD_ENGINE}" ]; then
+  grep -q "def solar_arc_for_years" "${PD_ENGINE}" || { bad "[33] pd_engine.py 缺 solar_arc_for_years(盘的真太阳弧动态钥匙,否则盘把 TrueSolarArc 当 Ptolemy)"; PD33_BAD=1; }
+  grep -q "def build_directions" "${PD_ENGINE}" || { bad "[33] pd_engine.py 缺 build_directions"; PD33_BAD=1; }
+else
+  bad "[33] 缺 pd_engine.py —— 自研主限法引擎(方位法引擎/世俗/顺逆/映点/界)不存在"; PD33_BAD=1
+fi
+# v10:主限法表格工具栏须为单行(无第二行,否则遮挡表格);tab 名为「主限法」
+PD_TABLE="${UISRC}/components/astro/AstroPrimaryDirection.js"
+if [ -f "${PD_TABLE}" ]; then
+  grep -q "horosa-primary-direction-toolbar-advanced" "${PD_TABLE}" && { bad "[33] AstroPrimaryDirection.js 仍有第二行工具栏(advanced)—— 会遮挡表格,须并回单行"; PD33_BAD=1; }
+fi
+DIRECT_MAIN="${UISRC}/components/direction/AstroDirectMain.js"
+if [ -f "${DIRECT_MAIN}" ] && grep -q 'tab="主/界限法"' "${DIRECT_MAIN}"; then
+  bad "[33] AstroDirectMain.js 主限法 TabPane 仍名「主/界限法」,应改为「主限法」"
+  PD33_BAD=1
+fi
+# v10 真因守卫:Java getParams 必须透传 pdDirect/pdConverse/pdAntiscia/pdTerms,否则前端传了到不了 Python
+#   (ParamHashCache 键=params,缺这些 → direct/converse 同哈希命中同缓存 → 「推运方向选了没用」)
+PD_CTRL="${REPO_ROOT}/Horosa-Web/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/controller/PredictiveController.java"
+if [ -f "${PD_CTRL}" ]; then
+  for p in pdDirect pdConverse pdAntiscia pdTerms; do
+    grep -q "\"${p}\"" "${PD_CTRL}" || { bad "[33] PredictiveController.java getParams 未透传 '${p}' —— 前端选项到不了 Python(ParamHashCache 还会致顺逆同缓存,选了没用),须补 params.put + 重编 jar"; PD33_BAD=1; }
+  done
+  grep -q "pd_method_sync_v10" "${PD_CTRL}" || { bad "[33] PredictiveController.java _wireRev 未升 v10 —— 旧 ParamHashCache 哈希不失效,新参可能读到旧缓存"; PD33_BAD=1; }
 fi
 PD_CHART="${UISRC}/components/astro/AstroPrimaryDirectionChart.js"
 if [ -f "${PD_CHART}" ] && grep -qE "key === 'Naibod' \? DEFAULT_PD_TIME_KEY" "${PD_CHART}"; then

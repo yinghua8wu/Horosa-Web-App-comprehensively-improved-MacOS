@@ -50,20 +50,17 @@ describe('primaryDirectionSync', ()=>{
 		expect(normalizePrimaryDirectionSubTabKey('unexpected')).toBe('primarydirect');
 	});
 
-	test('PD_SYNC_REV is v9 (forces v8 cached charts to recompute)', ()=>{
-		expect(PD_SYNC_REV).toBe('pd_method_sync_v9');
+	test('PD_SYNC_REV is v10 (P1 全方法建成,强制旧持久化 chart 重算)', ()=>{
+		expect(PD_SYNC_REV).toBe('pd_method_sync_v10');
 	});
 
-	test('SUPPORTED_PD_METHODS includes core_alchabitius (default) + horosa_legacy + placidus (P0)', ()=>{
-		expect(SUPPORTED_PD_METHODS).toContain('core_alchabitius');
-		expect(SUPPORTED_PD_METHODS).toContain('horosa_legacy');
-		expect(SUPPORTED_PD_METHODS).toContain('placidus');
+	test('SUPPORTED_PD_METHODS covers Alchabitius(default)/legacy/Placidus + Regio/Campanus/Topo (P1)', ()=>{
+		['core_alchabitius', 'horosa_legacy', 'placidus', 'regiomontanus', 'campanus', 'topocentric']
+			.forEach((m)=>{ expect(SUPPORTED_PD_METHODS).toContain(m); });
 	});
 
-	test('SUPPORTED_PD_TIME_KEYS only contains formula-defined keys Ptolemy / Naibod (no fitted keys)', ()=>{
-		expect(SUPPORTED_PD_TIME_KEYS).toContain('Ptolemy');
-		expect(SUPPORTED_PD_TIME_KEYS).toContain('Naibod');
-		expect(SUPPORTED_PD_TIME_KEYS).toEqual(['Ptolemy', 'Naibod']);
+	test('SUPPORTED_PD_TIME_KEYS = 公式/真算法 key:Ptolemy/Naibod(静态)+ TrueSolarArc(动态),纯公式', ()=>{
+		expect(SUPPORTED_PD_TIME_KEYS).toEqual(['Ptolemy', 'Naibod', 'TrueSolarArc']);
 	});
 
 	test('mergePrimaryDirectionChartObj writes new placidus method into params (P0 white-list extension)', ()=>{
@@ -75,5 +72,31 @@ describe('primaryDirectionSync', ()=>{
 		});
 		expect(next.params.pdMethod).toBe('placidus');
 		expect(next.params.pdTimeKey).toBe('Naibod');
+	});
+
+	test('mergePrimaryDirectionChartObj persists v10 进阶开关 (方向类型/顺逆/映点/界)', ()=>{
+		const chartObj = { params: {}, predictives: {} };
+		const next = mergePrimaryDirectionChartObj(chartObj, {
+			pdRows: [],
+			pdMethod: 'regiomontanus',
+			pdTimeKey: 'TrueSolarArc',
+			pdtype: 1,
+			pdDirect: 1,
+			pdConverse: 1,
+			pdAntiscia: 1,
+			pdTerms: 0,
+		});
+		expect(next.params.pdtype).toBe(1);
+		expect(next.params.pdDirect).toBe(1);
+		expect(next.params.pdConverse).toBe(1);
+		expect(next.params.pdAntiscia).toBe(1);
+		expect(next.params.pdTerms).toBe(0);
+	});
+
+	test('mergePrimaryDirectionChartObj 顺向默认开:pdDirect 未传落库 1,显式 0 才关', ()=>{
+		const on = mergePrimaryDirectionChartObj({ params: {}, predictives: {} }, { pdRows: [] });
+		expect(on.params.pdDirect).toBe(1);
+		const off = mergePrimaryDirectionChartObj({ params: {}, predictives: {} }, { pdRows: [], pdDirect: 0 });
+		expect(off.params.pdDirect).toBe(0);
 	});
 });

@@ -778,7 +778,7 @@ class AstroChartMain extends Component{
 			return null;
 		}
 		const actions = [
-			{ label: '主/界限法', icon: <XQIcon name="qimen" />, key: 'primarydirect' },
+			{ label: '主限法', icon: <XQIcon name="qimen" />, key: 'primarydirect' },
 			{ label: '法达星限', icon: <XQIcon name="solstice" />, key: 'firdaria' },
 			{ label: '黄道星释', icon: <XQIcon name="astro" />, key: 'zodialrelease' },
 			{ label: '小限法', icon: <XQIcon name="newChart" />, key: 'profection' },
