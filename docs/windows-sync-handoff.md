@@ -20,6 +20,52 @@
 
 ---
 
+## v2.5.4 — 七政四余宿度对齐(自有恒星案三制)+ 主限法 Placidus 方位法 + 主限法 time-key 公式化(**Java 0 改动 → Windows 仅需同前端 + Python**)
+
+> **本地标记版本**:Mac 端 v2.5.4 在本地 commit + 本地 build 中,**未发到 GitHub**(GitHub 远程仍维持 v2.5.3 已发态 `49179c8`)。Windows 端无需 mirror 发布,只需把本批 Horosa-Web 改动同步进 Windows 仓库,等用户单独签字后再各自发版本。
+
+### 七政四余 二十八宿度(主修,详见 `docs/七政四余-宿度对齐-v2.5.4.md`)
+- `astropy/astrostudy/perchart.py`:`import swisseph` + 新 `MOIRA_DISTAR_J2000`(28 距星 J2000 坐标)+ `_moira_ayanamsha` + `_moira_distar_lon(s)` + 重写 `getMoiraFixedStarSu28`(回归今制=活体距星严格岁差 / 回归古制开禧=开禧基值+岁差 / 恒星制郑式=郑氏恒星基值原值)+ `getFixedStarSu28` 路由(三制沿黄道置宿)+ `fillPlanetSu28/setPlanetSu28` 加 `byLon`。
+- `astrostudyui/src/components/guolao/GuoLaoMoiraWheel.js`:命度红线加宿度带一条。
+- 修复:回归今制原误用郑氏恒星冻结值 15.9(偏 ~18°),现为活体距星。**实拍核对恒星制 10 颗到角分**。
+- 测试:`astropy/tests/test_guolao_su28_moira.py`(23 例)。**Java 0 改动,不需重编 jar**。
+
+### 主限法(承前)
+- 方位法 strategy 注册表 `perpredict._PD_METHOD_REGISTRY`(不动 `_byZCoreKernel`)。
+- **time-key 方法论纠正**:只保留公式可证的 `Ptolemy / Naibod`(撤除 Cardano/Plantiko/Wöllner/SymbolicSolarArc 经验值 + 删 `scripts/内部脚本.py`)。前端 time-key 下拉同步只剩 2 个。
+- `STATIC_TIME_KEY_SCALES = {Ptolemy:1.0, Naibod:0.9856473354}`;`_pdTimeKeyScale` 统一抽象;Naibod 表格放开。
+- byte-perfect:`tests/test_pd_alcabitius_byteperfect.py` 540 case 0 偏差(Ptolemy 锁 1.0)。
+
+### 验证
+- `cd astropy && python -m pytest tests/ -q` → 36 全绿(byte-perfect 540 + matrix + catalog + 七政 23)。
+- `cd astrostudyui && npx umi-test` → 188 全绿。`npm run build && npm run build:file`。
+- 真栈:七政四余切「回归今制」七政落宿应与古法一致(日翼/火轸/木氐…),命度红线在宿度带可见;主限法 time-key 只剩 Ptolemy/Naibod。
+
+### 本批新增
+- **新增方位法集**(`SUPPORTED_PD_METHODS`)—— 现代主流主限法,与对应宫位制天然配套。后端在 `perpredict.getPrimaryDirectionByZCoreKernel` 落地(复用 flatlib PrimaryDirections 默认半弧算法,不带 Alcabitius 专属 定制修正层)。
+- **新增 5 个静态时间换算 + 1 个符号时间换算**(`pdTimeKey ∈ {Cardano, Plantiko, Wollner, SymbolicDegree, SymbolicSolarArc}` + 既有 Ptolemy/Naibod) —— 缩放常量在 `perpredict.STATIC_TIME_KEY_SCALES` 表中(基于内部样本推导得出,Ptolemy 锁 1.0 守字节级一致,其它 6 个 P0 阶段以经验常量上线)。
+- **Naibod 表格放开** —— v2.5.2/v2.5.3 时为安全起见 `AstroPrimaryDirectionChart.getTablePdTimeKey` 把 Naibod 强制降级为 Ptolemy,P0 起经 `_pdTimeKeyScale` 统一抽象 + byte-perfect 测试守卫后正式放开,Naibod 选择直接作用于表格 row 的日期换算。
+- **strategy 分发重构** —— `perpredict._PD_METHOD_REGISTRY` 字典分发各方位法到对应 kernel。**`_byZCoreKernel` 800 行 Alcabitius 路径完全不动**,新方位法只是注册新 handler。未知 method 一律 fallback 到 `core_alchabitius`(护铁律①)。
+- **timeKey 统一抽象** —— `perpredict._pdTimeKeyScale(time_key, chart, age)` 单点替换原 Naibod 硬编码;dynamic time-key 留 hook 给 P1。
+- **前端选项扩** —— `AstroPrimaryDirection.js`(表格) + `AstroPrimaryDirectionChart.js`(盘) 两 Select Option 数组由 `SUPPORTED_PD_METHODS` / 时间钥匙白名单驱动。下拉宽度用 `dropdownMatchSelectWidth={false}` 防长 label 截断。label 字典集中到 `primaryDirectionSync.PD_METHOD_LABELS/PD_TIME_KEY_LABELS` + `getPdMethodLabel/getPdTimeKeyLabel` helper。
+- **AI 四同步**:`AI_EXPORT_SETTINGS_VERSION` 15→16(`aiExport.js`),触发用户旧 export presets 回收;`aiAnalysisContext.js` 主限法 case 不再硬编码覆盖 pdMethod/pdTimeKey(透传 chartObj.params 实选,LLM 上下文跟随用户选择);`mergePrimaryDirectionChartObj` 命盘事盘储存自动带新值。
+- **PD_SYNC_REV 升 v9** —— `primaryDirectionSync.js` 升 `pd_method_sync_v9`,强制旧 v8 缓存重算。
+
+### 同步要点
+- **后端 Python 改动**(`Horosa-Web/astropy/astrostudy/perpredict.py` + `perchart.py`):同步整 perpredict.py + perchart.py;改完 `pkill -9 -f cherrypy && python astrostudy/server.py &` 重启 CherryPy。**Java 端 0 改动**(`PredictiveController.java:73-80` 已 pass-through 任意字符串 pdMethod/pdTimeKey,无需重编 jar)。
+- **前端改动**:`utils/primaryDirectionSync.js` + `components/astro/AstroPrimaryDirection.js` + `components/astro/AstroPrimaryDirectionChart.js` + `utils/aiAnalysisContext.js` + `utils/aiExport.js` + `utils/__tests__/primaryDirectionSync.test.js`。改完 `npm run build && npm run build:file`(顺序)。
+- **新增测试**:`Horosa-Web/astropy/tests/conftest.py` + `tests/test_pd_alcabitius_byteperfect.py`(540 case byte-perfect 回归,铁律①守卫,跑 ~10 秒) + `tests/test_pd_method_matrix.py`(17 test) + `tests/test_pd_method_catalog.py`(5 test) + `tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson`(25 MB,540 case 真栈 snapshot)。
+- **新增脚本**:`Horosa-Web/astropy/scripts/内部脚本.py`(自研标定脚本,基于内部样本反推 static time-key 常量)。
+
+### 验证
+- `cd Horosa-Web/astropy && python -m pytest tests/test_pd_alcabitius_byteperfect.py tests/test_pd_method_matrix.py tests/test_pd_method_catalog.py -v`(540 case byte-perfect == + 17 + 5 全绿)
+- `cd Horosa-Web/astrostudyui && npx umi-test src/utils/__tests__/primaryDirectionSync.test.js`(6 个 PD 同步 case 全绿)
+- `npm test`(全 184 + 6 PD 新增 = 190 全绿)
+- preflight `[32]` 阻断「Alcabitius byteperfect 失效 / Ptolemy != 1.0 / _byZCoreKernel 改名」;`[33]` 阻断「方位法白名单缺 / PD_SYNC_REV 未升 / Naibod 表格仍降级 / aiContext 仍硬编码」。
+- 真栈手测:启动 desktop app,主限法表格 + 主限法盘下拉应当出现 `SUPPORTED_PD_METHODS` 各方位法 + Ptolemy/Naibod/Cardano/Plantiko/Wollner/符号度/太阳弧符号;默认 Alchabitius+Ptolemy 表格逐行与 v2.5.3 完全一致;切换方法 + 各 timeKey 表格能渲染、盘能画。
+
+---
+
 ## v2.5.3 — 替代 v2.5.2(版本号与 Windows 端统一) + 汉堡 90°中点盘 + 主限法 Naibod + 大六壬挂载修复 + 中点盘布局收尾(**Java 改 → Windows 必重编 jar**)
 
 > **替代关系**:v2.5.3 在 v2.5.2 基础上加两个布局修复(90°中点盘中间栏底部 Dock 安全 + 左右栏小窗口独立下滑),并把版本号统一回 2.5.3 以匹配 Windows 端。Mac 端 v2.5.2 release 在 GitHub 上保留(已不为 Latest);v2.5.3 是 GitHub Latest。Windows 端版本号应该已 ≥ 2.5.3 —— 若 Windows 端 v2.5.2 已发,Windows 端同步本 Mac patch 后亦应 bump 2.5.3 以保持「同 tag 同版本」铁律。

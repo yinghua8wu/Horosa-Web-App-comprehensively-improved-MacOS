@@ -300,14 +300,19 @@ class AstroPrimaryDirection extends Component{
 	}
 
 	normalizePdMethod(value){
-		if(value === 'horosa_legacy' || value === 'core_alchabitius'){
+		// P0 白名单：与后端 perpredict._PD_METHOD_REGISTRY + perchart 白名单同步。
+		// 未识别 method 回退到默认 (core_alchabitius)，护住 Alcabitius+Ptolemy 字节级一致。
+		if(value === 'horosa_legacy' || value === 'core_alchabitius' || value === 'placidus'){
 			return value;
 		}
 		return DEFAULT_PD_METHOD;
 	}
 
 	normalizePdTimeKey(value){
-		if(value === 'Ptolemy' || value === 'Naibod'){
+		// 白名单：与后端 perpredict.STATIC_TIME_KEY_SCALES 同步,只收公式可证的 key。
+		// 未识别 timeKey 回退到默认 Ptolemy (scale=1.0)。
+		const VALID = ['Ptolemy', 'Naibod'];
+		if(VALID.indexOf(value) >= 0){
 			return value;
 		}
 		return DEFAULT_PD_TIME_KEY;
@@ -662,9 +667,11 @@ class AstroPrimaryDirection extends Component{
 								style={selectStyle}
 								value={this.getSelectedPdMethod()}
 								onChange={this.handlePdMethodChange}
+								dropdownMatchSelectWidth={false}
 							>
-								<Option value='horosa_legacy'>Horosa原方法</Option>
 								<Option value='core_alchabitius'>Alchabitius</Option>
+								<Option value='placidus'>Placidus</Option>
+								<Option value='horosa_legacy'>Horosa原方法</Option>
 							</Select>
 						</div>
 					</Col>
@@ -676,6 +683,7 @@ class AstroPrimaryDirection extends Component{
 								style={selectStyle}
 								value={this.getSelectedPdTimeKey()}
 								onChange={this.handlePdTimeKeyChange}
+								dropdownMatchSelectWidth={false}
 							>
 								<Option value='Ptolemy'>Ptolemy</Option>
 								<Option value='Naibod'>Naibod</Option>

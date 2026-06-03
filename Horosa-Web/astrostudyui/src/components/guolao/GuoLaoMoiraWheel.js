@@ -30,6 +30,17 @@ const HOUSE_BRANCH = ['命宫', '财帛', '兄弟', '田宅', '男女', '奴仆'
 const SIGN_NAMES = ['白羊', '金牛', '双子', '巨蟹', '狮子', '处女', '天秤', '天蝎', '射手', '摩羯', '水瓶', '双鱼'];
 const HALF_STELLAR = ['娄', '胃', '昴', '毕', '觜', '参', '井', '鬼', '柳', '星', '张', '翼', '轸', '角', '亢', '氐', '房', '心', '尾', '箕', '斗', '牛', '女', '虚', '危', '室', '壁', '奎'];
 const FULL_STELLAR = ['娄金', '胃土', '昴日', '毕月', '觜火', '参水', '井木', '鬼金', '柳土', '星日', '张月', '翼火', '轸水', '角木', '亢金', '氐土', '房日', '心月', '尾火', '箕水', '斗木', '牛金', '女土', '虚日', '危月', '室火', '壁水', '奎木'];
+
+// 入宿度的中文数字(对齐 Moira 中心「六度」写法,0~30)。
+function cnDegree(n){
+	const v = Math.max(0, Math.min(30, Math.floor(Number(n) || 0)));
+	const d = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+	if(v <= 10) return d[v];
+	if(v < 20) return '十' + d[v - 10];
+	if(v === 20) return '二十';
+	if(v < 30) return '二十' + d[v - 20];
+	return '三十';
+}
 const STEM_BRANCHES = ['甲子', '乙丑', '丙寅', '丁卯', '戊辰', '己巳', '庚午', '辛未', '壬申', '癸酉', '甲戌', '乙亥', '丙子', '丁丑', '戊寅', '己卯', '庚辰', '辛巳', '壬午', '癸未', '甲申', '乙酉', '丙戌', '丁亥', '戊子', '己丑', '庚寅', '辛卯', '壬辰', '癸巳', '甲午', '乙未', '丙申', '丁酉', '戊戌', '己亥', '庚子', '辛丑', '壬寅', '癸卯', '甲辰', '乙巳', '丙午', '丁未', '戊申', '己酉', '庚戌', '辛亥', '壬子', '癸丑', '甲寅', '乙卯', '丙辰', '丁巳', '戊午', '己未', '庚申', '辛酉', '壬戌', '癸亥'];
 const BIRTH_GOD_ORDER = ['劫杀', '文昌', '禄勋', '大耗', '月杀', '咸池', '唐符', '天厨', '伏尸', '三刑', '勾神', '蓦越', '黄幡', '的杀', '孤辰', '天喜', '注受', '剑锋', '飞廉', '病符', '紫微', '华盖', '天贵', '六害', '孤虚', '游奕', '年符', '死符', '地雌', '卷舌', '绞杀', '天德', '贯索', '亡神', '国印', '岁殿', '卦气', '空亡', '豹尾', '擎天', '天空', '大杀', '天厄', '月廉', '天雄', '天哭', '天狗', '地耗', '月符', '披头', '红鸾', '岁驾', '小耗', '寡宿', '飞刃', '天耗', '斗杓', '驿马', '阳刃', '阑干', '玉贵', '血刃', '浮沉', '解神'];
 const TRANSIT_GOD_ORDER = ['岁驾', '天空', '地雌', '贯索', '五鬼', '死符', '大耗', '天厄', '天雄', '大杀', '卷舌', '天德', '天狗', '蓦越', '亡神', '天喜', '披头', '血刃', '解神', '天哭', '地解', '劫杀', '的杀', '红鸾', '驿马', '游奕', '擎天', '黄幡', '豹尾', '天厨', '三刑', '六害', '咸池', '阳刃', '禄勋', '天贵'];
@@ -1171,6 +1182,9 @@ class GuoLaoMoiraWheel extends Component{
 		}
 		nodes.push(
 			<g key="life-degree-marker" className="moira-life-degree-marker">
+				{/* 命度(立命)短红线:对齐 Moira —— 既画在宿度度数带(r4~r7)上醒目标注立命度，
+				    也保留年龄环(r10~r11)处的标记。 */}
+				{radialLine(lifeTheta, r(4), r(7), {color: RED, width: 2.4})}
 				{radialLine(lifeTheta, r(10), r(11), {color: RED, width: 2.7})}
 			</g>
 		);
@@ -1223,14 +1237,23 @@ class GuoLaoMoiraWheel extends Component{
 				</g>
 			);
 		}
+		// 中心立命标注（对齐 Moira「心月 / 六度 / 立命」做法）：显示命度所在宿+七曜、入宿度、立命。
+		// 旧版为硬编码「七政/立命/度木」（度木为写死占位、不随盘变），现按真实命度计算。
+		const lifeStars = buildFixedStars(chart);
+		const lifeXi = stellarIndexForDegree(lifeStars, life);
+		const lifeXiuName = lifeXi >= 0 ? (lifeStars[lifeXi].name || '') : '';
+		const lifeFullIdx = HALF_STELLAR.indexOf(lifeXiuName);
+		const lifeXiuFull = lifeFullIdx >= 0 ? FULL_STELLAR[lifeFullIdx] : (lifeXiuName || '立命');
+		const lifeDegInto = lifeXi >= 0 ? norm(life - norm(lifeStars[lifeXi].ra)) : 0;
+		const lifeDegStr = cnDegree(lifeDegInto) + '度';
 		return (
 			<g className="moira-static-twelve">
 				{nodes}
 				<circle r={r(0)} fill={MOIRA_BG} stroke={BLACK} />
 				{this.renderAspects(chart)}
-				<text x="0" y="-24" fill={GREEN} fontSize="28" fontWeight="700" textAnchor="middle">七政</text>
-				<text x="0" y="8" fill={GREEN} fontSize="28" fontWeight="700" textAnchor="middle">立命</text>
-				<text x="0" y="40" fill={GREEN} fontSize="28" fontWeight="700" textAnchor="middle">度木</text>
+				<text x="0" y="-24" fill={GREEN} fontSize="28" fontWeight="700" textAnchor="middle">{lifeXiuFull}</text>
+				<text x="0" y="8" fill={GREEN} fontSize="28" fontWeight="700" textAnchor="middle">{lifeDegStr}</text>
+				<text x="0" y="40" fill={GREEN} fontSize="28" fontWeight="700" textAnchor="middle">立命</text>
 			</g>
 		);
 	}

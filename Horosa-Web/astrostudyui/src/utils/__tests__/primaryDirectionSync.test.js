@@ -5,6 +5,8 @@ jest.mock('../helper', ()=>({
 import {
 	DEFAULT_PD_TYPE,
 	PD_SYNC_REV,
+	SUPPORTED_PD_METHODS,
+	SUPPORTED_PD_TIME_KEYS,
 	mergePrimaryDirectionChartObj,
 	normalizePrimaryDirectionSubTabKey,
 } from '../primaryDirectionSync';
@@ -46,5 +48,32 @@ describe('primaryDirectionSync', ()=>{
 		expect(normalizePrimaryDirectionSubTabKey('primarydirchart')).toBe('primarydirchart');
 		expect(normalizePrimaryDirectionSubTabKey('firdaria')).toBe('firdaria');
 		expect(normalizePrimaryDirectionSubTabKey('unexpected')).toBe('primarydirect');
+	});
+
+	test('PD_SYNC_REV is v9 (forces v8 cached charts to recompute)', ()=>{
+		expect(PD_SYNC_REV).toBe('pd_method_sync_v9');
+	});
+
+	test('SUPPORTED_PD_METHODS includes core_alchabitius (default) + horosa_legacy + placidus (P0)', ()=>{
+		expect(SUPPORTED_PD_METHODS).toContain('core_alchabitius');
+		expect(SUPPORTED_PD_METHODS).toContain('horosa_legacy');
+		expect(SUPPORTED_PD_METHODS).toContain('placidus');
+	});
+
+	test('SUPPORTED_PD_TIME_KEYS only contains formula-defined keys Ptolemy / Naibod (no fitted keys)', ()=>{
+		expect(SUPPORTED_PD_TIME_KEYS).toContain('Ptolemy');
+		expect(SUPPORTED_PD_TIME_KEYS).toContain('Naibod');
+		expect(SUPPORTED_PD_TIME_KEYS).toEqual(['Ptolemy', 'Naibod']);
+	});
+
+	test('mergePrimaryDirectionChartObj writes new placidus method into params (P0 white-list extension)', ()=>{
+		const chartObj = { params: {}, predictives: {} };
+		const next = mergePrimaryDirectionChartObj(chartObj, {
+			pdRows: [],
+			pdMethod: 'placidus',
+			pdTimeKey: 'Naibod',
+		});
+		expect(next.params.pdMethod).toBe('placidus');
+		expect(next.params.pdTimeKey).toBe('Naibod');
 	});
 });

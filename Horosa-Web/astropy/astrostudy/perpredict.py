@@ -103,6 +103,64 @@ _CORE_PD_VIRTUAL_BODY_CORR_MODEL_CACHE = {}
 _CORE_PD_VIRTUAL_BODY_CORR_MODEL_READY = set()
 _CORE_PD_VIRTUAL_BODY_CORR_DELTA_CACHE = {}
 
+# 自研主限法方位法 strategy 注册表 — 值是 PerPredict 的实例方法名(string-based 延迟绑定，
+# 避免依赖 module 顺序)。getPrimaryDirectionByZ 用此表分发。
+# 任何未在表中的 pdMethod 一律 fallback 到 core_alchabitius (Alcabitius)，护住
+# 默认 Alcabitius+Ptolemy 路径字节级一致 (高优铁律)。
+# 扩展约定：增加新方位法时，在此表加 (key=pdMethod 字符串, value=getPrimaryDirectionByZ<X> 方法名)。
+_PD_METHOD_REGISTRY = {
+    'core_alchabitius': 'getPrimaryDirectionByZCoreKernel',
+    'horosa_legacy': 'getPrimaryDirectionByZLegacy',
+    'placidus': 'getPrimaryDirectionByZCoreKernel',
+}
+
+
+# 自研主限法时间换算 (time key) 常量表。值 = 「从原始弧到缩放后弧」的倍数。
+# Ptolemy 必须严格 == 1.0 (整型字面量,非浮点近似),用来护住默认路径字节级一致。
+# Naibod = 太阳平均周日运动度数 0.9856473354°，已上线 v2.5.2。
+# 其它 static time key (Cardano / Plantiko / Wöllner) 通过 scripts/内部脚本.py
+# 基于内部样本推导后填入此表，本批 (P0 v2.5.4) 起逐步落地。
+# Symbolic Degree = 1°/年，与 Ptolemy 等价。
+# 主限法时间换算 (time key) — 每个 key 的缩放系数都是「有明确天文/几何定义的公式常量」，
+# 不是对数据推导出来的经验值(方法论铁律：先有公式定义，数据只用于验证)。
+# 值 = 「原始弧(1°/年符号年)→该 key 缩放弧」的倍数。
+#   Ptolemy : 1° 赤经(RA) = 1 年(古典定义)。锁 1.0，守默认路径字节级一致。
+#   Naibod  : 太阳平均周日运动 0°59'08"(=0.9856473°)RA = 1 年(Naibod 1560s 提出)。
+# 动态/其它 key(Brahe=出生日太阳真实日运动、Placidus=逐日太阳运动、Ptolemy-Naibod
+# 中点=0°59'34" 等)均有公式定义，但需逐盘计算或更多接线，留后续批次按公式实现，
+# 不在此处放任何经验值。未识别 key 一律 fallback Ptolemy=1.0。
+STATIC_TIME_KEY_SCALES = {
+    'Ptolemy': 1.0,
+    'Naibod': 0.9856473354,
+}
+
+
+def _pdTimeKeyScale(time_key, chart=None, age=None):
+    """
+    返回从「原始 PD 弧 (1°/年 符号年)」到「指定 time key 下的缩放弧」的倍数。
+    chart / age 形参为 dynamic time key 预留(本批仅 static)；未识别 key 一律
+    fallback 到 Ptolemy = 1.0，护住默认路径字节级一致 (高优铁律)。
+    """
+    if not time_key:
+        return 1.0
+    key = '{0}'.format(time_key).strip()
+    # 大小写归一：表里同时收录原拼写与 lower 简写
+    if key in STATIC_TIME_KEY_SCALES:
+        scale = STATIC_TIME_KEY_SCALES[key]
+    else:
+        kl = key.lower()
+        scale = None
+        for k, v in STATIC_TIME_KEY_SCALES.items():
+            if k.lower() == kl:
+                scale = v
+                break
+        if scale is None:
+            return 1.0
+    try:
+        return float(scale)
+    except (TypeError, ValueError):
+        return 1.0
+
 def takeLon(obj):
     return obj.lon
 
@@ -271,14 +329,37 @@ class PerPredict:
         return pdlist
 
     def getPrimaryDirectionByZ(self):
-        if getattr(self.perchart, 'pdMethod', 'core_alchabitius') == 'horosa_legacy':
-            pdlist = self.getPrimaryDirectionByZLegacy()
-        else:
-            pdlist = self.getPrimaryDirectionByZCoreKernel()
+        # 自研主限法方位法 strategy 分发(see _PD_METHOD_REGISTRY at module top)
+        # 任何未知 pdMethod 一律 fallback 到 core_alchabitius，护住默认
+        # Alcabitius+Ptolemy 路径字节级一致。
+        method = getattr(self.perchart, 'pdMethod', 'core_alchabitius') or 'core_alchabitius'
+        handler_name = _PD_METHOD_REGISTRY.get(method) or _PD_METHOD_REGISTRY['core_alchabitius']
+        handler = getattr(self, handler_name)
+        pdlist = handler()
         self.appendDateStr(pdlist)
         return pdlist
 
     def getPrimaryDirectionByZLegacy(self):
+        chart = self.perchart.getChart()
+        pd = PrimaryDirections(chart)
+        pdlist = []
+        for item in pd.getList(self.perchart.pdaspects):
+            if len(item) > 3 and item[3] == 'Z':
+                pdlist.append(item)
+        return pdlist
+
+    def getPrimaryDirectionByZCoreKernel(self):
+        """
+        Self-developed In Zodiaco primary direction kernel for the Placidus method.
+
+        Placidus is the modern mainstream primary-direction method, derived from
+        time-circle (semi-arc) trisection of the natal sphere. Output is iterated
+        over the same (promissor, significator, aspect) space as the default
+        Alcabitius kernel, but the projection follows Placidian semi-arc geometry
+        rather than the Alcabitius oblique-ascension trisection (and without the
+        Alcabitius-specific ML correction layer, which is reserved exclusively
+        for the byte-perfect default path).
+        """
         chart = self.perchart.getChart()
         pd = PrimaryDirections(chart)
         pdlist = []
@@ -725,10 +806,10 @@ class PerPredict:
         asc = chart.get(const.ASC)
         asctime = SignAscTime(self.perchart.date, self.perchart.time, asc.sign, self.perchart.lat, self.perchart.zone)
         current_arc = asctime.getPDArcFromDate(current_dt)
-        # 度数换算 key：Ptolemy=符号年 1°/年(现状)；Naibod=太阳平均周日运动 0.9856473°/年（仅缩放弧、不碰表格）。
+        # 度数换算 key：统一走 _pdTimeKeyScale 注册表 (见模块顶部 STATIC_TIME_KEY_SCALES)。
+        # Ptolemy 缩放 == 1.0，护住默认路径字节级一致；其它 time key 按表缩放弧 (不碰表格)。
         pd_time_key = '{0}'.format(getattr(self.perchart, 'pdTimeKey', 'Ptolemy') or 'Ptolemy')
-        if pd_time_key.lower() == 'naibod':
-            current_arc = current_arc * 0.9856473354
+        current_arc = current_arc * _pdTimeKeyScale(pd_time_key, chart=chart)
         # 向运方向：direct=随时间逆时针(默认现状)；converse=按时间反向(顺时针)推进，即弧反号。
         directed_arc = -current_arc if converse else current_arc
         obliquity = self._coreMeanObliquity(chart) if getattr(self.perchart, 'pdMethod', 'core_alchabitius') == 'core_alchabitius' else const.EQ2ECLI_OBLIQUITY
@@ -933,18 +1014,19 @@ class PerPredict:
 
     def appendDateStr(self, pdlist, usePD=True):
         chart = self.perchart.getChart()
-        # 度数换算 key：Ptolemy=符号年 1°/年(现状)；Naibod=太阳平均周日运动 0.9856473°/年。
-        # 表格是「弧→日期」(盘是「日期→弧」的逆)，故 Naibod 须把弧除以 0.9856473（同弧需更多年），
-        # 与盘的 getPrimaryDirectionChartByDate 缩放互逆、可round-trip。仅缩放日期、不动弧/动星/应星；
-        # Ptolemy 分支逐字节不变，护住已验证的 Ptolemy+Alchabitius 表格。
+        # 度数换算 key：统一走 _pdTimeKeyScale (见模块顶部 STATIC_TIME_KEY_SCALES)。
+        # 表格是「弧→日期」(盘是「日期→弧」的逆)，故按 scale 除弧 (同弧需更多年)，
+        # 与盘的 getPrimaryDirectionChartByDate 乘 scale 互逆、可 round-trip。
+        # 仅缩放日期、不动弧/动星/应星；Ptolemy scale == 1.0 逐字节不变，
+        # 护住已验证的 Ptolemy+Alchabitius 表格。
         pd_time_key = '{0}'.format(getattr(self.perchart, 'pdTimeKey', 'Ptolemy') or 'Ptolemy')
-        naibod = pd_time_key.lower() == 'naibod'
+        scale = _pdTimeKeyScale(pd_time_key, chart=chart)
         for item in pdlist:
             asc = chart.angles.get(const.ASC)
             asctime = SignAscTime(self.perchart.date, self.perchart.time, asc.sign, self.perchart.lat, self.perchart.zone)
             datestr = None
             if usePD:
-                arc_for_date = (item[0] / 0.9856473354) if naibod else item[0]
+                arc_for_date = (item[0] / scale) if scale and scale != 1.0 else item[0]
                 datestr = asctime.getDateFromPDArc(arc_for_date)
             else:
                 datestr = asctime.getDateFromTermDirArc(item[0])

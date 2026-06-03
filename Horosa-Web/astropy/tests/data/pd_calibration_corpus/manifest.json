@@ -1,0 +1,18 @@
+{
+  "corpus_name": "pd_calibration_corpus",
+  "snapshot_version": "v2.5.3-main-49179c8",
+  "method": "core_alchabitius",
+  "time_key": "Ptolemy",
+  "pdtype": 0,
+  "pdYears": 100,
+  "pdaspects": [
+    0,
+    60,
+    90,
+    120,
+    180
+  ],
+  "hsys": "PLACIDUS",
+  "total_cases": 540,
+  "errors_encountered_in_last_run": 0
+}

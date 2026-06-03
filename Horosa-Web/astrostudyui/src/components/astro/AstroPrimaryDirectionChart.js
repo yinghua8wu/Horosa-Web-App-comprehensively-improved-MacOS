@@ -16,6 +16,8 @@ import {
 	DEFAULT_PD_TIME_KEY,
 	DEFAULT_PD_TYPE,
 	mergePrimaryDirectionChartObj,
+	getPdMethodLabel,
+	getPdTimeKeyLabel,
 } from '../../utils/primaryDirectionSync';
 import { XQButton as Button, XQSelect as Select } from '../xq-ui';
 
@@ -316,8 +318,8 @@ function buildSnapshotText(chartObj, currentDt, currentArc){
 	lines.push('');
 	lines.push('[主限法盘设置]');
 	lines.push(`时间选择：${currentDt ? currentDt.format('YYYY-MM-DD HH:mm:ss') : '无'}`);
-		lines.push(`推运方法：${params.pdMethod === 'horosa_legacy' ? 'Horosa原方法' : 'Alchabitius'}`);
-		lines.push(`度数换算：${params.pdTimeKey || DEFAULT_PD_TIME_KEY}`);
+		lines.push(`推运方法：${getPdMethodLabel(params.pdMethod)}`);
+		lines.push(`度数换算：${getPdTimeKeyLabel(params.pdTimeKey)}`);
 		lines.push(`向运方向：${params.direction === 'converse' ? '逆向 Converse' : '顺向 Direct'}`);
 	lines.push(`当前Arc：${splitDegreeText(currentArc)}`);
 	lines.push('');
@@ -553,14 +555,17 @@ class AstroPrimaryDirectionChart extends Component{
 	}
 
 	normalizePdMethod(value){
-		if(value === 'horosa_legacy' || value === 'core_alchabitius'){
+		// P0 白名单：与后端 perpredict._PD_METHOD_REGISTRY 同步。
+		if(value === 'horosa_legacy' || value === 'core_alchabitius' || value === 'placidus'){
 			return value;
 		}
 		return DEFAULT_PD_METHOD;
 	}
 
 	normalizePdTimeKey(value){
-		if(value === 'Ptolemy' || value === 'Naibod'){
+		// 白名单：与后端 perpredict.STATIC_TIME_KEY_SCALES 同步,只收公式可证的 key。
+		const VALID = ['Ptolemy', 'Naibod'];
+		if(VALID.indexOf(value) >= 0){
 			return value;
 		}
 		return DEFAULT_PD_TIME_KEY;
@@ -582,11 +587,11 @@ class AstroPrimaryDirectionChart extends Component{
 		return this.normalizePdTimeKey(this.state.pdTimeKeyValue);
 	}
 
-	// 度数换算 Naibod 是「主限法盘投射」专用 key，只走 /predict/pdchart；表格(/predict/pd)、全局 pdTimeKey
-	// 与存盘 fields 一律回退 Ptolemy，绝不让 Naibod 触碰已验证的 Ptolemy+Alchabitius 主/界限法表格。
+	// P0 起 time key 在后端经 _pdTimeKeyScale 统一抽象 (Ptolemy=1.0 严格锁定，
+	// 护住 Alcabitius+Ptolemy 字节级一致；其它 time key 按 STATIC_TIME_KEY_SCALES
+	// 缩放表格日期 + 盘弧)，故表格与盘可共享同一 pdTimeKey，无需再降级。
 	getTablePdTimeKey(){
-		const key = this.getSelectedPdTimeKey();
-		return key === 'Naibod' ? DEFAULT_PD_TIME_KEY : key;
+		return this.getSelectedPdTimeKey();
 	}
 
 	getAppliedPdState(){
@@ -907,8 +912,8 @@ class AstroPrimaryDirectionChart extends Component{
 		const selectedPdMethod = this.getSelectedPdMethod();
 		const selectedPdTimeKey = this.getSelectedPdTimeKey();
 		const ascTermHighlight = buildAscTermHighlight(derived.dirChart);
-		const pdMethodLabel = selectedPdMethod === 'horosa_legacy' ? 'Horosa原方法' : 'Alchabitius';
-		const appliedMethodLabel = applied.pdMethod === 'horosa_legacy' ? 'Horosa原方法' : 'Alchabitius';
+		const pdMethodLabel = getPdMethodLabel(selectedPdMethod);
+		const appliedMethodLabel = getPdMethodLabel(applied.pdMethod);
 		const sectionGapStyle = {marginTop: 6};
 		const hintStyle = {
 			color: 'var(--horosa-text-soft)',
@@ -947,14 +952,15 @@ class AstroPrimaryDirectionChart extends Component{
 							<Row gutter={12} style={sectionGapStyle}>
 								<Col span={12}>
 									<div style={{marginBottom: 8}}>推运方法</div>
-									<Select value={this.state.pdMethodValue} onChange={this.handlePdMethodChange} style={{width: '100%'}}>
+									<Select value={this.state.pdMethodValue} onChange={this.handlePdMethodChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
 										<Option value='core_alchabitius'>Core-Alchabitius</Option>
+										<Option value='placidus'>Placidus</Option>
 										<Option value='horosa_legacy'>Horosa原方法</Option>
 									</Select>
 								</Col>
 								<Col span={12}>
 									<div style={{marginBottom: 8}}>度数换算</div>
-									<Select value={this.state.pdTimeKeyValue} onChange={this.handlePdTimeKeyChange} style={{width: '100%'}}>
+									<Select value={this.state.pdTimeKeyValue} onChange={this.handlePdTimeKeyChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
 										<Option value='Ptolemy'>Ptolemy</Option>
 										<Option value='Naibod'>Naibod</Option>
 									</Select>

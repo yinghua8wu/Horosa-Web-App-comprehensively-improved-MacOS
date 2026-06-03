@@ -103,8 +103,10 @@ const DOMAIN_REPLACERS = {
 
 const ENABLE_SVG_TEXT_EXPORT = false;
 const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
-export const AI_EXPORT_SETTINGS_VERSION = 15;
-const AI_EXPORT_SECTION_MIGRATION_VERSION = 15;
+// v16 — P0 主限法方位+时间补全 (新增 Placidus 方位法 + Cardano/Plantiko/Wollner/SymbolicDegree/SymbolicSolarArc 时间换算)。
+// 升 SETTINGS_VERSION 触发用户旧 export presets 回收，避免选项缺失。
+export const AI_EXPORT_SETTINGS_VERSION = 16;
+const AI_EXPORT_SECTION_MIGRATION_VERSION = 16;
 const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'bazi',
 	'ziwei',

@@ -464,7 +464,7 @@ class GuoLaoInput extends Component{
 							<span>宿度制</span>
 							<Select value={fields.doubingSu28.value} onChange={this.onDoubingSu28Change} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={2}>回归今制</Option>
-								<Option value={3}>回归古制（开禧）</Option>
+								<Option value={3}>回归开禧（开禧历）</Option>
 								<Option value={4}>恒星制（郑式）</Option>
 								<Option value={0}>荀爽19年测量</Option>
 								<Option value={1}>斗柄定房法</Option>

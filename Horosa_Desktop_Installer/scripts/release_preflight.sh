@@ -621,6 +621,111 @@ fi
 [ "${DIAL31_BAD}" = "0" ] && ok "[31] 中点盘 UI(Δ→短横线/TNP全链路/地点可调/拖动定向已删/saKey 持久) + Ollama 嵌入原生口 均在"
 
 
+# [32] 主限法方位+时间补全·铁律①守卫
+#  - perpredict.py: _byZCoreKernel 函数指针仍在(800 行 Alcabitius ML 路径不被改名/重排)
+#  - perpredict.py: CORE_PD_ASC_CASE_CORR_MODEL + virtual body 校正模型路径不被改
+#  - perpredict.py: STATIC_TIME_KEY_SCALES['Ptolemy'] 严格 == 1.0(必须是数值字面量,不接受公式)
+#  - perpredict.py: _PD_METHOD_REGISTRY 含 'core_alchabitius' 且默认 fallback 路径正确
+#  - 540 case byte-perfect 测试存在并能跑通
+echo "[32] 主限法方位+时间补全·铁律①守卫(Alcabitius+Ptolemy 字节级一致)"
+PD32_BAD=0
+PERPREDICT="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/perpredict.py"
+if [ -f "${PERPREDICT}" ]; then
+  if ! grep -q "def getPrimaryDirectionByZCoreKernel" "${PERPREDICT}"; then
+    bad "[32] perpredict.py 缺 getPrimaryDirectionByZCoreKernel —— Alcabitius+Ptolemy 主路径被改名/移除(540 case 定制修正模型将失效)"
+    PD32_BAD=1
+  fi
+  if ! grep -q "CORE_PD_ASC_CASE_CORR_MODEL" "${PERPREDICT}"; then
+    bad "[32] perpredict.py 缺 CORE_PD_ASC_CASE_CORR_MODEL —— Alcabitius ASC 修正模型路径不在"
+    PD32_BAD=1
+  fi
+  if ! grep -q "CORE_PD_VIRTUAL_BODY_CORR_MODELS" "${PERPREDICT}"; then
+    bad "[32] perpredict.py 缺 CORE_PD_VIRTUAL_BODY_CORR_MODELS —— Alcabitius 虚体修正模型表不在"
+    PD32_BAD=1
+  fi
+  # STATIC_TIME_KEY_SCALES['Ptolemy'] 必须严格 == 1.0 (数值字面量)
+  if ! grep -qE "['\"]Ptolemy['\"]\s*:\s*1\.0" "${PERPREDICT}"; then
+    bad "[32] STATIC_TIME_KEY_SCALES['Ptolemy'] 必须 == 1.0(数值字面量),不能写成公式或近似值;否则 Ptolemy 默认路径将失去字节级一致"
+    PD32_BAD=1
+  fi
+  if ! grep -q "_PD_METHOD_REGISTRY" "${PERPREDICT}"; then
+    bad "[32] perpredict.py 缺 _PD_METHOD_REGISTRY —— strategy 分发被回退(P0 方位法补全失效)"
+    PD32_BAD=1
+  fi
+else
+  bad "[32] 缺 perpredict.py"
+  PD32_BAD=1
+fi
+# byte-perfect 测试存在
+PD_BYTEPERFECT="${REPO_ROOT}/Horosa-Web/astropy/tests/test_pd_alcabitius_byteperfect.py"
+PD_GOLDEN="${REPO_ROOT}/Horosa-Web/astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson"
+if [ ! -f "${PD_BYTEPERFECT}" ]; then
+  bad "[32] 缺 tests/test_pd_alcabitius_byteperfect.py —— byte-perfect 守卫缺失,540 case 回归无法跑"
+  PD32_BAD=1
+fi
+if [ ! -f "${PD_GOLDEN}" ]; then
+  bad "[32] 缺 tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson —— byte-perfect 基线缺失"
+  PD32_BAD=1
+fi
+[ "${PD32_BAD}" = "0" ] && ok "[32] 铁律① Alcabitius+Ptolemy 字节级守卫 + byte-perfect 测试基线 均在"
+
+
+# [33] 主限法方位+时间补全·strategy 分发完整性 + 前端选项扩
+#  - perchart.py: pdMethod 白名单含 'placidus'
+#  - 前端 primaryDirectionSync.js: PD_SYNC_REV = 'pd_method_sync_v9' + SUPPORTED_PD_METHODS/TIMEKEYS 暴露
+#  - 前端 AstroPrimaryDirectionChart.js getTablePdTimeKey 不再强制降级 Naibod
+#  - aiAnalysisContext.js 主限法 case 不再硬编码覆盖 pdMethod/pdTimeKey
+echo "[33] 主限法方位+时间补全·strategy 分发 + 前端选项扩"
+PD33_BAD=0
+PERCHART="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/perchart.py"
+if [ -f "${PERCHART}" ] && ! grep -q "'placidus'" "${PERCHART}"; then
+  bad "[33] perchart.py 白名单缺 'placidus' —— P0 Placidus 方位法选项无法激活,会被回退到默认"
+  PD33_BAD=1
+fi
+PD_SYNC="${UISRC}/utils/primaryDirectionSync.js"
+if [ -f "${PD_SYNC}" ]; then
+  if ! grep -q "pd_method_sync_v9" "${PD_SYNC}"; then
+    bad "[33] primaryDirectionSync.js PD_SYNC_REV 未升到 'pd_method_sync_v9' —— 旧 v8 缓存不重算,新 method/timeKey 不生效"
+    PD33_BAD=1
+  fi
+  if ! grep -q "SUPPORTED_PD_METHODS" "${PD_SYNC}"; then
+    bad "[33] primaryDirectionSync.js 缺 SUPPORTED_PD_METHODS 白名单"
+    PD33_BAD=1
+  fi
+fi
+PD_CHART="${UISRC}/components/astro/AstroPrimaryDirectionChart.js"
+if [ -f "${PD_CHART}" ] && grep -qE "key === 'Naibod' \? DEFAULT_PD_TIME_KEY" "${PD_CHART}"; then
+  bad "[33] AstroPrimaryDirectionChart.getTablePdTimeKey 仍强制把 Naibod 降级为 Ptolemy —— P0 起 Naibod 应直接进表格"
+  PD33_BAD=1
+fi
+AIANALYSISCTX="${UISRC}/utils/aiAnalysisContext.js"
+if [ -f "${AIANALYSISCTX}" ] && grep -qE "pdMethod: 'core_alchabitius'," "${AIANALYSISCTX}"; then
+  bad "[33] aiAnalysisContext.js 主限法 case 仍硬编码 pdMethod='core_alchabitius' —— LLM 上下文永远显示 Alchabitius、与用户实选不符"
+  PD33_BAD=1
+fi
+[ "${PD33_BAD}" = "0" ] && ok "[33] strategy 分发 + 前端选项扩 + Naibod 表格放开 + AI 上下文实选透传 均到位"
+
+
+# [34] 七政四余 二十八宿度·自有恒星案三制(回归今制活体距星 / 开禧+岁差 / 郑氏恒星基值)
+#  - perchart.py: MOIRA_DISTAR_J2000 (28 距星) + _moira_distar_lon + _moira_ayanamsha 在
+#  - perchart.py: setPlanetSu28 支持 byLon (黄道置宿)
+#  - 回归今制不再直接用冻结 15.9 当今制(必经活体距星)
+#  - 回归测试存在
+echo "[34] 七政四余 二十八宿度·自有恒星案三制"
+GUO34_BAD=0
+if [ -f "${PERCHART}" ]; then
+  grep -q "MOIRA_DISTAR_J2000" "${PERCHART}" || { bad "[34] perchart.py 缺 MOIRA_DISTAR_J2000(28 距星表)—— 回归今制活体距星失效"; GUO34_BAD=1; }
+  grep -q "_moira_distar_lon" "${PERCHART}" || { bad "[34] perchart.py 缺 _moira_distar_lon(距星严格岁差投射)"; GUO34_BAD=1; }
+  grep -q "_moira_ayanamsha" "${PERCHART}" || { bad "[34] perchart.py 缺 _moira_ayanamsha(开禧/恒星制基准)"; GUO34_BAD=1; }
+  grep -q "byLon" "${PERCHART}" || { bad "[34] perchart.py setPlanetSu28 缺 byLon(自有恒星案三制须沿黄道置宿)"; GUO34_BAD=1; }
+else
+  bad "[34] 缺 perchart.py"; GUO34_BAD=1
+fi
+GUO_TEST="${REPO_ROOT}/Horosa-Web/astropy/tests/test_guolao_su28_moira.py"
+[ -f "${GUO_TEST}" ] || { bad "[34] 缺 tests/test_guolao_su28_moira.py(七政四余宿度回归)"; GUO34_BAD=1; }
+[ "${GUO34_BAD}" = "0" ] && ok "[34] 七政四余 28 距星表 + 严格岁差 + 黄道置宿 + 回归测试 均在"
+
+
 echo "== 结果 =="
 if [ "${fail}" -ne 0 ]; then echo "pre-flight 有 ❌,先修再发。" >&2; exit 1; fi
 echo "pre-flight 全部通过 ✅(注意:功能层 e2e 仍需另测,如 AI 用真 key、八字切换显示)。"

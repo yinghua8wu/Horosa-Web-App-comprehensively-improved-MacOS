@@ -3,6 +3,7 @@ import flatlib
 import datetime
 import math
 import traceback
+import swisseph
 from multiprocessing.dummy import Pool as ThreadPool
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
@@ -74,6 +75,86 @@ MOIRA_KAIXI_STELLAR_DEGREES = [
     170.0, 189.0, 201.0, 211.0, 227.0, 233.0, 239.0, 256.0, 266.0, 288.0, 295.0,
     306.0, 315.0, 331.0, 349.0, 358.0
 ]
+
+# 二十八宿距星 J2000 赤道坐标(自有星案,顺序同 MOIRA_STELLAR_ORDER 娄..奎)。
+# 字段: (宿名, RA_h, RA_m, RA_s, dec_sign, Dec_d, Dec_m, Dec_s, pmRA, pmDec)。
+# pmRA/pmDec 单位 0.01 (RA: s/yr 时秒; Dec: arcsec/yr)。
+# 「回归今制」用此表逐宿做严格 IAU 岁差→盘历元 tropical 黄经(活体距星)。
+MOIRA_DISTAR_J2000 = [
+    ('娄', 1, 54, 38.401,  1, 20, 48, 28.82,  0.684, -11.11),
+    ('胃', 3, 46, 50.889, -1, 23, 14, 58.97, -1.148, -52.91),
+    ('昴', 3, 44, 48.180,  1, 24, 17, 21.44,  0.060,  -5.10),
+    ('毕', 4, 28, 36.997,  1, 19, 10, 49.46,  0.756,  -3.77),
+    ('觜', 5, 35,  8.419,  1,  9, 56,  3.96,  0.130,  -0.20),
+    ('参', 5, 40, 45.520, -1,  1, 56, 33.30,  0.027,  -0.25),
+    ('井', 6, 22, 57.621,  1, 22, 30, 48.79,  0.391, -11.10),
+    ('鬼', 7, 49, 17.655, -1, 24, 51, 35.31, -0.022,  -0.18),
+    ('柳', 11, 31, 24.248, 1, 69, 19, 51.87, -0.733,  -1.71),
+    ('星', 8, 43, 35.545, -1, 33, 11, 11.02, -0.086,   1.08),
+    ('张', 11, 46,  3.018, 1, 47, 46, 45.90, -1.361,   2.95),
+    ('翼', 12, 26, 56.271, 1, 28, 16,  6.34, -0.626,  -8.02),
+    ('轸', 12, 15, 48.366, -1, 17, 32, 30.97, -1.124,  2.33),
+    ('角', 13, 25, 11.587, -1, 11,  9, 40.71, -0.278, -2.83),
+    ('亢', 11, 35, 46.845, -1, 63,  1, 11.32, -0.606, -0.49),
+    ('氐', 14, 56, 46.118, -1, 11, 24, 35.05,  0.076,  0.83),
+    ('房', 15, 58, 51.120, -1, 26,  6, 50.75, -0.084, -2.55),
+    ('心', 16, 21, 11.317, -1, 25, 35, 34.17, -0.076, -2.07),
+    ('尾', 17, 14, 38.860,  1, 14, 23, 24.90, -0.046,  3.28),
+    ('箕', 18,  5, 48.491, -1, 30, 25, 26.69, -0.412,-18.52),
+    ('斗', 18, 24, 13.779,  1, 39, 30, 26.24, -0.200, -0.19),
+    ('牛', 20, 21,  0.673, -1, 14, 46, 52.99,  0.291,  0.16),
+    ('女', 20, 47, 40.559, -1,  9, 29, 44.74,  0.235, -3.43),
+    ('虚', 21, 10, 20.518,  1, 10,  7, 53.57,  0.383,-15.33),
+    ('危', 22,  5, 47.038, -1,  0, 19, 11.47,  0.131, -0.96),
+    ('室', 23,  4, 45.658,  1, 15, 12, 18.90,  0.436, -4.25),
+    ('壁', 23, 57, 45.535,  1, 25,  8, 28.98, -0.247, -3.32),
+    ('奎',  0, 36, 52.858,  1, 33, 43,  9.63,  0.124, -0.40),
+]
+
+# 自有恒星案 ayanamsha 基准: 基准历元 1300-01-01, 基准黄经差 4.0°(与「恒星制」一致)。
+MOIRA_AYAN_BASE_YMD = (1300, 1, 1, 0.0)
+MOIRA_AYAN_BASE_DEG = 4.0
+
+
+def _moira_ayanamsha(jd):
+    """指定 jd 的 ayanamsha(SE_SIDM_USER, 基准 1300/4.0)。用于回归古制/恒星制基值→tropical 投射。"""
+    y, m, d, h = MOIRA_AYAN_BASE_YMD
+    swisseph.set_sid_mode(swisseph.SIDM_USER, swisseph.julday(y, m, d, h), MOIRA_AYAN_BASE_DEG)
+    return swisseph.get_ayanamsa_ut(jd)
+
+
+def _moira_distar_lon(rec, jd):
+    """单颗距星 J2000 赤道坐标 → 盘历元 tropical 黄经(proper motion + 严格 IAU 岁差)。"""
+    name, rh, rm, rs, sg, dd, dm, ds, pmra, pmdec = rec
+    ra = (rh + rm / 60.0 + rs / 3600.0) * 15.0
+    dec = sg * (dd + dm / 60.0 + ds / 3600.0)
+    yr = (jd - 2451545.0) / 365.25
+    ra += pmra * 0.01 * 15.0 * yr / 3600.0
+    dec += pmdec * 0.01 * yr / 3600.0
+    T = (jd - 2451545.0) / 36525.0
+    zeta = (2306.2181 * T + 0.30188 * T * T + 0.017998 * T ** 3) / 3600.0
+    z = (2306.2181 * T + 1.09468 * T * T + 0.018203 * T ** 3) / 3600.0
+    th = (2004.3109 * T - 0.42665 * T * T - 0.041833 * T ** 3) / 3600.0
+    rr = math.radians(ra)
+    dr = math.radians(dec)
+    Z = math.radians(zeta)
+    ZZ = math.radians(z)
+    TH = math.radians(th)
+    A = math.cos(dr) * math.sin(rr + Z)
+    B = math.cos(TH) * math.cos(dr) * math.cos(rr + Z) - math.sin(TH) * math.sin(dr)
+    C = math.sin(TH) * math.cos(dr) * math.cos(rr + Z) + math.cos(TH) * math.sin(dr)
+    ra_d = math.atan2(A, B) + ZZ
+    dec_d = math.asin(C)
+    eps = math.radians(swisseph.calc_ut(jd, swisseph.ECL_NUT)[0][0])
+    lon = math.degrees(math.atan2(
+        math.sin(ra_d) * math.cos(eps) + math.tan(dec_d) * math.sin(eps),
+        math.cos(ra_d))) % 360.0
+    return (name, lon)
+
+
+def _moira_distar_lons(jd):
+    """全 28 距星盘历元 tropical 黄经,返回 {宿名: 黄经}。"""
+    return dict(_moira_distar_lon(rec, jd) for rec in MOIRA_DISTAR_J2000)
 
 SU28_ID_BY_NAME = dict(zip(const.LIST_FIXED_SU28_NAME, const.LIST_FIXED_SU28))
 
@@ -278,7 +359,9 @@ class PerChart:
 
         if 'pdMethod' in data.keys():
             self.pdMethod = data['pdMethod']
-            if self.pdMethod not in ('core_alchabitius', 'horosa_legacy'):
+            # whitelist 与 perpredict._PD_METHOD_REGISTRY 保持同步；未识别 method 一律
+            # 回退到默认 Alcabitius (core_alchabitius)，护住默认路径字节级一致。
+            if self.pdMethod not in ('core_alchabitius', 'horosa_legacy', 'placidus'):
                 self.pdMethod = 'core_alchabitius'
 
         if 'pdTimeKey' in data.keys():
@@ -1529,37 +1612,47 @@ class PerChart:
         return res
 
     def getMoiraFixedStarSu28(self):
-        degrees = MOIRA_CURRENT_STELLAR_DEGREES
+        # 三套宿度制对齐自有恒星案(均沿黄道置宿,planets 用黄经):
+        #   回归今制(MOIRA_CURRENT): 28 距星活体 tropical 黄经(严格 IAU 岁差),逐宿不均匀。
+        #   回归古制开禧(MOIRA_KAIXI): 开禧基值 + ayanamsha(1300/4.0)。
+        #   恒星制郑式(ZHENG_SIDEREAL): 郑氏恒星基值原值(盘已 sidereal,planets 亦 sidereal)。
+        jd = self.chart.date.jd
         if self.su28Mode == SU28_MODE_MOIRA_KAIXI:
-            degrees = MOIRA_KAIXI_STELLAR_DEGREES
+            ayan = _moira_ayanamsha(jd)
+            degrees = [(d + ayan) % 360 for d in MOIRA_KAIXI_STELLAR_DEGREES]
+        elif self.su28Mode == SU28_MODE_ZHENG_SIDEREAL:
+            degrees = [d % 360 for d in MOIRA_CURRENT_STELLAR_DEGREES]
+        else:
+            lon_by_name = _moira_distar_lons(jd)
+            degrees = [lon_by_name[name] % 360 for name in MOIRA_STELLAR_ORDER]
 
         res = []
         for idx, name in enumerate(MOIRA_STELLAR_ORDER):
-            ra = degrees[idx] % 360
-            sig = const.LIST_SIGNS[int(ra / 30) % 12]
+            lon = degrees[idx] % 360
+            sig = const.LIST_SIGNS[int(lon / 30) % 12]
             star = {
-                'ra': ra,
+                'ra': lon,
                 'decl': 0,
                 'name': name,
                 'wuxing': const.Su28WuXing[name],
                 'animal': const.Su28Animal[name],
                 'id': SU28_ID_BY_NAME[name],
-                'lon': ra,
+                'lon': lon,
                 'lat': 0,
                 'sign': sig,
-                'signlon': ra % 30,
+                'signlon': lon % 30,
                 'type': const.OBJ_FIXED_STAR
             }
             res.append(object.Object.fromDict(star))
-        res.sort(key=takeRa)
+        res.sort(key=lambda s: s.lon)
         return res
 
-    def fillPlanetSu28(self, res):
+    def fillPlanetSu28(self, res, byLon=False):
         obj = const.LIST_ALL_POINTS
         for id in obj:
             try:
                 planet = self.chart.get(id)
-                self.setPlanetSu28(res, planet)
+                self.setPlanetSu28(res, planet, byLon=byLon)
             except:
                 continue
 
@@ -1600,13 +1693,15 @@ class PerChart:
         if self.isDoubingSu28:
             return self.getFixedStarSu28ByDouBing()
 
-        if self.su28Mode == SU28_MODE_MOIRA_CURRENT or self.su28Mode == SU28_MODE_MOIRA_KAIXI:
+        # 回归今制 / 回归古制开禧 / 恒星制郑式 三制均走自有恒星案,沿黄道置宿(planets 用黄经)。
+        if self.su28Mode in (SU28_MODE_MOIRA_CURRENT, SU28_MODE_MOIRA_KAIXI, SU28_MODE_ZHENG_SIDEREAL):
             res = self.getMoiraFixedStarSu28()
-        else:
-            res = self.getAdjustFixedStarSu28()
+            self.fillPlanetSu28(res, byLon=True)
+            return res
 
+        # 荀爽 19 年测量(REAL): 赤道距星活体,沿赤经置宿(planets 用 RA)。
+        res = self.getAdjustFixedStarSu28()
         self.fillPlanetSu28(res)
-
         return res
 
     def getFixedStars(self):
@@ -1637,10 +1732,14 @@ class PerChart:
         res.sort(key=takeDecl)
         return res
 
-    def setPlanetSu28(self, res, planet):
+    def setPlanetSu28(self, res, planet, byLon=False):
+        # byLon=True: 沿黄道置宿(自有恒星案三制,宿界与行星均用黄经);
+        # byLon=False: 沿赤经置宿(荀爽赤道距星法,用 RA)。
+        pval = planet.lon if byLon else planet.ra
         starSel = None
         for star in res:
-            if star.ra <= planet.ra:
+            sval = star.lon if byLon else star.ra
+            if sval <= pval:
                 starSel = star
             else:
                 break

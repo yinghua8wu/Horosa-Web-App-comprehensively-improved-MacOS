@@ -277,8 +277,10 @@ function buildFieldObject(record){
 		predictive: { value: 1 },
 		showPdBounds: { value: 1 },
 		pdtype: { value: 0 },
-		pdMethod: { value: 'core_alchabitius' },
-		pdTimeKey: { value: 'Ptolemy' },
+		// P0 起 record 可能持久化用户实选 (placidus / 其它 timeKey)；优先读 record，
+		// 不存在时回退到默认 Alcabitius+Ptolemy (守 v2.5.3 默认路径字节级一致)。
+		pdMethod: { value: record.pdMethod || 'core_alchabitius' },
+		pdTimeKey: { value: record.pdTimeKey || 'Ptolemy' },
 		pdaspects: { value: DEFAULT_PD_ASPECTS.slice(0) },
 		// 时间算法(0=真太阳时按经度校正 / 1=直接时间用钟表时)+ 晚子时口径须从存盘读取,
 		// 否则 canping/heluo 等八字类快照会对「直接时间」盘错用真太阳时校正、忽略晚子时设置(口径与显示不一致)。
@@ -992,7 +994,9 @@ async function regenerateChartTechniqueSnapshot(record, key){
 		}
 		case 'primarydirchart':
 		case 'primarydirect': {
-			// 主限法 / 主限法盘（同一主限方向数据）：取含主限法的西洋盘（默认 Alchabitius 弧 / Ptolemy 时钥 / 显示界限）。
+			// 主限法 / 主限法盘（同一主限方向数据）：取含主限法的西洋盘；P0 起
+			// 方位法 + 时间换算按 chartObj.params 实选透传（用户选了 Placidus/Naibod 等，
+			// LLM 上下文也跟着显示，避免与用户实选不符）。
 			const chartObj = await fetchChartResultForRecord(record, { includePrimaryDirection: true });
 			if(!chartObj){
 				return '';
@@ -1002,8 +1006,6 @@ async function regenerateChartTechniqueSnapshot(record, key){
 				params: {
 					...(chartObj.params || {}),
 					showPdBounds: 1,
-					pdMethod: 'core_alchabitius',
-					pdTimeKey: 'Ptolemy',
 				},
 			};
 			return buildPrimaryDirectSnapshotText(snapshotChartObj) || '';
