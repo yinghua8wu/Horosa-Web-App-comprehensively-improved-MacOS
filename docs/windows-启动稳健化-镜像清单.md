@@ -69,7 +69,8 @@ const backendProbePromise = (async () => {
 
 ## ⑤(可选)AppCDS 冷启动提速(配合共享层打包)
 
-- 若 runtime 包内含 `app.jsa`(共享打包脚本生成),`buildJavaArgs` 加 `-XX:SharedArchiveFile=<path>/app.jsa -Xshare:auto`(`-Xshare:auto` = 归档失效自动退普通启动,绝不阻断)。显著缩短 JVM 冷启动 → 进一步压缩白屏窗口。
+- 若 runtime 包内含 `app.jsa`(打包期生成),`buildJavaArgs` 加 `-XX:SharedArchiveFile=<path>/app.jsa -Xshare:auto`(`-Xshare:auto` = 归档失效自动退普通启动,绝不阻断)。显著缩短 JVM 冷启动 → 进一步压缩白屏窗口。
+- **关键:bundled JDK = 17 → 勿用 `-XX:+AutoCreateSharedArchive`(那是 JDK 19+,JDK17 上是未知标志会致 JVM 起不来=回归)。** 归档须由打包期 `-XX:ArchiveClassesAtExit=app.jsa`(跑一次 warmup 后优雅退出)生成;详见 `docs/启动稳健化-P1P2-与打包spec.md`。
 
 ---
 
