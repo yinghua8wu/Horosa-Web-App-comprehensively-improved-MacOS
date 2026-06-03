@@ -170,15 +170,18 @@ def _engine_chart():
 
 
 def test_pddirect_parsing_default_and_off():
-    """pdDirect 默认 True;仅显式 0/'0'/false 才关。"""
+    """顺逆默认都开(用户偏好「顺逆都开」);仅显式 0/'0'/false 才关。"""
     cd = _engine_chart()
-    assert perchart.PerChart(cd).pdDirect is True  # 缺省
+    assert perchart.PerChart(cd).pdDirect is True   # 顺向缺省开
+    assert perchart.PerChart(cd).pdConverse is True  # 逆向缺省也开(默认顺逆都开)
     cd0 = dict(cd); cd0['pdDirect'] = 0
     assert perchart.PerChart(cd0).pdDirect is False
     cd1 = dict(cd); cd1['pdDirect'] = '0'
     assert perchart.PerChart(cd1).pdDirect is False
     cd2 = dict(cd); cd2['pdDirect'] = 1
     assert perchart.PerChart(cd2).pdDirect is True
+    cc0 = dict(cd); cc0['pdConverse'] = 0
+    assert perchart.PerChart(cc0).pdConverse is False  # 显式关逆
 
 
 def test_direct_and_converse_co_select_concatenates():

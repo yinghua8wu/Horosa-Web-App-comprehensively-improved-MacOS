@@ -105,8 +105,9 @@ export function mergePrimaryDirectionChartObj(chartObj, options = {}){
 			...(pos !== undefined ? { pos, } : {}),
 			showPdBounds: showPdBounds === 0 ? 0 : 1,
 			pdtype: pdtype === 1 ? 1 : DEFAULT_PD_TYPE,
+			// 顺逆默认都开(用户偏好):仅显式 0 才关。
 			pdDirect: pdDirect === 0 ? 0 : 1,
-			pdConverse: pdConverse ? 1 : 0,
+			pdConverse: pdConverse === 0 ? 0 : 1,
 			pdAntiscia: pdAntiscia ? 1 : 0,
 			pdTerms: pdTerms ? 1 : 0,
 			pdMethod: pdMethod || DEFAULT_PD_METHOD,

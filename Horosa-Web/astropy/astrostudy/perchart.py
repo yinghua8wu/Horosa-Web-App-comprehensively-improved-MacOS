@@ -316,8 +316,10 @@ class PerChart:
         self.pdTimeKey = 'Ptolemy'
         self.pdYears = 100
         # 自研引擎方位法的开关(仅公开方法生效；core/legacy 不受影响）。
+        # 默认「顺逆都开」(用户偏好):Alcabitius 走自有引擎本就含正负弧、忽略此开关;
+        # 切到新方位法时默认两向都算、按年龄交错。
         self.pdDirect = True      # 顺向 direct(默认开)
-        self.pdConverse = False   # 逆向 converse(可与 direct 同时开)
+        self.pdConverse = True    # 逆向 converse(默认开;可与 direct 同时开)
         self.pdAntiscia = False   # 映点/反映点作 promissor
         self.pdTerms = False      # 界(terms)边界作 promissor
 

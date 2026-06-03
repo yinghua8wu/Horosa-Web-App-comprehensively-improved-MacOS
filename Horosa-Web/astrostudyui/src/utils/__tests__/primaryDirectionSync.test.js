@@ -93,10 +93,12 @@ describe('primaryDirectionSync', ()=>{
 		expect(next.params.pdTerms).toBe(0);
 	});
 
-	test('mergePrimaryDirectionChartObj 顺向默认开:pdDirect 未传落库 1,显式 0 才关', ()=>{
+	test('mergePrimaryDirectionChartObj 顺逆默认都开:pdDirect/pdConverse 未传落库 1,显式 0 才关', ()=>{
 		const on = mergePrimaryDirectionChartObj({ params: {}, predictives: {} }, { pdRows: [] });
 		expect(on.params.pdDirect).toBe(1);
-		const off = mergePrimaryDirectionChartObj({ params: {}, predictives: {} }, { pdRows: [], pdDirect: 0 });
+		expect(on.params.pdConverse).toBe(1);
+		const off = mergePrimaryDirectionChartObj({ params: {}, predictives: {} }, { pdRows: [], pdDirect: 0, pdConverse: 0 });
 		expect(off.params.pdDirect).toBe(0);
+		expect(off.params.pdConverse).toBe(0);
 	});
 });

@@ -281,9 +281,9 @@ function buildFieldObject(record){
 		// 不存在时回退到默认 Alcabitius+Ptolemy (守 v2.5.3 默认路径字节级一致)。
 		pdMethod: { value: record.pdMethod || 'core_alchabitius' },
 		pdTimeKey: { value: record.pdTimeKey || 'Ptolemy' },
-		// 主限法进阶开关(向运顺逆 / 映点 / 界):顺向默认开,其余默认关。
+		// 主限法进阶开关(向运顺逆 / 映点 / 界):顺逆默认都开(用户偏好),映点/界默认关。
 		pdDirect: { value: record.pdDirect === 0 ? 0 : 1 },
-		pdConverse: { value: record.pdConverse ? 1 : 0 },
+		pdConverse: { value: record.pdConverse === 0 ? 0 : 1 },
 		pdAntiscia: { value: record.pdAntiscia ? 1 : 0 },
 		pdTerms: { value: record.pdTerms ? 1 : 0 },
 		pdaspects: { value: DEFAULT_PD_ASPECTS.slice(0) },

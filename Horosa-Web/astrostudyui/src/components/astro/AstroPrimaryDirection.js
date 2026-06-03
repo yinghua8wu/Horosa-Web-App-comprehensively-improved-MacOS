@@ -51,8 +51,9 @@ class AstroPrimaryDirection extends Component{
 			pdYearsValue: props.pdYears ? props.pdYears : 100,
 			// 方向类型(0黄道/1世俗 in mundo)、向运(顺 direct / 逆 converse,可同时选)、映点、界 — 进阶开关。
 			pdTypeValue: props.pdType === 1 ? 1 : 0,
+			// 顺逆默认都开(用户偏好):仅显式 0 才关。
 			pdDirectValue: props.pdDirect === 0 ? 0 : 1,
-			pdConverseValue: props.pdConverse ? 1 : 0,
+			pdConverseValue: props.pdConverse === 0 ? 0 : 1,
 			pdAntisciaValue: props.pdAntiscia ? 1 : 0,
 			pdTermsValue: props.pdTerms ? 1 : 0,
 		}
@@ -127,7 +128,7 @@ class AstroPrimaryDirection extends Component{
 		const nextYears = this.normalizePdYears(this.props.pdYears);
 		const nextType = this.props.pdType === 1 ? 1 : 0;
 		const nextDirect = this.props.pdDirect === 0 ? 0 : 1;
-		const nextConverse = this.props.pdConverse ? 1 : 0;
+		const nextConverse = this.props.pdConverse === 0 ? 0 : 1;
 		const nextAntiscia = this.props.pdAntiscia ? 1 : 0;
 		const nextTerms = this.props.pdTerms ? 1 : 0;
 		if(this.state.pdMethodValue !== nextMethod

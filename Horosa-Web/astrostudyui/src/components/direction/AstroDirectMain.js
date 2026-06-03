@@ -639,9 +639,10 @@ class AstroDirectMain extends Component{
 			return undefined;
 		};
 		const toFlag = (v)=>(v === true || v === 1 || v === '1' || v === 'true') ? 1 : 0;
-		const directRaw = pick('pdDirect');
-		// 顺向默认开:仅显式 0/false 才关。
-		const pdDirect = (directRaw === 0 || directRaw === '0' || directRaw === false || directRaw === 'false') ? 0 : 1;
+		// 顺向 / 逆向 默认都开(用户偏好「顺逆都开」):仅显式 0/false 才关。
+		const offIf = (v)=>(v === 0 || v === '0' || v === false || v === 'false') ? 0 : 1;
+		const pdDirect = offIf(pick('pdDirect'));
+		const pdConverse = offIf(pick('pdConverse'));
 		return {
 			pdMethod: override.pdMethod || (params.pdMethod
 				? params.pdMethod
@@ -654,7 +655,7 @@ class AstroDirectMain extends Component{
 				: (fields.pdYears ? fields.pdYears.value : 100))),
 			pdtype: toFlag(pick('pdtype')),
 			pdDirect,
-			pdConverse: toFlag(pick('pdConverse')),
+			pdConverse,
 			pdAntiscia: toFlag(pick('pdAntiscia')),
 			pdTerms: toFlag(pick('pdTerms')),
 		};
@@ -1073,7 +1074,8 @@ class AstroDirectMain extends Component{
 		// 漏传此 prop 会让表格 componentDidUpdate 把「顺」误判为 undefined→默认 1,
 		// 导致选「仅逆」算完后「顺」又自动勾上,显示与实算对不上。
 		const appliedPdDirect = chartParams.pdDirect === 0 ? 0 : 1;
-		const appliedPdConverse = chartParams.pdConverse ? 1 : 0;
+		// 默认「顺逆都开」(用户偏好):pdConverse 缺省/未定义都按开;仅显式落库为 0/false 才关。
+		const appliedPdConverse = (chartParams.pdConverse === 0 || chartParams.pdConverse === false) ? 0 : 1;
 		const appliedPdAntiscia = chartParams.pdAntiscia ? 1 : 0;
 		const appliedPdTerms = chartParams.pdTerms ? 1 : 0;
 
