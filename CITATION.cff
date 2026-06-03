@@ -3,6 +3,7 @@ message: "If you use Horosa in research, software evaluation, or workflow compar
 title: "Horosa"
 type: software
 version: "2.5.4"
+date-released: "2026-06-03"
 abstract: "Horosa is a local-first metaphysics workstation that combines a shared web/app workspace, local services, AI-assisted analysis, and a desktop delivery layer."
 license: "AGPL-3.0-only"
 authors:
