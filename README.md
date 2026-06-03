@@ -9,12 +9,12 @@
 **把占星与中国术数，收进一个原生 macOS 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native macOS workstation*
 
-[![Version](https://img.shields.io/badge/version-2.5.3-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.3)
+[![Version](https://img.shields.io/badge/version-2.5.4-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.4)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.3)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.3)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.4)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.4)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.3/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.4/Horosa-Installer-macos-arm64-offline.pkg) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -33,7 +33,7 @@
 
 > Regular users grab the offline installer and open it like any finished macOS app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.3/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.4/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合：Apple Silicon · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -91,20 +91,19 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.5.3 beta
+## 本次更新 · What's New in v2.5.4 beta
 
-这一版聚焦量化盘(汉堡学派)新技法、主限法新选项、AI 模型解耦与本地推理上下文,以及主限法盘的天文修正,并随手修了 v2.5.2 中「90°中点盘」中间栏底部安全距离 / 左右栏小窗口下滑两个布局问题(替代 v2.5.2,与 Windows 端版本号统一):
+这一版聚焦**主限法(Primary Directions)的全面补全**,以及一轮**启动 / 运行稳健化**:
 
-- **新增「90°中点盘」技法**(辅盘 → 量化盘)—— 折叠盘与多环模数盘双形态、三层叠盘(本命 / 行运 / 太阳弧)、八虚星(Cu / Ha / Ze / Kr / Ap / Ad / Vu / Po)、谐波盘基 H1..H512、可拖动的红色指针即时输出星体 / 中点 / 行星图读数与中点树。行运 / 太阳弧时刻与地点可独立调节,本命环锁定为最内圈。
-- **量化盘布局收尾**(替代 v2.5.2)—— 中间盘 size 按 viewport 三方钳位,盘下沿与底部 Dock 之间留出安全呼吸距离;左 / 右栏卡片在窗口过小(vh < 800)时各自独立下滑,不再被遮挡或截断。
-- **主限法表格新增 Naibod 度数换算选项** —— 既有 Ptolemy / Alcabitius 链路完全不变;选 Naibod 时表格按 0.9856473 缩放日期、盘投射同步缩放、converse 复用同一参数链。同时修复主限法盘 ASC / MC / DESC / IC 四角赤纬(原误以地理纬度作黄纬,赤纬偏差被根治)。
-- **AI 分析:聊天 / 嵌入模型解耦 + 高级参数** —— 顶栏可独立指定聊天与嵌入模型,「参数」抽屉提供思考档位 / temperature / top_p;Ollama 改走原生 `/api/chat` 与 `/api/embed`,`num_ctx` 等真正生效,长玄学上下文不再默认 4096 截断(#15)。
-- **大六壬 / 三式合一 AI 挂载修复 + 六爻接入时间起卦白名单** —— 六爻仍守「永不按时间重算已存卦」铁律,新增的时间入口仅为新时点起卦。
-- **量化盘 AI 四同步** —— AI 导出预设、导出设置版本、AI 分析挂载、命盘 / 事盘储存全部接入 90°中点盘段。
+- **主限法 · 全方位法建成** —— 在原有 Alcabitius 之外新增 **Placidus(半弧)/ Regiomontanus / Campanus / Topocentric** 四种方位法(自研通用引擎:球面三角闭式 + `swisseph.house_pos` 数值法地面真值)。**默认 Alcabitius + Ptolemy 路径逐行字节级不变**。
+- **方向类型 In Zodiaco / In Mundo** —— 黄道向运与世俗向运(后者相位在房屋空间,Regiomontanus 与 Campanus 在此分叉)。
+- **向运顺逆可同选,按年龄交错** —— 顺向(direct)与逆向(converse)可同时勾选;同选时正负弧按推进年龄(日期)升序交错显示。**默认顺逆都开**。
+- **度数换算三钥匙** —— Ptolemy / Naibod / **真太阳弧(动态,逐弧查星历)**;表格与主限法盘一致。
+- **映点 / 界作迫星** —— 可叠加映点(antiscia)/反映点与埃及界(terms)边界作为额外迫星。
+- **顶部单行工具栏 + 主限法盘按设置投影** —— 表格所有选项压顶部单行;主限法盘右栏可调方法 / 钥匙 / 向运,外圈按真太阳弧动态投射。AI 导出 / 导出设置 / 分析挂载 / 命盘事盘储存四同步。
+- **启动 / 运行稳健化** —— 新增前端启动闸(StartupGate:连接中覆盖层 + 自动退避重试 + 手动重试 + 重建 Runtime 提示)、后端 `/healthz` 就绪契约、Java 绑定 `127.0.0.1`(防火墙友好)与全阶段结构化启动日志,根治「白屏 / 后端未就绪」的边缘卡顿。
 
-完整改动见 [v2.5.3 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.3)(离线 `.pkg`、app zip、runtime 包与 manifest 对齐到 `2.5.3 / 2.5.3-runtime1`)。
-
-> v2.5.3 ships the 90°-dial (Hamburg-school) technique with eight hypothetical points and harmonic bases H1..H512, fixes the dial-page layout briefly shipped in v2.5.2 (bottom Dock safety gap + independent scroll on narrow side columns), adds Naibod to the primary-direction table (keeping the verified Ptolemy / Alcabitius paths byte-identical), fixes the four-angle declination bug in the primary-direction chart, decouples chat / embedding models in the AI panel with a thinking-level / temperature / top-p drawer, switches Ollama to native `/api/chat` and `/api/embed` so `num_ctx` actually applies (long astrology context no longer truncates at 4096, #15), repairs the AI snapshot mount for Da-Liu-Ren and the unified three-style chart, and propagates the new dial section through all four AI surfaces (export, export settings, analysis mount, chart/event storage). v2.5.3 also aligns the version number with the Windows build. See the [v2.5.3 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.3) for the full log.
+> v2.5.4 completes **primary directions**: four new house systems — **Placidus (semi-arc) / Regiomontanus / Campanus / Topocentric** — on a self-developed engine (spherical-trig closed forms validated against `swisseph.house_pos` as ground truth), while the default **Alcabitius + Ptolemy** path stays byte-for-byte identical. It adds **In Zodiaco / In Mundo** direction (Regiomontanus ≠ Campanus in mundo), **co-selectable direct + converse interleaved by age** (both on by default), a third time key **True Solar Arc** (dynamic, ephemeris-driven, consistent between table and dial), and **antiscia / terms as promissors**. All options sit on a single top toolbar; the primary-direction dial projects per method / key / direction; and the new settings propagate through all four AI surfaces (export, export settings, analysis mount, chart/event storage). This release also ships a **startup / runtime hardening** pass: a front-end StartupGate (connecting overlay + auto-backoff retry + manual retry + rebuild-runtime CTA), a backend `/healthz` readiness contract, Java bound to `127.0.0.1`, and structured startup logs. See the [v2.5.4 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.4) for the full log (offline `.pkg`, app zip, runtime package and manifest aligned to `2.5.4 / 2.5.4-runtime1`).
 
 ## 技术构成 · Under the Hood
 

@@ -658,13 +658,15 @@ else
 fi
 # byte-perfect 测试存在
 PD_BYTEPERFECT="${REPO_ROOT}/Horosa-Web/astropy/tests/test_pd_alcabitius_byteperfect.py"
-PD_GOLDEN="${REPO_ROOT}/Horosa-Web/astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson"
+# 金标语料现为 gzip 压缩(.ndjson.gz,test_pd_alcabitius_byteperfect.py 用 gzip.open 读);兼容旧未压缩名。
+PD_GOLDEN_GZ="${REPO_ROOT}/Horosa-Web/astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson.gz"
+PD_GOLDEN_RAW="${REPO_ROOT}/Horosa-Web/astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson"
 if [ ! -f "${PD_BYTEPERFECT}" ]; then
   bad "[32] 缺 tests/test_pd_alcabitius_byteperfect.py —— byte-perfect 守卫缺失,540 case 回归无法跑"
   PD32_BAD=1
 fi
-if [ ! -f "${PD_GOLDEN}" ]; then
-  bad "[32] 缺 tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson —— byte-perfect 基线缺失"
+if [ ! -f "${PD_GOLDEN_GZ}" ] && [ ! -f "${PD_GOLDEN_RAW}" ]; then
+  bad "[32] 缺 tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson(.gz) —— byte-perfect 基线缺失"
   PD32_BAD=1
 fi
 [ "${PD32_BAD}" = "0" ] && ok "[32] 铁律① Alcabitius+Ptolemy 字节级守卫 + byte-perfect 测试基线 均在"
