@@ -4,6 +4,8 @@ import { fetchPlanetariumState } from '../../services/planetarium';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import XQIcon from '../xq-icons';
+import { eclipticToEquatorial, projectedEquatorialItem } from './planetariumProjection';
+import { nearestPointToRay, buildStarIndex, findStarByName, starDisplayLabel } from './planetariumStarSearch';
 
 const BABYLON = typeof window !== 'undefined' ? window.BABYLON : null;
 
@@ -229,73 +231,9 @@ function observerFromData(observer){
 	};
 }
 
-function gmstDegrees(jd){
-	const t = (Number(jd) - 2451545.0) / 36525;
-	return normalizeDegrees(280.46061837 + 360.98564736629 * (Number(jd) - 2451545.0) + 0.000387933 * t * t - (t * t * t) / 38710000);
-}
-
-function equatorialToHorizontal(ra, decl, jd, observer){
-	if(!Number.isFinite(Number(ra)) || !Number.isFinite(Number(decl)) || !Number.isFinite(Number(jd))){
-		return null;
-	}
-	const lat = degToRad(observer.lat || 0);
-	const dec = degToRad(decl);
-	const lst = normalizeDegrees(gmstDegrees(jd) + Number(observer.lon || 0));
-	const ha = degToRad(normalizeDegrees(lst - Number(ra)));
-	const sinAlt = Math.sin(dec) * Math.sin(lat) + Math.cos(dec) * Math.cos(lat) * Math.cos(ha);
-	const alt = Math.asin(clamp(sinAlt, -1, 1));
-	const az = Math.atan2(
-		-Math.sin(ha),
-		Math.tan(dec) * Math.cos(lat) - Math.sin(lat) * Math.cos(ha),
-	);
-	const standardAz = normalizeDegrees(az * 180 / Math.PI);
-	return {
-		altitudeAppa: alt * 180 / Math.PI,
-		azimuth: normalizeDegrees(standardAz + 180),
-	};
-}
-
-function eclipticToEquatorial(lon, lat = 0){
-	if(!Number.isFinite(Number(lon)) || !Number.isFinite(Number(lat))){
-		return null;
-	}
-	const obliquity = degToRad(23.4392911);
-	const lonRad = degToRad(lon);
-	const latRad = degToRad(lat);
-	const sinDec = Math.sin(latRad) * Math.cos(obliquity) + Math.cos(latRad) * Math.sin(obliquity) * Math.sin(lonRad);
-	const dec = Math.asin(clamp(sinDec, -1, 1));
-	const y = Math.sin(lonRad) * Math.cos(obliquity) - Math.tan(latRad) * Math.sin(obliquity);
-	const x = Math.cos(lonRad);
-	const ra = Math.atan2(y, x);
-	return {
-		ra: normalizeDegrees(ra * 180 / Math.PI),
-		decl: dec * 180 / Math.PI,
-	};
-}
-
-function projectedEquatorialItem(item, jd, observer){
-	let ra = item && item.ra;
-	let decl = item && item.decl;
-	if((!Number.isFinite(Number(ra)) || !Number.isFinite(Number(decl))) && item && item.lon !== undefined){
-		const eq = eclipticToEquatorial(item.lon, item.lat || 0);
-		if(eq){
-			ra = eq.ra;
-			decl = eq.decl;
-		}
-	}
-	const pos = equatorialToHorizontal(ra, decl, jd, observer);
-	if(!pos){
-		return item;
-	}
-	return {
-		...item,
-		ra,
-		decl,
-		...pos,
-		visible: pos.altitudeAppa > 0,
-		horizonState: pos.altitudeAppa > 0 ? '可见' : '地平线下',
-	};
-}
+// gmstDegrees / equatorialToHorizontal / eclipticToEquatorial / projectedEquatorialItem
+// now live in ./planetariumProjection (BABYLON-free, unit-tested, swisseph-aligned
+// apparent alt/az incl. atmospheric refraction). Imported at the top of this file.
 
 function cameraRotationForDirection(direction){
 	const dir = direction.clone().normalize();
@@ -1041,6 +979,7 @@ class PlanetariumRenderer {
 			stencil: false,
 			antialias: true,
 			powerPreference: 'high-performance',
+			adaptToDeviceRatio: true,
 		});
 		this.scene = new BABYLON.Scene(this.engine);
 		this.scene.clearColor = new BABYLON.Color4(0.008, 0.012, 0.026, 1);
@@ -1243,12 +1182,21 @@ class PlanetariumRenderer {
 		this.sky = sky;
 
 		this.scene.onPointerObservable.add((pointerInfo)=>{
-			if(pointerInfo.type !== BABYLON.PointerEventTypes.POINTERPICK){
+			const ptype = pointerInfo.type;
+			if(ptype === BABYLON.PointerEventTypes.POINTERPICK){
+				const hit = pointerInfo.pickInfo && pointerInfo.pickInfo.pickedMesh;
+				if(hit && hit.metadata && hit.metadata.body && this.onPick){
+					this.onPick(hit.metadata.body);
+				}
 				return;
 			}
-			const hit = pointerInfo.pickInfo && pointerInfo.pickInfo.pickedMesh;
-			if(hit && hit.metadata && hit.metadata.body && this.onPick){
-				this.onPick(hit.metadata.body);
+			if(ptype === BABYLON.PointerEventTypes.POINTERTAP){
+				// 暗星兜底:点空处(未命中任何可点 mesh)时,选距点击射线最近的目录星。
+				const hit = pointerInfo.pickInfo && pointerInfo.pickInfo.pickedMesh;
+				if(hit && hit.metadata && hit.metadata.body){
+					return; // 已由 POINTERPICK 处理(行星/亮星等)
+				}
+				this.pickNearestStar();
 			}
 		});
 
@@ -1268,6 +1216,10 @@ class PlanetariumRenderer {
 		});
 		this.resizeHandler = ()=>{
 			if(this.engine){
+				// Keep the backing store at full device resolution; re-apply on resize so
+				// moving the window between Retina / non-Retina monitors stays crisp.
+				const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+				this.engine.setHardwareScalingLevel(1 / Math.max(1, dpr));
 				this.engine.resize();
 			}
 		};
@@ -2037,13 +1989,26 @@ class PlanetariumRenderer {
 	}
 
 	createTextPlane(text, size, color, bg){
-		const texture = new BABYLON.DynamicTexture(`label-${text}-${Math.random()}`, { width: 256, height: 128 }, this.scene, true);
+		const fontPx = size || 48;
+		// Super-sample the label texture for devicePixelRatio so text stays crisp on
+		// Retina. The old fixed 256x128 canvas was drawn at CSS px then upscaled in 3D,
+		// which is what made the labels look fuzzy. The plane size below is unchanged,
+		// so the on-screen size of every label is identical to before — only sharper.
+		const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+		const factor = clamp(Math.ceil(dpr * 2), 2, 4);
+		const baseW = 256;
+		const baseH = 128;
+		const texW = baseW * factor;
+		const texH = baseH * factor;
+		const texture = new BABYLON.DynamicTexture(`label-${text}-${Math.random()}`, { width: texW, height: texH }, this.scene, true);
 		texture.hasAlpha = true;
 		const ctx = texture.getContext();
-		ctx.clearRect(0, 0, 256, 128);
+		ctx.clearRect(0, 0, texW, texH);
 		ctx.fillStyle = bg || 'rgba(0,0,0,0)';
-		ctx.fillRect(0, 0, 256, 128);
-		texture.drawText(text, null, 78, `600 ${size || 48}px sans-serif`, color || '#fff', null, true, true);
+		ctx.fillRect(0, 0, texW, texH);
+		texture.drawText(text, null, Math.round(78 * factor), `600 ${Math.round(fontPx * factor)}px sans-serif`, color || '#fff', null, true, true);
+		texture.updateSamplingMode(BABYLON.Texture.TRILINEAR_SAMPLINGMODE);
+		texture.anisotropicFilteringLevel = 8;
 		const mat = new BABYLON.StandardMaterial(`label-mat-${text}-${Math.random()}`, this.scene);
 		mat.diffuseTexture = texture;
 		mat.emissiveTexture = texture;
@@ -2052,7 +2017,7 @@ class PlanetariumRenderer {
 		mat.useAlphaFromDiffuseTexture = true;
 		mat.disableDepthWrite = true;
 		mat.disableDepthTest = true;
-		const scale = Math.max(0.9, (size || 48) / 48);
+		const scale = Math.max(0.9, fontPx / 48);
 		const plane = BABYLON.MeshBuilder.CreatePlane(`label-${text}`, { width: 58 * scale, height: 29 * scale }, this.scene);
 		plane.material = mat;
 		plane.isPickable = false;
@@ -2065,6 +2030,8 @@ class PlanetariumRenderer {
 			return;
 		}
 		this.starCatalog = stars;
+		// 按名搜索索引(name/bayer/flamsteed/HR/constellation + 专名表),纯增量、不改渲染。
+		this.starIndex = buildStarIndex(stars);
 		if(this.starPcs && this.starPcs.particles && this.starPcs.particles.length === stars.length && this.starPcs.setParticles){
 			stars.forEach((star, idx)=>{
 				const particle = this.starPcs.particles[idx];
@@ -2210,7 +2177,7 @@ class PlanetariumRenderer {
 			}
 			const label = houseDisplayName(item, idx);
 			const labelLon = circularMidpoint(item.lon, next.lon);
-			const eq = eclipticToEquatorial(labelLon, 0) || { ra: labelLon, decl: 0 };
+			const eq = eclipticToEquatorial(labelLon, 0, jd) || { ra: labelLon, decl: 0 };
 			const source = {
 				id: `house-label-${idx + 1}`,
 				name: label,
@@ -2254,7 +2221,8 @@ class PlanetariumRenderer {
 					? circularMidpoint(item.startLon, item.endLon)
 					: 0);
 			const labelLat = 2.2;
-			const eq = eclipticToEquatorial(labelLon, labelLat) || { ra: labelLon, decl: 0 };
+			const jd = observer && observer.jd ? observer.jd : 2451545;
+			const eq = eclipticToEquatorial(labelLon, labelLat, jd) || { ra: labelLon, decl: 0 };
 			const labelSource = {
 				lon: labelLon,
 				lat: labelLat,
@@ -2263,7 +2231,7 @@ class PlanetariumRenderer {
 				name: `${label}座`,
 			};
 			const text = this.createTextPlane(`${label}座`, 52, '#ffe9a8', 'rgba(0,0,0,0)');
-			text.position = toSkyVector(projectedEquatorialItem(labelSource, observer && observer.jd ? observer.jd : 2451545, observer || { lat: 0, lon: 0 }), labelRadius);
+			text.position = toSkyVector(projectedEquatorialItem(labelSource, jd, observer || { lat: 0, lon: 0 }), labelRadius);
 			text.parent = group;
 			text.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
 			text.metadata = { labelKind: 'zodiacSector' };
@@ -2343,8 +2311,12 @@ class PlanetariumRenderer {
 
 	createSu28Sectors(items, observer){
 		const normalizedObserver = observerFromData(observer);
+		// The 28 宿 are EQUATORIAL (赤道宿度): the mansions are placed by their distance-stars'
+		// right ascension, NOT the ecliptic. Order/split by ra. Sectors come from the 28
+		// distance-STARS only — the su28 list also carries planet markers via fillPlanetSu28,
+		// which must not split the intervals (now that A2 re-projects them they'd be visible).
 		const sectorStars = (items || [])
-			.filter((item)=>item && Number.isFinite(Number(item.ra)))
+			.filter((item)=>item && item.type === 'Fixed Star' && Number.isFinite(Number(item.ra)))
 			.slice()
 			.sort((a, b)=>Number(a.ra) - Number(b.ra));
 		if(sectorStars.length < 2){
@@ -2491,11 +2463,50 @@ class PlanetariumRenderer {
 		}
 	}
 
+	pickNearestStar(){
+		if(!this.camera || !this.scene || !this.starCatalog || !this.starCatalog.length || !this.onPick){
+			return;
+		}
+		if(this.layers && this.layers.stars === false){
+			return; // 恒星层关闭时不拾取
+		}
+		let ray = null;
+		try{
+			ray = this.scene.createPickingRay(this.scene.pointerX, this.scene.pointerY, BABYLON.Matrix.Identity(), this.camera);
+		}catch(e){
+			ray = null;
+		}
+		if(!ray){
+			return;
+		}
+		const particles = this.starPcs && this.starPcs.particles ? this.starPcs.particles : null;
+		const wm = this.starMesh ? this.starMesh.getWorldMatrix() : null;
+		const pts = [];
+		for(let i = 0; i < this.starCatalog.length; i += 1){
+			const star = this.starCatalog[i];
+			let p;
+			if(particles && particles[i] && particles[i].position){
+				p = wm ? BABYLON.Vector3.TransformCoordinates(particles[i].position, wm) : particles[i].position;
+			}else{
+				p = toSkyVector(star, STAR_RADIUS);
+			}
+			pts.push({ x: p.x, y: p.y, z: p.z, star });
+		}
+		const hit = nearestPointToRay(ray.origin, ray.direction, pts, 1.8);
+		if(hit && hit.star){
+			const enriched = { ...hit.star, kind: 'catalogStar', layer: 'stars' };
+			const label = starDisplayLabel(hit.star);
+			if(label){ enriched.displayName = label; } // 显示专名/中文名(织女一 Vega…),无则回退星表名
+			this.onPick(enriched);
+		}
+	}
+
 	flyTo(itemOrKey){
 		if(!itemOrKey || !this.camera){
 			return false;
 		}
 		let mesh = null;
+		let starHit = null;
 		if(typeof itemOrKey === 'string'){
 			const key = itemOrKey.trim();
 			mesh = this.bodyMeshes[key];
@@ -2503,13 +2514,16 @@ class PlanetariumRenderer {
 				const found = Object.keys(this.bodyMeshes).find((name)=>name.toLowerCase().indexOf(key.toLowerCase()) >= 0);
 				mesh = found ? this.bodyMeshes[found] : null;
 			}
+			if(!mesh && this.starIndex){
+				starHit = findStarByName(this.starIndex, key); // 暗星按名搜索兜底
+			}
 		}else{
 			mesh = this.bodyMeshes[itemOrKey.id] || this.bodyMeshes[itemOrKey.name] || this.bodyMeshes[itemOrKey.displayName];
 		}
-		if(!mesh){
+		if(!mesh && !starHit){
 			return false;
 		}
-		const pos = mesh.position;
+		const pos = mesh ? mesh.position : toSkyVector(starHit, STAR_RADIUS);
 		if(this.viewMode === 'orbit'){
 			const radius = clamp(this.camera.radius * 0.78, ORBIT_MIN_RADIUS, ORBIT_MAX_RADIUS);
 			BABYLON.Animation.CreateAndStartAnimation('planetarium-target-x', this.camera, 'target.x', 60, 36, this.camera.target.x, pos.x * 0.18, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
@@ -2522,7 +2536,13 @@ class PlanetariumRenderer {
 			BABYLON.Animation.CreateAndStartAnimation('planetarium-look-y', this.camera, 'rotation.y', 60, 32, this.camera.rotation.y, rot.y, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
 			BABYLON.Animation.CreateAndStartAnimation('planetarium-fov', this.camera, 'fov', 60, 28, this.camera.fov, 0.58, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
 		}
-		return mesh.metadata && mesh.metadata.body ? mesh.metadata.body : true;
+		if(mesh){
+			return mesh.metadata && mesh.metadata.body ? mesh.metadata.body : true;
+		}
+		const starResult = { ...starHit, kind: 'catalogStar', layer: 'stars' };
+		const starLabel = starDisplayLabel(starHit);
+		if(starLabel){ starResult.displayName = starLabel; }
+		return starResult;
 	}
 
 	applyLayerVisibility(){
@@ -2845,6 +2865,12 @@ class PlanetariumBabylon extends Component{
 		let renderMs = 0;
 		if(this.renderer){
 			renderMs = this.renderer.updateData(data, this.state.layers) || 0;
+			// Re-project immediately through the SAME frontend pipeline that playback
+			// and calibration use, so the paused frame == the first animated frame.
+			// Previously the initial draw kept backend (swisseph) alt/az while playback
+			// recomputed alt/az on the frontend, so labels sat off their lines and every
+			// line/star snapped on the first play frame. (renderCachedState already does this.)
+			renderMs += this.renderer.updateProjectedTime(this.state.time, this.getEffectiveFields()) || 0;
 		}
 		if(requestKind === 'full'){
 			cachePlanetariumState(data);

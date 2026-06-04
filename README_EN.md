@@ -8,12 +8,12 @@
 
 **Western astrology and Chinese metaphysics, in one native macOS workstation**
 
-[![Version](https://img.shields.io/badge/version-2.5.4-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.4)
+[![Version](https://img.shields.io/badge/version-2.5.5-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.5)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.4)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.4)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.5)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.5)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.4/Horosa-Installer-macos-arm64-offline.pkg) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.5/Horosa-Installer-macos-arm64-offline.pkg) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@ This repository is the macOS delivery of that app: the application source, the s
 
 Regular users should go straight to the offline installer and open Horosa like any other macOS app.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.4/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.5/Horosa-Installer-macos-arm64-offline.pkg)**
 
 Best for:
 
@@ -91,19 +91,18 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## What's New in v2.5.4 beta
+## What's New in v2.5.5 beta
 
-This release completes **primary directions** and ships a **startup / runtime hardening** pass.
+This release refines the **planetarium**, adds **per-star interaction**, and ships a **smoothness pass** — every technique's chart output is identical to v2.5.4.
 
-- **Primary directions — full house-system set** — four new methods alongside Alcabitius: **Placidus (semi-arc) / Regiomontanus / Campanus / Topocentric**, on a self-developed engine (spherical-trig closed forms validated against `swisseph.house_pos` as ground truth). The default **Alcabitius + Ptolemy** path stays byte-for-byte identical.
-- **In Zodiaco / In Mundo direction type** — zodiacal vs mundane directing; in mundo, Regiomontanus and Campanus correctly diverge (in zodiaco they coincide, which is mathematically correct).
-- **Co-selectable direct + converse, interleaved by age** — direct and converse can both be on; when both are selected the positive / negative arcs interleave by progressed age (date) ascending. **Both on by default.**
-- **Three time keys** — Ptolemy / Naibod / **True Solar Arc** (dynamic, ephemeris-driven), consistent between the table and the primary-direction dial.
-- **Antiscia / terms as promissors** — optionally add antiscion / contra-antiscion and Egyptian term boundaries as extra promissors.
-- **Single-row top toolbar + method-aware dial projection** — every option sits on one top toolbar; the dial's right panel adjusts method / key / direction and projects the outer ring accordingly. AI export / export settings / analysis mount / chart-and-case storage all stay in sync.
-- **Startup / runtime hardening** — a front-end StartupGate (connecting overlay + auto-backoff retry + manual retry + rebuild-runtime CTA), a backend `/healthz` readiness contract, Java bound to `127.0.0.1` (firewall-friendly), and structured startup logs — fixing edge-case white-screen / backend-not-ready stalls.
+- **Planetarium — projection matched to astronomical truth** — constellation / house / lunar-mansion sector labels no longer drift, and during time playback the ecliptic / mansions no longer "snap then rotate." The front-end projection now uses date-of obliquity + apparent sidereal time + atmospheric refraction, exactly matching the backend `swisseph.azalt`.
+- **28 mansions back on the equator** — mansion boundaries are placed by determinant-star right ascension (equatorial), no longer mis-pinned to the ecliptic.
+- **Every star clickable + search by name** — click any star (including faint ones) for its name / Bayer designation / constellation / magnitude / RA-Dec; the search box autocompletes and locates by Chinese or Western proper name or HR number (e.g. Vega, Sirius), like mature planetarium apps.
+- **Sharper text** — planetarium label textures are DPR-supersampled with trilinear filtering — no blur when zoomed.
+- **Smoothness (zero functional regression)** — deterministic pure-compute techniques (e.g. Guolao seven-luminaries) gain same-params reuse + in-flight dedup caching; reopening the same chart or switching back and forth is instant from the second time on, value-for-value identical to a direct request.
+- **Primary-direction guard hardened** — the default **Alcabitius + Ptolemy** output was proven byte-for-byte identical to v2.5.3 across all 540 cases; a stale regression baseline was corrected, and the release gate now actually runs a byte-perfect subset (previously it only checked the file exists).
 
-The notarized offline `.pkg`, app zip, runtime archive, and manifest are aligned to `2.5.4 / 2.5.4-runtime1`. Full log on the [v2.5.4 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.4).
+The notarized offline `.pkg`, app zip, runtime archive, and manifest are aligned to `2.5.5 / 2.5.5-runtime1`. Full log on the [v2.5.5 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.5).
 
 ## Under the Hood
 

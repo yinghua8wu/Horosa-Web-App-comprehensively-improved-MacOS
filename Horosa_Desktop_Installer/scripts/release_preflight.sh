@@ -669,7 +669,23 @@ if [ ! -f "${PD_GOLDEN_GZ}" ] && [ ! -f "${PD_GOLDEN_RAW}" ]; then
   bad "[32] 缺 tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson(.gz) —— byte-perfect 基线缺失"
   PD32_BAD=1
 fi
-[ "${PD32_BAD}" = "0" ] && ok "[32] 铁律① Alcabitius+Ptolemy 字节级守卫 + byte-perfect 测试基线 均在"
+# 实跑 byte-perfect 子集 —— 「golden 与代码脱节(stale fixture)」事故的根因守卫。
+# 仅做结构 grep 无法发现 golden 过期(v2.5.4 即因 golden 由中间态生成、从未与代码一致而带病发布,
+# 且本门只查文件存在故未拦住);必须实跑确认 golden == 当前 Alcabitius+Ptolemy 输出。
+# 默认前 12 case(~20s);HOROSA_PD_BYTEPERFECT_LIMIT 可调,HOROSA_PD_PREFLIGHT_SKIP_BP=1 跳过实跑。
+if [ -f "${PD_BYTEPERFECT}" ] && [ "${HOROSA_PD_PREFLIGHT_SKIP_BP:-0}" != "1" ] && command -v python3 >/dev/null 2>&1; then
+  PD_BP_LIMIT="${HOROSA_PD_BYTEPERFECT_LIMIT:-12}"
+  PD_BP_OUT="$(cd "${REPO_ROOT}/Horosa-Web/astropy" 2>/dev/null && HOROSA_PD_BYTEPERFECT_LIMIT="${PD_BP_LIMIT}" PYTHONPATH="../flatlib-ctrad2:." python3 -m pytest tests/test_pd_alcabitius_byteperfect.py -q 2>&1)"
+  if printf '%s\n' "${PD_BP_OUT}" | grep -qE "[0-9]+ passed"; then
+    ok "[32] byte-perfect 实跑前 ${PD_BP_LIMIT} case 通过 —— golden 与当前代码字节级一致(防 stale fixture)"
+  elif printf '%s\n' "${PD_BP_OUT}" | grep -qE "[0-9]+ failed|Error|Traceback"; then
+    bad "[32] byte-perfect 实跑失败 —— Alcabitius+Ptolemy 与 golden 不一致(代码漂移或 golden 过期);末行:$(printf '%s\n' "${PD_BP_OUT}" | tail -1)"
+    PD32_BAD=1
+  else
+    warn "[32] byte-perfect 实跑无法判定(python/依赖?),仅结构校验;末行:$(printf '%s\n' "${PD_BP_OUT}" | tail -1)"
+  fi
+fi
+[ "${PD32_BAD}" = "0" ] && ok "[32] 铁律① Alcabitius+Ptolemy 字节级守卫 + byte-perfect 测试基线 + 子集实跑 均通过"
 
 
 # [33] 主限法方位+时间补全·strategy 分发完整性 + 前端选项扩 (v10 全方位法)

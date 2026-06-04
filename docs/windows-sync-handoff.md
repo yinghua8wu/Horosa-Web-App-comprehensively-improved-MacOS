@@ -20,6 +20,49 @@
 
 ---
 
+## v2.5.5 / runtime1（2026-06-04）发布汇总 — **Java 0 改动 → Windows 仅同前端 + Python(测试夹具)+ preflight 脚本**
+
+> macOS 端 v2.5.5 已发。本次为体验/流畅度 + 测试夹具修正,**无任何 Java/算法/命盘数值改动**(`astrostudyboot.jar` 维持 v2.5.4 基线,Windows **不需重编 jar**)。`runtimeVersion` 仍 bump 到 `2.5.5-runtime1`(前端打包进 runtime,用户更新即收到新前端)。
+
+### Windows 必做（按下面三块各自同步)
+1. **前端**(改完 `npm run build && npm run build:file`,顺序勿并行):
+   - 天文馆投影统一 + 星宿赤道 + DPR 清晰度 → 见下方 **「天文馆 投影统一…(v11)」** 整节(原样照搬,含新增 `planetariumProjection.js`)。
+   - **新增** `astrostudyui/src/components/planetarium/planetariumStarSearch.js`(点最近星 + 名称索引,纯函数)、`planetariumStarNames.js`(29 亮星中文/英文专名表)、`__tests__/planetariumStarSearch.test.js`。
+   - `components/planetarium/PlanetariumBabylon.js`:加 `import { nearestPointToRay, buildStarIndex, findStarByName, starDisplayLabel }`;`updateStars` 建 `this.starIndex`;指针 `POINTERTAP` 兜底 `pickNearestStar()`(暗星可点);`flyTo` 兜底 `findStarByName` 定位无 mesh 星。
+   - **新增** `astrostudyui/src/services/_requestCache.js`(同参去重 + LRU 通用工具);`services/qizheng.js` 的 `fetchKinastroQizheng` 包一层 `kinMem` LRU(48)+ 在途合并(ken `/qizhengkin/pan` 不走后端缓存 → 前端补;返回深拷贝,逐值等价)。
+2. **Python(仅测试夹具/守卫,不动算法、不重启生产 srv 也可)**:
+   - `astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson.gz` **重生**(旧夹具自 883855d 起就与代码不一致的过期数据,导致 byteperfect 一直红但没人察觉)。重生法:读旧 golden 的 `chart_data`、用当前 PD 代码重算 `pdlist`、写回 `.ndjson.gz`(PD 代码**不动**,详见 `实现说明` §「golden stale fixture 事故」)。重生后 `pytest tests/test_pd_alcabitius_byteperfect.py` 540/540 绿。
+   - **新增** `astropy/tests/test_planetarium_su28.py`。
+3. **preflight 脚本**(Windows 若用同款 release_preflight):`[32]` 改为**实跑** byte-perfect 子集(默认前 12 case,`HOROSA_PD_BYTEPERFECT_LIMIT` 可调、`HOROSA_PD_PREFLIGHT_SKIP_BP=1` 跳过)——根因守卫,防过期 golden 再悄悄发布。
+
+### 验证
+- `cd astrostudyui && npm test`(planetarium 投影 + 恒星搜索 + 全套绿)+ `npm run build` 绿。
+- `cd astropy && python -m pytest tests/test_pd_alcabitius_byteperfect.py tests/test_planetarium_su28.py -q`（540 + 1 绿）。
+- 手测:天文馆载入 1994-05-21 02:20 / 116e00 36n26 → 点任意恒星出信息面板;搜索「织女/Vega/天狼/Sirius」能定位高亮;七政四余来回切/重开第二次起瞬时复显。
+
+---
+
+## 天文馆 投影统一 + 星宿坐标 + DPR 清晰度(v11,2026-06-03)— **Java 0 改动 → Windows 仅需同前端 + Python**
+
+> 详见 `实现说明` §11。修天文馆三问题:①星座/宫位/星宿区间**标签偏移**、②时间播放**首帧瞬跳**、③**文字模糊**。根因=前端(几何/无折射)与后端 swisseph(视位置/含折射)两套投影管线不一致 + 星宿 `ra==lon` 坐标语义 bug + 画布未按 DPR 渲染。**纯前端 + 天文馆 Python srv,不重编 jar**。
+
+### 同步要点
+- **前端**(改完 `npm run build && npm run build:file`,顺序):
+  - **新增** `astrostudyui/src/components/planetarium/planetariumProjection.js`(BABYLON-free 投影核:视恒星时 + Saemundsson 大气折射 + 按日期黄赤交角,复刻 swisseph `azalt`)。
+  - `components/planetarium/PlanetariumBabylon.js`:删本地 `gmstDegrees/equatorialToHorizontal/eclipticToEquatorial/projectedEquatorialItem` 改 `import`;`finishStateData` 在 `updateData` 后补一次 `updateProjectedTime`(消瞬跳/消偏移);`createSu28Sectors` **保持按 `ra`(真赤经)排序/取中点 + `labelSource{ra,decl}`(二十八宿=赤道宿度,不在黄道!)**,只新增 `type==='Fixed Star'` 过滤(剔 `fillPlanetSu28` 行星标记,免 A2 重投影后污染宿界);`Engine` 加 `adaptToDeviceRatio:true` + `resizeHandler` `setHardwareScalingLevel(1/dpr)`;`createTextPlane` 标签贴图按 DPR 超采样 + TRILINEAR。
+  - **新增** `components/planetarium/__tests__/planetariumProjection.test.js`。
+- **后端 Python**(同步后 `pkill -9 -f cherrypy && python astrostudy/server.py &` 重启;**不需重编 jar**):
+  - `astropy/websrv/webplanetariumsrv.py`:**无 su28 坐标改动**(星宿保持后端原 ra/decl=真赤道)。⚠️ 曾误加 `_relocate_ecliptic_su28` 把星宿还原到黄道——**做错了,已删**;星宿是赤道宿度,不能标到黄道。
+  - **新增** `astropy/tests/test_planetarium_su28.py`(1 例:守默认 REAL 模式星宿是真赤道 ra≠lon、decl 跨南北)。
+- ⚠️ **铁律(踩过坑)**:二十八宿 = **赤道**体系(赤道宿度),按距星真赤经落在天赤道附近真实星位;**黄道**只放星座/行星/宫位。别把星宿标到黄道上。
+
+### 验证
+- `cd astrostudyui && npm test`(planetariumProjection 套全绿,总 212)+ `npm run build` 绿。
+- `cd astropy && python -m pytest tests/test_planetarium_su28.py tests/test_guolao_su28_moira.py -q`(1+23 绿;后者守共享 perchart 不回归)。
+- 手测(需起 preview/后端):载入 1994-05-21 02:20 / 116e00 36n26 → 暂停时星座/宫位/星宿名落在各自连线、对应星上;**二十八宿落在赤道(蓝线)附近真实星位、明显偏离黄道(黄线)**;按 1x 无瞬跳、平滑旋转;60x/1000x/回到命盘时间校准不跳;文字(东/摩羯座/海王星)清晰;天球外观正确。
+
+---
+
 ## 汉堡量化盘(Uranian)全面补全与纠错(commit `6ecac88`,2026-06-03)— **Java 0 改动 → Windows 仅需同前端 + Python**
 
 > 详见 [`docs/汉堡量化盘-补全与纠错.md`](汉堡量化盘-补全与纠错.md)。本批**无版本号 bump**(只搬业务改动,发版由用户单独决定);GitHub `main` 已含本 commit(`883855d..6ecac88`)。
