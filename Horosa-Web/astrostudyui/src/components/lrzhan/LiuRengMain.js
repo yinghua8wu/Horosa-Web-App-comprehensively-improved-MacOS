@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import { Modal, message, Tag } from 'antd';
-import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
@@ -11,6 +11,13 @@ import { ZSList, ZhangSheng, } from '../liureng/LRZhangSheng';
 import { resolveLiuRengTwelvePanStyle } from '../liureng/LRPanStyle';
 import { normalizeLiuRengJiangName } from '../liureng/LRShenJiangDoc';
 import ChuangChart from '../liureng/ChuangChart';
+import { buildXiangContext } from '../liureng/LRXiangDoc';
+import { computeFrontendShenSha } from '../liureng/LRShenShaDoc';
+import { ZHANDUAN_CATEGORIES, ZHANDUAN_DOC } from '../liureng/LRZhanDuanDoc';
+import { matchBiFa, BIFA_LIST } from '../liureng/LRBiFaDoc';
+import LRSanChuanRelationMini from '../liureng/LRSanChuanRelationMini';
+import { detectGuiSpecials } from '../liureng/LRBiFa';
+import { computeYingQi } from '../liureng/LRYingQiDoc';
 import LiuRengChart from './LiuRengChart';
 import LiuRengInput from './LiuRengInput';
 import LiuRengBirthInput from './LiuRengBirthInput';
@@ -47,6 +54,18 @@ function readLiurengChartType(){
 		return stored;
 	}
 	return LRConst.LRChart_Square;
+}
+
+function readLiurengFlag(key, def){
+	if(typeof window === 'undefined' || typeof localStorage === 'undefined'){
+		return def;
+	}
+	try{
+		const v = localStorage.getItem(key);
+		if(v === '1' || v === 'true'){ return true; }
+		if(v === '0' || v === 'false'){ return false; }
+	}catch(e){ /* localStorage 不可用则用默认 */ }
+	return def;
 }
 
 function buildBirthFields(source, fallbackNow){
@@ -4234,6 +4253,53 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
 		lines.push('无');
 		lines.push('');
 	}
+	const _ctx = refs && refs.context ? refs.context : null;
+	if(_ctx){
+		const shenSha = computeFrontendShenSha(_ctx.dayGan, _ctx.dayZhi, _ctx.courseBranches);
+		lines.push('[常用神煞]');
+		if(shenSha.length){
+			shenSha.forEach((s)=>lines.push(`${s.name}：${s.branch}${s.inCourse ? '（入课传）' : ''}（${s.brief}）`));
+		}else{
+			lines.push('无');
+		}
+		lines.push('');
+
+		const bifaHits = matchBiFa(_ctx);
+		lines.push('[毕法（已命中）]');
+		lines.push('（以下为机械命中之断诀，烈度须合时令旺衰、年命制化，非定数）');
+		if(bifaHits.length){
+			bifaHits.forEach((b)=>{
+				lines.push(`${b.no}. ${b.name}：${b.verse}`);
+				lines.push(`释：${b.explain}`);
+				if(b.evidence && b.evidence.length){ lines.push(`依据：${b.evidence.join('；')}`); }
+			});
+		}else{
+			lines.push('无（本盘未机械命中可判定之毕法）');
+		}
+		lines.push('');
+
+		const zhanKey = _castOpts.zhanCategory || 'general';
+		if(zhanKey && zhanKey !== 'general' && ZHANDUAN_DOC[zhanKey]){
+			const zd = ZHANDUAN_DOC[zhanKey];
+			lines.push('[占断向导]');
+			lines.push(`占事：${zd.name}`);
+			lines.push(`主用神：${(zd.mainYong || []).map((y)=>`${y.role}=${y.mean}`).join('；')}`);
+			const yongLuo = [];
+			if(_ctx.ke1Up){ yongLuo.push(`日干上神=${_ctx.ke1Up}`); }
+			if(_ctx.ke3Up){ yongLuo.push(`日支上神=${_ctx.ke3Up}`); }
+			if(_ctx.runYearBranch){ yongLuo.push(`年命上神位=${_ctx.runYearBranch}`); }
+			if(yongLuo.length){ lines.push(`用神落点：${yongLuo.join('；')}`); }
+			const godValues = _ctx.branchGodMap ? Object.keys(_ctx.branchGodMap).map((k)=>_ctx.branchGodMap[k]) : [];
+			const present = (zd.keyJiang || []).filter((j)=>godValues.indexOf(j) >= 0);
+			const absent = (zd.keyJiang || []).filter((j)=>present.indexOf(j) < 0);
+			lines.push(`关键神将：现=${present.join('、') || '—'}；缺=${absent.join('、') || '—'}`);
+			lines.push(`宜：${(zd.favor || []).join('；')}`);
+			lines.push(`忌：${(zd.avoid || []).join('；')}`);
+			lines.push(`三传提示：${zd.sanChuanTip || ''}`);
+			lines.push('');
+		}
+	}
+
 	return lines.join('\n').trim();
 }
 
@@ -4259,6 +4325,10 @@ class LiuRengMain extends Component{
 			calcChart: null,
 			rightPanelTab: 'dage',
 			chartType: readLiurengChartType(),
+			xiangOn: readLiurengFlag('liurengXiangOn', false),
+			pinnedXiang: null,
+			zhanCategory: 'general',
+			bifaQuery: '',
 			metaDialog: null,
 		};
 
@@ -4290,6 +4360,9 @@ class LiuRengMain extends Component{
 		this.saveLiuRengAISnapshot = this.saveLiuRengAISnapshot.bind(this);
 		this.clickSaveCase = this.clickSaveCase.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+		this.onToggleXiang = this.onToggleXiang.bind(this);
+		this.handleXiangPick = this.handleXiangPick.bind(this);
+		this.onZhanCategoryChange = this.onZhanCategoryChange.bind(this);
 		this.openMetaDialog = this.openMetaDialog.bind(this);
 		this.closeMetaDialog = this.closeMetaDialog.bind(this);
 
@@ -4556,6 +4629,7 @@ class LiuRengMain extends Component{
 				yanShuNum: this.state.yanShuNum,
 				yueJiangMethod: this.state.yueJiangMethod,
 				fenZhouYe: this.state.fenZhouYe,
+				zhanCategory: this.state.zhanCategory,
 				...liurengBenmingXingnian(appliedBirth, runyear),
 			}
 		);
@@ -4967,6 +5041,7 @@ class LiuRengMain extends Component{
 		this._after23BoundaryUserOverrode = false; // 用户拍板:左栏改过 after23NewDay 后,全局事件不再覆盖
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+			window.addEventListener('horosa:liureng-xiang-pick', this.handleXiangPick);
 		}
 	}
 
@@ -4985,7 +5060,231 @@ class LiuRengMain extends Component{
 		this.unmounted = true;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+			window.removeEventListener('horosa:liureng-xiang-pick', this.handleXiangPick);
 		}
+	}
+
+	// 取象：左栏开关（localStorage 持久化），默认关 → 零回归。
+	onToggleXiang(checked){
+		const on = !!checked;
+		if(typeof localStorage !== 'undefined'){
+			try{ localStorage.setItem('liurengXiangOn', on ? '1' : '0'); }catch(e){ /* 忽略 */ }
+		}
+		this.setState({ xiangOn: on });
+	}
+
+	// 占断向导：切换占事类型 → 重建 AI 快照（令 AI 针对性解读）。
+	onZhanCategoryChange(val){
+		this.setState({ zhanCategory: val }, ()=>{
+			if(this.state.liureng){
+				this.saveLiuRengAISnapshot(null, this.state.liureng, this.state.runyear, this.state.wuxing, this.state.guireng);
+			}
+		});
+	}
+
+	// 取象：接收盘面点击事件 → 钉住该元素的类象卡；再次点同一元素则取消。仅在「取象」开启时响应。
+	handleXiangPick(evt){
+		if(!this.state.xiangOn){
+			return;
+		}
+		const detail = evt && evt.detail ? evt.detail : null;
+		if(!detail || !detail.branch){
+			return;
+		}
+		const cur = this.state.pinnedXiang;
+		if(cur && cur.branch === detail.branch && cur.role === (detail.role || '') && (cur.jiang || '') === (detail.jiang || '')){
+			this.setState({ pinnedXiang: null });
+			return;
+		}
+		this.setState({
+			pinnedXiang: {
+				branch: detail.branch,
+				secondBranch: detail.secondBranch || '',
+				jiang: detail.jiang || '',
+				role: detail.role || '',
+				dayGan: detail.dayGan || '',
+			},
+			rightPanelTab: 'xiang',
+		});
+	}
+
+	renderXiangTab(refCtx){
+		const xiangOn = this.state.xiangOn;
+		const pin = this.state.pinnedXiang;
+		const muted = { color: 'var(--horosa-muted, #8c8c8c)' };
+		const sectionTitle = { fontWeight: 600, margin: '8px 0 4px' };
+		const sectionBody = { color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px' };
+		const sanChuanData = (refCtx && Array.isArray(refCtx.sanChuanBranches) && refCtx.sanChuanBranches.length >= 3) ? {
+			branches: refCtx.sanChuanBranches,
+			gans: refCtx.sanChuanGans || [],
+			dayGan: refCtx.dayGan || '',
+			dayZhi: refCtx.dayZhi || '',
+			xunKong: refCtx.xunKongBranches || [],
+		} : null;
+		const sanChuanCard = sanChuanData ? (
+			<Card size='small' style={{ marginBottom: 8 }}>
+				<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+					<span style={{ fontWeight: 600 }}>三传关系{refCtx && refCtx.courseName ? `　${refCtx.courseName}` : ''}</span>
+					<Tag color='geekblue'>初→中→末</Tag>
+				</div>
+				<LRSanChuanRelationMini data={sanChuanData} />
+			</Card>
+		) : null;
+		let xiangBody;
+		if(!xiangOn){
+			xiangBody = (<Card size='small'><div style={muted}>在左栏开启「取象」后，点击盘中地支 / 天将，即可查看其类象、五行、六亲、刑冲合害与旺衰。</div></Card>);
+		}else if(!pin){
+			xiangBody = (<Card size='small'><div style={muted}>点击盘中地支 / 天将以钉住其类象。</div></Card>);
+		}else{
+			const cx2 = buildXiangContext(pin.branch, pin.dayGan, this.state.wuxing);
+			if(!cx2){
+				xiangBody = (<Card size='small'><div style={muted}>暂无「{pin.branch}」的类象数据。</div></Card>);
+			}else{
+				const rows = [];
+				if(cx2.wuxing){ rows.push(['五行', cx2.wuxing + (cx2.wuxingXiang ? `（${cx2.wuxingXiang.keyword}）` : '')]); }
+				if(cx2.direction){ rows.push(['方位', cx2.direction]); }
+				if(cx2.liuqin){ rows.push(['六亲', cx2.liuqin]); }
+				if(cx2.zhangsheng){ rows.push([`${cx2.zhangshengElem}·长生`, cx2.zhangsheng]); }
+				if(cx2.yima){ rows.push(['驿马', cx2.yima]); }
+				if(pin.jiang){ rows.push(['天将', pin.jiang]); }
+				const labelStyle = { color: 'var(--horosa-muted, #8c8c8c)', minWidth: 64, display: 'inline-block' };
+				xiangBody = (
+					<Card size='small'>
+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+							<span style={{ fontWeight: 600, fontSize: 15 }}>{cx2.branch}{cx2.shenName ? `　${cx2.shenName}` : ''}</span>
+							<Tag color='gold'>取象</Tag>
+						</div>
+						{rows.map(([k, v], i)=>(<div key={i} style={{ lineHeight: '24px' }}><span style={labelStyle}>{k}</span><span>{v}</span></div>))}
+						{cx2.symbol ? (<><div style={sectionTitle}>类象</div><div style={sectionBody}>{cx2.symbol}</div></>) : null}
+						{cx2.relations && cx2.relations.length ? (<><div style={sectionTitle}>刑冲合害</div><div style={sectionBody}>{cx2.relations.join('　')}</div></>) : null}
+						{cx2.wuxingXiang ? (<><div style={sectionTitle}>五行取象</div><div style={sectionBody}>{`人物：${cx2.wuxingXiang.person}；身体：${cx2.wuxingXiang.body}；事：${cx2.wuxingXiang.affair}`}</div></>) : null}
+						<div style={{ ...muted, fontSize: 12, marginTop: 8 }}>再次点击同一元素可取消钉住。类象供参考，须合盘断之。</div>
+					</Card>
+				);
+			}
+		}
+		return (<div className="horosa-liureng-reference-tab-body">{sanChuanCard}{xiangBody}</div>);
+	}
+
+	// 常用神煞小节（并入「概览」tab 顶部）：后端未直接给出、按日干支可确定的常用神煞 + 吉凶色 + 入课传高亮。
+	renderShenShaSection(refCtx){
+		if(!refCtx || !refCtx.dayGan){ return null; }
+		const gui = detectGuiSpecials(refCtx);
+		const list = computeFrontendShenSha(refCtx.dayGan, refCtx.dayZhi, refCtx.courseBranches);
+		if(!gui.length && !list.length){ return null; }
+		return (
+			<>
+				{gui.length ? (
+					<Card size='small' style={{ marginBottom: 8 }}>
+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+							<span style={{ fontWeight: 600 }}>贵神特殊态</span>
+							<Tag color='red'>留意</Tag>
+						</div>
+						{gui.map((g)=>(<div key={g.type} style={{ lineHeight: '22px' }}><span style={{ color: '#e2574c', fontWeight: 600 }}>{g.type}</span>　<span style={{ color: 'var(--horosa-text-soft, #595959)' }}>{g.note}</span></div>))}
+					</Card>
+				) : null}
+				{list.length ? (
+					<Card size='small' style={{ marginBottom: 8 }}>
+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+							<span style={{ fontWeight: 600 }}>常用神煞</span>
+							<Tag color='gold'>按日干支</Tag>
+						</div>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 6 }}>
+							{list.map((s)=>(
+								<div key={s.name} title={`${s.brief}（起例所临：${s.branch}）`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '5px 2px', borderRadius: 8, background: s.inCourse ? 'rgba(212,160,23,0.12)' : 'var(--horosa-panel-soft, rgba(255,255,255,0.03))', border: s.inCourse ? '1px solid var(--horosa-accent, #d4a017)' : '1px solid var(--horosa-border, rgba(255,255,255,0.08))' }}>
+									<span style={{ fontSize: 12, color: s.color, fontWeight: 600 }}>{s.name}</span>
+									<span style={{ fontSize: 16, fontWeight: 700, color: 'var(--horosa-text, #d8d2c7)' }}>{s.branch}</span>
+								</div>
+							))}
+						</div>
+						<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>金色边框＝该神煞所临之支已入课传。神煞仅供参考，须合盘断之。</div>
+					</Card>
+				) : null}
+			</>
+		);
+	}
+
+	// 毕法 tab：已命中（仅高置信 A 档自动命中）+ 全部毕法可检索浏览。
+	renderBiFaTab(refCtx){
+		const hits = refCtx ? matchBiFa(refCtx) : [];
+		const q = `${this.state.bifaQuery || ''}`.trim();
+		const all = q ? BIFA_LIST.filter((b)=>`${b.no}${b.name}${b.verse}${b.explain}`.indexOf(q) >= 0) : BIFA_LIST;
+		const muted = { color: 'var(--horosa-muted, #8c8c8c)' };
+		return (
+			<div className="horosa-liureng-reference-tab-body">
+				<div style={{ fontWeight: 600, margin: '2px 0 6px' }}>已命中</div>
+				{hits.length ? hits.map((item)=>(
+					<Card key={`bf_hit_${item.no}`} size='small' style={{ marginBottom: 8 }}>
+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+							<span style={{ fontWeight: 600 }}>{`${item.no}. ${item.name}`}</span>
+							<Tag color='volcano'>毕法</Tag>
+						</div>
+						<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px' }}>{item.explain}</div>
+						{item.evidence && item.evidence.length ? (<div style={{ ...muted, fontSize: 12, marginTop: 4 }}>依据：{item.evidence.join('；')}</div>) : null}
+					</Card>
+				)) : (<Card size='small'><div style={muted}>本盘暂未机械命中可判定之毕法（仅高置信条目自动命中）。</div></Card>)}
+				<div style={{ fontWeight: 600, margin: '12px 0 6px' }}>{`全部毕法（${BIFA_LIST.length} 条）`}</div>
+				<input value={this.state.bifaQuery} onChange={(e)=>this.setState({ bifaQuery: e.target.value })} placeholder='检索法名 / 关键词' style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)', marginBottom: 8 }} />
+				{all.map((item)=>(
+					<div key={`bf_${item.no}`} style={{ padding: '6px 0', borderBottom: '1px solid var(--horosa-border, rgba(255,255,255,0.06))' }}>
+						<div style={{ fontWeight: 600 }}>{`${item.no}. ${item.name}`}{item.tier !== 'A' ? (<span style={{ ...muted, fontSize: 11, marginInlineStart: 6 }}>（须人工核）</span>) : null}</div>
+						<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '20px', fontSize: 13 }}>{item.explain}</div>
+					</div>
+				))}
+				<div style={{ ...muted, fontSize: 12, marginTop: 8 }}>断诀烈度须合时令旺衰、年命制化，非定数。</div>
+			</div>
+		);
+	}
+
+	// 占断 tab：按左栏所选占事类型，给主用神 / 用神落点 / 关键神将 / 宜忌 / 三传提示。
+	renderZhanDuanTab(refCtx){
+		const key = this.state.zhanCategory;
+		const muted = { color: 'var(--horosa-muted, #8c8c8c)' };
+		const yq = computeYingQi(refCtx);
+		const yingQiCard = yq.length ? (
+			<Card size='small' style={{ marginTop: 8 }}>
+				<div style={{ fontWeight: 600, marginBottom: 4 }}>应期（参考方向，非定论）</div>
+				{yq.map((m)=>(<div key={m.method} style={{ lineHeight: '22px' }}><span style={{ color: 'var(--horosa-accent, #d4a017)', fontWeight: 600 }}>{m.method}</span>：{m.dirs.join('、')}　<span style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12 }}>{m.note}</span></div>))}
+				<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 4 }}>应期为六壬难点，仅供参考，以实际盘综合为准。</div>
+			</Card>
+		) : null;
+		if(!key || key === 'general'){
+			return (<div className="horosa-liureng-reference-tab-body"><Card size='small'><div style={muted}>在左栏「占事类型」选择具体占事（婚姻 / 疾病 / 财运 / 官讼…），此处显示该类主用神、关键神将与宜忌。</div></Card>{yingQiCard}</div>);
+		}
+		const zd = ZHANDUAN_DOC[key];
+		if(!zd){ return (<div className="horosa-liureng-reference-tab-body"><Card size='small'><div style={muted}>暂无该占类资料。</div></Card>{yingQiCard}</div>); }
+		const godValues = refCtx && refCtx.branchGodMap ? Object.keys(refCtx.branchGodMap).map((k)=>refCtx.branchGodMap[k]) : [];
+		const sectionTitle = { fontWeight: 600, margin: '8px 0 4px' };
+		const sectionBody = { color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px' };
+		const yongLuo = [];
+		if(refCtx){
+			if(refCtx.ke1Up){ yongLuo.push(`日干上神 ${refCtx.ke1Up}`); }
+			if(refCtx.ke3Up){ yongLuo.push(`日支上神 ${refCtx.ke3Up}`); }
+			if(refCtx.runYearBranch){ yongLuo.push(`年命 ${refCtx.runYearBranch}`); }
+		}
+		return (
+			<div className="horosa-liureng-reference-tab-body">
+				<Card size='small' style={{ marginBottom: 8 }}>
+					<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+						<span style={{ fontWeight: 600, fontSize: 15 }}>{zd.name}</span>
+						<Tag color='cyan'>占断向导</Tag>
+					</div>
+					<div style={sectionTitle}>主用神</div>
+					<div style={sectionBody}>{(zd.mainYong || []).map((y)=>`${y.role}：${y.mean}`).join('　')}</div>
+					{yongLuo.length ? (<><div style={sectionTitle}>用神落点（本盘）</div><div style={sectionBody}>{yongLuo.join('　')}</div></>) : null}
+					<div style={sectionTitle}>关键神将</div>
+					<div style={sectionBody}>{(zd.keyJiang || []).map((j)=>{ const present = godValues.indexOf(j) >= 0; return (<Tag key={j} color={present ? 'green' : 'default'} style={{ marginBottom: 4 }}>{present ? `${j} ✓` : j}</Tag>); })}</div>
+					<div style={sectionTitle}>宜见</div>
+					<div style={sectionBody}>{(zd.favor || []).map((f, i)=>(<div key={i}>· {f}</div>))}</div>
+					<div style={sectionTitle}>忌见</div>
+					<div style={sectionBody}>{(zd.avoid || []).map((f, i)=>(<div key={i}>· {f}</div>))}</div>
+					<div style={sectionTitle}>三传提示</div>
+					<div style={sectionBody}>{zd.sanChuanTip}</div>
+				</Card>
+				<Card size='small'><div style={{ ...muted, fontSize: 12 }}>用神落点为确定性指引，吉凶须合全盘与三传旺衰判之。</div></Card>
+				{yingQiCard}
+			</div>
+		);
 	}
 
 	handleSnapshotRefreshRequest(evt){
@@ -5092,6 +5391,18 @@ class LiuRengMain extends Component{
 							</Select>
 						</label>
 					</div>
+					<div className="horosa-liureng-select-grid">
+						<label className="horosa-liureng-select-field horosa-liureng-select-field-wide">
+							<span>取象</span>
+							<Switch checked={!!this.state.xiangOn} onChange={this.onToggleXiang} />
+						</label>
+						<label className="horosa-liureng-select-field horosa-liureng-select-field-wide">
+							<span>占事类型</span>
+							<Select value={this.state.zhanCategory} onChange={this.onZhanCategoryChange}>
+								{ZHANDUAN_CATEGORIES.map((c)=>(<Option key={c.key} value={c.key}>{c.name}</Option>))}
+							</Select>
+						</label>
+					</div>
 					<div className="horosa-liureng-action-row">
 						<Button type='primary' onClick={this.clickStartPaiPan}>起课</Button>
 						<Button onClick={this.clickSaveCase}>保存</Button>
@@ -5110,6 +5421,7 @@ class LiuRengMain extends Component{
 			overviewItems,
 			qizhengItems,
 		} = refData;
+		const ctx = refBundle && refBundle.context ? refBundle.context : null;
 		return (
 			<Tabs
 				className="horosa-liureng-tabs"
@@ -5166,6 +5478,9 @@ class LiuRengMain extends Component{
 						)}
 					</div>
 				</TabPane>
+				<TabPane tab="毕法" key="bifa">
+					{this.renderBiFaTab(ctx)}
+				</TabPane>
 				<TabPane tab="参考" key="reference">
 					<div className="horosa-liureng-reference-tab-body">
 						{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
@@ -5190,6 +5505,7 @@ class LiuRengMain extends Component{
 				</TabPane>
 				<TabPane tab="概览" key="overview">
 					<div className="horosa-liureng-reference-tab-body">
+						{this.renderShenShaSection(ctx)}
 						{overviewItems.length ? overviewItems.map((item, idx)=>(
 							<Card key={`overview_${item.key}_${idx}`} size='small' style={{ marginBottom: 8 }}>
 								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -5211,6 +5527,12 @@ class LiuRengMain extends Component{
 							</Card>
 						)}
 					</div>
+				</TabPane>
+				<TabPane tab="占断" key="zhanduan">
+					{this.renderZhanDuanTab(ctx)}
+				</TabPane>
+				<TabPane tab="取象" key="xiang">
+					{this.renderXiangTab(ctx)}
 				</TabPane>
 				<TabPane tab="七政" key="qizheng">
 					<div className="horosa-liureng-reference-tab-body">

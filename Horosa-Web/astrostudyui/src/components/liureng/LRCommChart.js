@@ -6,6 +6,19 @@ import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
 import { creatTooltip } from '../../utils/helper';
 import { buildLiuRengHouseTipObj, buildLiuRengShenTipObj } from './LRShenJiangDoc';
 
+// 取象点击桥：点击盘中地支 / 天将 → 派发窗口事件，右栏「取象」tab 接收并钉住（解耦 d3 ↔ React，仿既有 window 事件用法）。
+// 与悬浮提示互不影响：仅新增 click 监听，hover 行为不变；「取象」开关关闭时，监听端会忽略事件。
+function emitLiurengXiangPick(detail){
+	if(typeof window === 'undefined' || typeof window.dispatchEvent !== 'function'){
+		return;
+	}
+	try{
+		window.dispatchEvent(new CustomEvent('horosa:liureng-xiang-pick', { detail: detail || {} }));
+	}catch(e){
+		/* 老环境无 CustomEvent 构造器则忽略 */
+	}
+}
+
 
 class LRCommChart {
 	constructor(option){
@@ -77,6 +90,16 @@ class LRCommChart {
 		return buildLiuRengShenTipObj(branch);
 	}
 
+	_liurengDayGan(){
+		try{
+			return this.chartObj && this.chartObj.nongli && this.chartObj.nongli.dayGanZi
+				? `${this.chartObj.nongli.dayGanZi}`.substr(0, 1)
+				: '';
+		}catch(e){
+			return '';
+		}
+	}
+
 	bindHouseTooltip(target, houseIndex){
 		if(!this.divTooltip || !target){
 			return;
@@ -86,6 +109,11 @@ class LRCommChart {
 			return;
 		}
 		creatTooltip(this.divTooltip, target, tipObj, null, true, true);
+		const hi = Number(houseIndex);
+		const tian = this.upZi && this.upZi[hi] ? this.upZi[hi] : '';
+		const di = this.downZi && this.downZi[hi] ? this.downZi[hi] : '';
+		const jiang = this.houseTianJiang && this.houseTianJiang[hi] ? this.houseTianJiang[hi] : '';
+		target.on('click.xiang', ()=>emitLiurengXiangPick({ branch: tian, secondBranch: di, jiang, role: '宫', dayGan: this._liurengDayGan() }));
 	}
 
 	bindShenTooltip(target, branch){
@@ -97,6 +125,8 @@ class LRCommChart {
 			return;
 		}
 		creatTooltip(this.divTooltip, target, tipObj, null, true, true);
+		const zhi = `${branch || ''}`.substring(0, 1);
+		target.on('click.xiang', ()=>emitLiurengXiangPick({ branch: zhi, role: '神', dayGan: this._liurengDayGan() }));
 	}
 
 	draw(){

@@ -568,3 +568,9 @@ export function buildLiuRengHouseTipObj(jiangName, tianBranch, diBranch){
 		],
 	};
 }
+
+// 供解读层（取象层）只读取用：返回某地支的「神」资料对象（name 月将古名 / symbol 类象 / desc 等），无则 null。
+export function getShenPublic(branch){
+	const b = normalizeBranch(branch);
+	return b ? (SHEN_INFO[b] || null) : null;
+}
