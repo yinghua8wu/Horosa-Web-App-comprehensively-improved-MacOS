@@ -5,6 +5,7 @@
 // matcher 只读 context（buildLiuRengReferenceContext 的产物），返回 null 或 { evidence:[...] }。
 
 import * as LRConst from './LRConst';
+import { ZhangSheng } from './LRZhangSheng';
 
 // 全 100 法：{ no, name, verse, explain, tier:'A'|'B'|'C' }。tier 仅标注性质；是否自动命中以 BIFA_MATCHERS 是否登记为准。
 export const BIFA_LIST = [
@@ -113,28 +114,69 @@ export const BIFA_LIST = [
 // ---- A 档 matcher 工具 ----
 const Z = LRConst.ZiList;
 const zi = (b)=>`${b || ''}`.trim().substring(0, 1);
+// 日禄（干→支）、五行墓（五行→墓支，火土同墓戌）。
+const LU = { '甲': '寅', '乙': '卯', '丙': '巳', '丁': '午', '戊': '巳', '己': '午', '庚': '申', '辛': '酉', '壬': '亥', '癸': '子' };
+const MU_BY_WX = { '木': '未', '火': '戌', '土': '戌', '金': '丑', '水': '辰' };
 function inKong(ctx, b){ return ctx.xunKongBranches && ctx.xunKongBranches.indexOf(zi(b)) >= 0; }
 function godOf(ctx, b){ return (ctx.branchGodMap && ctx.branchGodMap[zi(b)]) || ''; }
+function godBranch(ctx, name){ if(!ctx.branchGodMap || !name){ return ''; } const ks = Object.keys(ctx.branchGodMap); for(let i=0; i<ks.length; i++){ if(ctx.branchGodMap[ks[i]] === name){ return ks[i]; } } return ''; }
 function allIn(list, pool){ return list.length > 0 && list.every((b)=>pool.indexOf(zi(b)) >= 0); }
 // A 生 B（我生者）：LRConst.isAccrue；A 克 B：LRConst.isRestrain。
 function gen(a, b){ return !!(a && b) && LRConst.isAccrue(zi(a), zi(b)); }
 function ke(a, b){ return !!(a && b) && LRConst.isRestrain(zi(a), zi(b)); }
 function idxDelta(a, b){ const ia = Z.indexOf(zi(a)); const ib = Z.indexOf(zi(b)); if(ia < 0 || ib < 0){ return -99; } return (ib - ia + 12) % 12; }
+function nextZhi(b){ const i = Z.indexOf(zi(b)); return i < 0 ? '' : Z[(i + 1) % 12]; }
+function ganMu(ctx){ return MU_BY_WX[ctx.dayGanWuXing] || ''; }
+function zhiMu(ctx){ return MU_BY_WX[ctx.dayZhiWuXing] || ''; }
+function ganLu(ctx){ return LU[zi(ctx.dayGan)] || ''; }
+// 日干在某支的十二长生名（ZhangSheng.ganzi 键＝「干_支」）。
+function ganPhase(ctx, b){ try{ return (ZhangSheng && ZhangSheng.ganzi) ? (ZhangSheng.ganzi[`${zi(ctx.dayGan)}_${zi(b)}`] || '') : ''; }catch(e){ return ''; } }
+// 天盘 top 加于 地盘 bottom（用真排盘 layout，方向无歧义）。
+function branchOver(ctx, top, bottom){ const L = ctx.layout; if(!L || !Array.isArray(L.downZi) || !Array.isArray(L.upZi)){ return false; } const i = L.downZi.indexOf(zi(bottom)); return i >= 0 && zi(L.upZi[i]) === zi(top); }
+function isFuYin(ctx){ const L = ctx.layout; return !!(L && Array.isArray(L.upZi) && Array.isArray(L.downZi) && L.upZi.length === 12 && L.upZi.every((b, i)=>zi(b) === zi(L.downZi[i]))); }
+function isFanYin(ctx){ const L = ctx.layout; if(!(L && Array.isArray(L.upZi) && Array.isArray(L.downZi) && L.upZi.length === 12)){ return false; } return L.upZi.every((b, i)=>{ const di = Z.indexOf(zi(L.downZi[i])); return di >= 0 && Z.indexOf(zi(b)) === (di + 6) % 12; }); }
 
-// 仅登记「高置信度、纯机械可判」的法。键＝法 no。每个返回 null 或 {evidence:[...]}。
+// 仅登记「高置信度、纯机械可判」的法（凭旬空/三传四课地支生克/遁干/天将所乘之支/禄墓/课式 即可确定）。
+// 键＝法 no。每个 matcher 只读 ctx，返回 null 或 {evidence:[...]}。其余法只浏览、不自动命中。
 export const BIFA_MATCHERS = {
 	5: (ctx)=>{ const all = ctx.courseBranches || []; return allIn(all, LRConst.YangZi) ? { evidence: ['四课三传地支全为阳支'] } : null; },
 	6: (ctx)=>{ const all = ctx.courseBranches || []; return allIn(all, LRConst.YingZi) ? { evidence: ['四课三传地支全为阴支'] } : null; },
+	7: (ctx)=>{ const lu = ganLu(ctx); return (lu && ctx.ke1Up === lu && !inKong(ctx, lu)) ? { evidence: [`日禄${lu}临日干上（不空）`] } : null; },
+	8: (ctx)=>{ const lu = ganLu(ctx); return (lu && ctx.ke3Up === lu) ? { evidence: [`日禄${lu}临日支上`] } : null; },
 	16: (ctx)=>{ const f = ctx.firstBranch; return (f && inKong(ctx, f) && godOf(ctx, f) === '天空') ? { evidence: [`初传${f}值旬空`, '初传乘天空'] } : null; },
 	17: (ctx)=>{ const s = ctx.sanChuanBranches || []; if(s.length < 3) return null; const prog = idxDelta(s[0], s[1]) === 1 && idxDelta(s[1], s[2]) === 1; const allK = s.every((b)=>inKong(ctx, b)); return (prog && allK) ? { evidence: [`三传${s.join('→')}进连茹且俱旬空`] } : null; },
 	18: (ctx)=>{ const s = ctx.sanChuanBranches || []; if(s.length < 3) return null; const retro = idxDelta(s[1], s[0]) === 1 && idxDelta(s[2], s[1]) === 1; const allK = s.every((b)=>inKong(ctx, b)); return (retro && allK) ? { evidence: [`三传${s.join('→')}退连茹且俱旬空`] } : null; },
+	23: (ctx)=>{ return (ctx.firstBranch && ctx.ke1Up && ctx.ke3Up && ctx.ke1Up !== ctx.ke3Up && ctx.firstBranch === ctx.ke3Up && ctx.lastBranch === ctx.ke1Up) ? { evidence: ['初传发自日支上神、末传归日干上神（彼求我）'] } : null; },
+	24: (ctx)=>{ return (ctx.firstBranch && ctx.ke1Up && ctx.ke3Up && ctx.ke1Up !== ctx.ke3Up && ctx.firstBranch === ctx.ke1Up && ctx.lastBranch === ctx.ke3Up) ? { evidence: ['初传发自日干上神、末传归日支上神（我求彼）'] } : null; },
 	25: (ctx)=>{ const dg = zi(ctx.dayGan); if(dg !== '庚' && dg !== '辛') return null; const dh = (ctx.dingHorseBranches || []).filter((b)=>(ctx.courseBranches || []).indexOf(zi(b)) >= 0); return dh.length ? { evidence: [`${dg}日，课传见丁神：${dh.join('、')}`] } : null; },
 	26: (ctx)=>{ const dg = zi(ctx.dayGan); if(dg !== '壬' && dg !== '癸') return null; const dh = (ctx.dingHorseBranches || []).filter((b)=>(ctx.courseBranches || []).indexOf(zi(b)) >= 0); return dh.length ? { evidence: [`${dg}日，课传见丁神：${dh.join('、')}`] } : null; },
 	31: (ctx)=>{ const s = ctx.sanChuanBranches || []; const dg = ctx.dayGan; if(s.length < 3 || !dg) return null; const fwd = gen(s[0], s[1]) && gen(s[1], s[2]) && gen(s[2], dg); const rev = gen(s[2], s[1]) && gen(s[1], s[0]) && gen(s[0], dg); return (fwd || rev) ? { evidence: [`三传${s.join('→')}递生并生日干${zi(dg)}`] } : null; },
 	32: (ctx)=>{ const s = ctx.sanChuanBranches || []; const dg = ctx.dayGan; if(s.length < 3 || !dg) return null; const fwd = ke(s[0], s[1]) && ke(s[1], s[2]) && ke(s[2], dg); const rev = ke(s[2], s[1]) && ke(s[1], s[0]) && ke(s[0], dg); return (fwd || rev) ? { evidence: [`三传${s.join('→')}递克并克日干${zi(dg)}`] } : null; },
+	33: (ctx)=>{ const mu = ganMu(ctx); const f = ctx.firstBranch, l = ctx.lastBranch; if(!mu || !f || !l) return null; if(ganPhase(ctx, f) === '长生' && l === mu) return { evidence: [`初传${f}为日干长生、末传${l}为日干墓（有始无终）`] }; if(f === mu && ganPhase(ctx, l) === '长生') return { evidence: [`初传${f}为日干墓、末传${l}为日干长生（难变易）`] }; return null; },
+	35: (ctx)=>{ return (gen(ctx.dayGan, ctx.ke1Up) && gen(ctx.dayZhi, ctx.ke3Up)) ? { evidence: ['日干生干上神、日支生支上神（人宅俱脱）'] } : null; },
+	38: (ctx)=>{ const vb = godBranch(ctx, '玄武'); return (vb && ctx.xunHeadBranch && vb === zi(ctx.xunHeadBranch)) ? { evidence: [`旬首${zi(ctx.xunHeadBranch)}乘玄武（闭口）`] } : null; },
+	41: (ctx)=>{ const lu = ganLu(ctx); const ma = ctx.dayZhi ? (LRConst.ZiYiMa[zi(ctx.dayZhi)] || '') : ''; return (lu && ma && ctx.ke1Up === ma && ctx.ke3Up === lu) ? { evidence: [`干上${ma}为日支驿马、支上${lu}为日干禄`] } : null; },
 	42: (ctx)=>{ const g = (ctx.sanChuanGans || []).map(zi).filter(Boolean); if(g.length < 3) return null; const set = new Set(g); const a = ['甲', '戊', '庚'].every((x)=>set.has(x)); const b = ['乙', '丙', '丁'].every((x)=>set.has(x)); return (a || b) ? { evidence: [`三传遁干成三奇（${g.join('')}）`] } : null; },
+	47: (ctx)=>{ const g = zi(ctx.guizi), dg = zi(ctx.dayGan); return ((g === '辰' || g === '戌') && (dg === '乙' || dg === '辛')) ? { evidence: [`贵人临${g}（狱），乙辛日宜临干投贵`] } : null; },
+	48: (ctx)=>{ return (ctx.guizi && ke(ctx.guizi, ctx.dayGan)) ? { evidence: [`贵人所临${zi(ctx.guizi)}为日鬼（鬼乘天乙）`] } : null; },
+	51: (ctx)=>{ return (ctx.firstBranch === '戌' && branchOver(ctx, '戌', '亥')) ? { evidence: ['戌加亥为发用（魁度天门，关隔）'] } : null; },
+	52: (ctx)=>{ return branchOver(ctx, '辰', '寅') ? { evidence: ['辰加寅（罡塞鬼户，任谋为）'] } : null; },
+	55: (ctx)=>{ const n1 = nextZhi(ctx.dayGanBranch), n3 = nextZhi(ctx.dayZhi); return (n1 && n3 && ctx.ke1Up === n1 && ctx.ke3Up === n3) ? { evidence: ['干上乘干前一辰、支上乘支前一辰（天罗地网）'] } : null; },
+	59: (ctx)=>{ const mu = ganMu(ctx); return (mu && ctx.ke1Up === mu && ctx.firstBranch === mu) ? { evidence: [`日干墓${mu}临干上发用（华盖覆日）`] } : null; },
+	61: (ctx)=>{ const mu = ganMu(ctx); return (mu && ctx.ke1Up === mu && godOf(ctx, mu) === '白虎') ? { evidence: [`日干墓${mu}乘白虎临干`] } : null; },
+	62: (ctx)=>{ const m1 = ganMu(ctx), m3 = zhiMu(ctx); const t = ctx.ke3Up; return (t && (t === m1 || t === m3) && godOf(ctx, t) === '白虎') ? { evidence: [`墓神${t}乘白虎临日支`] } : null; },
+	63: (ctx)=>{ return (ke(ctx.ke1Up, ctx.dayGan) && ke(ctx.ke3Up, ctx.dayZhi)) ? { evidence: ['干被干上神克、支被支上神克（彼此全伤）'] } : null; },
+	64: (ctx)=>{ return (ke(ctx.ke3Up, ctx.dayGan) && ke(ctx.ke1Up, ctx.dayZhi)) ? { evidence: ['干被支上神克、支被干上神克（夫妇芜淫）'] } : null; },
+	69: (ctx)=>{ const vb = godBranch(ctx, '白虎'); if(!vb) return null; const dun = ctx.xunGanMap ? ctx.xunGanMap[zi(vb)] : ''; return (dun && ke(dun, ctx.dayGan)) ? { evidence: [`白虎临${vb}、其遁干${dun}为日鬼`] } : null; },
+	70: (ctx)=>{ const k = ctx.keUpBranches || []; return (k.length >= 4 && ke(k[2], ctx.dayGan) && ke(k[3], ctx.dayGan)) ? { evidence: ['日鬼临第三、四课上神（讼灾随）'] } : null; },
 	74: (ctx)=>{ const s = ctx.sanChuanBranches || []; return (s.length === 3 && s.every((b)=>inKong(ctx, b))) ? { evidence: [`三传${s.join('、')}全值旬空`] } : null; },
+	76: (ctx)=>{ const h1 = ctx.dayGanBranch ? (LRConst.ZiHai[zi(ctx.dayGanBranch)] || '') : ''; const h3 = ctx.dayZhi ? (LRConst.ZiHai[zi(ctx.dayZhi)] || '') : ''; if((h1 && ctx.ke1Up === h1) || (h3 && ctx.ke3Up === h3)) return { evidence: ['干支与其上神作六害（彼此猜忌）'] }; return null; },
+	77: (ctx)=>{ if(gen(ctx.ke1Up, ctx.dayZhi) && gen(ctx.ke3Up, ctx.dayGan)) return { evidence: ['干上生支、支上生干（互生，凡事益）'] }; if(gen(ctx.ke1Up, ctx.dayGan) && gen(ctx.ke3Up, ctx.dayZhi)) return { evidence: ['干上生干、支上生支（俱生）'] }; return null; },
 	82: (ctx)=>{ const s = ctx.sanChuanBranches || []; if(s.length < 3) return null; return (inKong(ctx, s[1]) && inKong(ctx, s[2]) && !inKong(ctx, s[0])) ? { evidence: [`中传${s[1]}、末传${s[2]}俱旬空，独取初传${s[0]}`] } : null; },
+	88: (ctx)=>{ const m1 = ganMu(ctx), m3 = zhiMu(ctx); return (m1 && m3 && ctx.ke1Up === m1 && ctx.ke3Up === m3) ? { evidence: ['干上为日干墓、支上为日支墓（墓覆日辰）'] } : null; },
+	89: (ctx)=>{ if(!isFuYin(ctx)) return null; const cb = ctx.courseBranches || []; const dm = (ctx.dingHorseBranches || []).filter((b)=>cb.indexOf(zi(b)) >= 0); const ma = (ctx.yiMaBranches || []).filter((b)=>cb.indexOf(zi(b)) >= 0); return (dm.length || ma.length) ? { evidence: ['伏吟课见丁神 / 驿马（任信丁马须言动）'] } : null; },
+	90: (ctx)=>{ if(!isFanYin(ctx)) return null; const s = ctx.sanChuanBranches || []; return (s.length === 3 && s.every((b)=>inKong(ctx, b))) ? { evidence: ['返吟课三传俱空（来去俱空）'] } : null; },
+	91: (ctx)=>{ return (ke(ctx.ke1Up, ctx.dayGan) && godOf(ctx, ctx.ke1Up) === '白虎') ? { evidence: ['日鬼乘白虎临干（虎临干鬼凶速速）'] } : null; },
 };
 
 // 运行 A 档匹配，返回命中项（含 evidence）。绝不命中未登记 matcher 的法（宁缺勿滥）。
