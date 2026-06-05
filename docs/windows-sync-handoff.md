@@ -8,6 +8,19 @@
 
 ---
 
+## v2.6.0 发布 · 奇门「相关人员(生年干) + 命盘/事盘双库」 + AI 分析起课时间修复(Win#17)
+
+- **性质：纯前端**（无 Java/jar 改动）。Windows 同步下列 `.js` → **重建前端包**（`npm run build && npm run build:file`）即可，**无需重编 jar**。
+- **改了什么（前端）**：
+  - 奇门 `components/dunjia/`：`DunJiaCalc.js`（`birthToYearGan` 按立春算生年干 + `CHART_CATEGORY_OPTIONS`）、`DunJiaFaCalc.js`（`computeProtect` 改读 `pan.faRelatedPeople`、删「示本盘年干」占位、全局兜底 `window.__horosa_qimen_related_people`）、`DunJiaMain.js`（左栏「相关人员」多选 + 「盘类」命盘/事盘选择器 R2C2 + stamp pan + `saveAsMingChart` 恒弹新增星盘抽屉 + `restoreFromCurrentChart`）。
+  - 共享（均 guarded、占星零回归）：`models/astro.js`（openDrawer chartadd 透传 record）、`models/user.js`（newCurrentChart honor birth/zone/gender/经纬度）、`components/user/ChartAddFormComp.js`（透传 payload）、`utils/aiAnalysisContext.js`（regenerate/三式合一 路径补 stamp faRelatedPeople）。
+  - **Win#17 修复**：`components/aianalysis/AIAnalysisMain.js`（选「起课/命盘时间」即刷新为「此刻」，此前误用组件 mount＝打开软件的时刻）。
+- **零回归**：命盘走正常命盘管理、`payload.qimen` 占星不写不读；占星新增/编辑命盘、其它技法事盘行为不变。
+- **Win#16（DeepSeek 思维链超时）/ Mac#10（装包安装失败）** 的修复随 v2.5.6 批次（已并入 main，`fb744a9`：AI#16 + Mac 装包优雅降级，**含已重编 jar → Windows 需同步该批后端 + 重编**）。
+- 为什么/坑：见 `实现说明 §奇门法奇门叠加层` + `docs/奇门遁甲-法奇门叠加层-实现详解.md §六`。
+
+---
+
 ## 紫微斗数 · 全面增强 P0–P2（杂曜显示 / 流派四化表 / 运限流曜 / 格局详情 / 新格局 / 天伤天使）
 
 - **性质：前端为主（P0/P1 纯前端）+ 后端少量（P1-D/E + P2 改 `astrostudycn`，已重编 `astrostudyboot.jar`）。**

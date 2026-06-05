@@ -8,12 +8,12 @@
 
 **把占星与中国术数，收进一个原生 macOS 工作站**
 
-[![Version](https://img.shields.io/badge/version-2.5.5-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.5)
+[![Version](https://img.shields.io/badge/version-2.6.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.5)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.5)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.5/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.0/Horosa-Installer-macos-arm64-offline.pkg) ·
 [入口页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@
 
 普通用户直接下载离线安装包，像任何 macOS 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.5.5/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.0/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合场景：
 
@@ -91,18 +91,18 @@
 
 命盘与事盘都能本地保存：带标签、快照与后端原始结构化数据，可 JSON 导入导出，重开后恢复现场。
 
-## v2.5.5 beta 更新
+## v2.6.0 beta 更新
 
-这一版聚焦**天文馆精修与恒星交互**,以及一轮**流畅度优化**——所有技法命盘输出与 v2.5.4 完全相同。
+这一版是自 v2.5.5 以来的一次**大合集**——六壬 / 占星 / 紫微 / 奇门四大技法深度补全,外加多项安装与 AI 稳定性修复。
 
-- **天文馆 · 投影对齐天文真值** —— 星座 / 宫位 / 星宿区间名称不再偏移;时间回放时黄道 / 星宿不再「先瞬跳再旋转」。前端投影改用逐日黄赤交角 + 视恒星时 + 大气折射,与后端 `swisseph.azalt` 完全一致。
-- **二十八宿回到赤道** —— 宿度按距星赤经定位(赤道宿度),不再误贴黄道。
-- **每颗恒星可点击 + 按名搜索** —— 点击任意恒星(含暗星)弹出名称 / 拜耳编号 / 星座 / 星等 / 赤经赤纬;搜索框支持中文专名 / 英文专名 / HR 编号自动补全定位(织女 / Vega / 天狼 / Sirius),对齐成熟天文馆软件。
-- **文字更清晰** —— 标签贴图按设备像素比超采样 + 三线性过滤,缩放后不发虚。
-- **流畅度优化(零功能降级)** —— 七政四余等确定性纯计算技法加「同参复用 + 在途合并」缓存,重开 / 来回切第二次起瞬时复显,结果与直连逐值等价。
-- **主限法铁律守护强化** —— 经全 540 例逐字节实证默认 Alcabitius + Ptolemy 输出与 v2.5.3 一致;校正一处过期回归基线,并让发布门禁改为实跑 byte-perfect 子集防复发。**所有命盘结果与 v2.5.4 完全相同**。
+- **大六壬 · 解读层全建成** —— 取象 / 类象、毕法赋一百法(可机械判定者自动命中 + 读法心诀)、占断分类向导、常用神煞释义、三传关系图、应期与贵神特殊态;并以《六壬开阳》逐条审计纠错。
+- **西洋占星 · 世俗 / 卜卦 / 择日 / 星运全链路** —— 新增世俗(Mundane)、卜卦(Horary)、择日(Election)、星运(行运)四套完整盘,AI 导出 / 挂载 / 储存四同步。
+- **紫微斗数 · 全面增强** —— 杂曜显示、流派四化表、运限流曜、格局详情、天伤天使等。
+- **奇门遁甲 · 法奇门 + 局中人** —— 荀爽法奇门「断 + 解」层(六害完整 / 化解 / 用神分论 / 取象);左栏新增「相关人员」多选(从命盘库选人 → 各人生年干喂八门化气大阵)与「命盘 / 事盘」双库(命盘复用命盘管理、跨技法可用)。
+- **城市搜索专业化** —— 简体显示 + 拼音 / 首字母 + 繁简折叠。
+- **安装与 AI 修复** —— 修 Apple Silicon 安装包「安装失败」(装包优雅降级)、DeepSeek 深度思维链多轮超时失败、AI 分析「起课 / 命盘时间」选中即为此刻(此前误用打开软件的时刻)。
 
-公证离线 `.pkg`、app zip、runtime 包与 manifest 已统一对齐到 `2.5.5 / 2.5.5-runtime1`。完整改动见 [v2.5.5 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.5.5)。
+公证离线 `.pkg`、app zip、runtime 包与 manifest 已统一对齐到 `2.6.0 / 2.6.0-runtime1`。完整改动见 [v2.6.0 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)。
 
 ## 技术构成
 
