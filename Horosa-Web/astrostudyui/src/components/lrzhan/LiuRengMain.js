@@ -2991,6 +2991,11 @@ function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, c
 		zi: liureng && liureng.godsZi ? liureng.godsZi : {},
 		year: liureng && liureng.godsYear && liureng.godsYear.taisui1 ? liureng.godsYear.taisui1 : {},
 	};
+	// 昼/夜两贵的地盘位 + 当前用昼或夜（供毕法贵人类法 3/45/46/49/50）。
+	const guiObj = LRConst.GuiRengs[guirengType] || LRConst.GuiRengs[2];
+	const dayGuiBranch = guiObj && guiObj.day ? (guiObj.day[dayGan] || '') : '';
+	const nightGuiBranch = guiObj && guiObj.night ? (guiObj.night[dayGan] || '') : '';
+	const dayNight = (layout && layout.guizi === dayGuiBranch) ? '昼' : '夜';
 	return {
 		layout,
 		keData,
@@ -3068,6 +3073,9 @@ function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, c
 		sanChuanBranchText: sanChuanBranches.length ? sanChuanBranches.join('→') : '',
 		sanChuanGodText: sanChuanGods.length ? sanChuanGods.join('→') : '',
 		guizi: layout && layout.guizi ? layout.guizi : '',
+		dayGuiBranch,
+		nightGuiBranch,
+		dayNight,
 	};
 }
 
@@ -5253,6 +5261,7 @@ class LiuRengMain extends Component{
 		const q = `${this.state.bifaQuery || ''}`.trim();
 		const all = q ? BIFA_LIST.filter((b)=>`${b.no}${b.name}${b.verse}${b.explain}`.indexOf(q) >= 0) : BIFA_LIST;
 		const muted = { color: 'var(--horosa-muted, #8c8c8c)' };
+		const XINJUE_NOS = [93, 94, 96, 97, 98, 99, 100]; // 断法通则 / 占则，无单课盘面成局条件，仅浏览
 		return (
 			<div className="horosa-liureng-reference-tab-body">
 				<div style={{ fontWeight: 600, margin: '2px 0 6px' }}>已命中</div>
@@ -5270,7 +5279,7 @@ class LiuRengMain extends Component{
 				<input value={this.state.bifaQuery} onChange={(e)=>this.setState({ bifaQuery: e.target.value })} placeholder='检索法名 / 关键词' style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)', marginBottom: 8 }} />
 				{all.map((item)=>(
 					<div key={`bf_${item.no}`} style={{ padding: '6px 0', borderBottom: '1px solid var(--horosa-border, rgba(255,255,255,0.06))' }}>
-						<div style={{ fontWeight: 600 }}>{`${item.no}. ${item.name}`}{item.tier !== 'A' ? (<span style={{ ...muted, fontSize: 11, marginInlineStart: 6 }}>（须人工核）</span>) : null}</div>
+						<div style={{ fontWeight: 600 }}>{`${item.no}. ${item.name}`}{XINJUE_NOS.indexOf(item.no) >= 0 ? (<span style={{ ...muted, fontSize: 11, marginInlineStart: 6 }}>（读法心诀·通则）</span>) : (item.tier !== 'A' ? (<span style={{ ...muted, fontSize: 11, marginInlineStart: 6 }}>（须人工核）</span>) : null)}</div>
 						<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '20px', fontSize: 13 }}>{item.explain}</div>
 					</div>
 				))}

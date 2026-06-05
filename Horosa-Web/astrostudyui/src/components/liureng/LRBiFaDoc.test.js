@@ -5,8 +5,10 @@ function ctx(o){
 		sanChuanBranches: [], sanChuanGans: [], courseBranches: [],
 		xunKongBranches: [], dingHorseBranches: [], yiMaBranches: [], firstBranch: '', lastBranch: '',
 		dayGan: '', dayZhi: '', dayGanBranch: '', dayGanWuXing: '', dayZhiWuXing: '',
-		ke1Up: '', ke3Up: '', keUpBranches: [], guizi: '', xunHeadBranch: '', xunTailBranch: '', runYearBranch: '', midBranch: '', firstGod: '',
-		branchGodMap: {}, xunGanMap: {}, layout: null,
+		ke1Up: '', ke3Up: '', keUpBranches: [], guizi: '', xunHeadBranch: '', xunTailBranch: '', runYearBranch: '', midBranch: '', firstGod: '', midGod: '', lastGod: '',
+		dayZhiGan: '', yearBranch: '', courseName: '',
+		dayGuiBranch: '', nightGuiBranch: '', dayNight: '',
+		branchGodMap: {}, xunGanMap: {}, upDownMap: {}, layout: null,
 	}, o);
 }
 function nos(hits){ return hits.map((h)=>h.no); }
@@ -21,7 +23,7 @@ function layoutWith(upPairs){
 describe('LRBiFaDoc · matchBiFa A 档自动匹配（宁缺勿滥）', ()=>{
 	it('BIFA_LIST 收录 100 条毕法，BIFA_MATCHERS 至少 35 个高置信判定', ()=>{
 		expect(BIFA_LIST.length).toBe(100);
-		expect(Object.keys(BIFA_MATCHERS).length).toBeGreaterThanOrEqual(50);
+		expect(Object.keys(BIFA_MATCHERS).length).toBeGreaterThanOrEqual(90);
 	});
 
 	it('no.5 六阳 / no.6 六阴：四课三传全阳 / 全阴', ()=>{
@@ -122,5 +124,37 @@ describe('LRBiFaDoc · matchBiFa A 档自动匹配（宁缺勿滥）', ()=>{
 	});
 	it('no.86 将逢内战：发用申金乘六合木（金克木）', ()=>{
 		expect(nos(matchBiFa(ctx({ firstBranch: '申', firstGod: '六合' })))).toContain(86);
+	});
+
+	it('no.12 狐假虎威：干上克日、日支制干上', ()=>{
+		expect(nos(matchBiFa(ctx({ dayGan: '甲', dayZhi: '午', ke1Up: '申' })))).toContain(12);
+	});
+	it('no.29 眷属丰盈：三传生日干又泄日支', ()=>{
+		expect(nos(matchBiFa(ctx({ dayGan: '甲', dayZhi: '申', sanChuanBranches: ['子', '亥', '子'] })))).toContain(29);
+	});
+	it('no.30 屋宅宽广：三传泄日干反生日支', ()=>{
+		// 甲生火(三传巳午巳)、火生土(日支辰)
+		expect(nos(matchBiFa(ctx({ dayGan: '甲', dayZhi: '辰', sanChuanBranches: ['巳', '午', '巳'] })))).toContain(30);
+	});
+	it('no.72 丧吊全逢：子年丧门寅吊客戌临干支上', ()=>{
+		expect(nos(matchBiFa(ctx({ yearBranch: '子', ke1Up: '寅', ke3Up: '戌' })))).toContain(72);
+	});
+	it('no.78 皆旺：干支上神皆帝旺（甲帝旺卯）', ()=>{
+		expect(nos(matchBiFa(ctx({ dayGan: '甲', dayZhi: '卯', dayZhiGan: '乙', ke1Up: '卯', ke3Up: '卯' })))).toContain(78);
+	});
+	it('no.79 干支值绝：干上日干绝、支上日支绝（甲乙绝申）', ()=>{
+		expect(nos(matchBiFa(ctx({ dayGan: '甲', dayZhiGan: '乙', ke1Up: '申', ke3Up: '申' })))).toContain(79);
+	});
+	it('no.84 合中犯杀：三合申子辰、干支上午冲子', ()=>{
+		expect(nos(matchBiFa(ctx({ sanChuanBranches: ['申', '子', '辰'], ke1Up: '午', ke3Up: '子' })))).toContain(84);
+	});
+	it('no.95 六爻现卦：三传皆官鬼、干支上见兄弟', ()=>{
+		expect(nos(matchBiFa(ctx({ dayGan: '甲', sanChuanBranches: ['申', '酉', '申'], ke1Up: '寅' })))).toContain(95);
+	});
+	it('no.50 二贵皆空：昼夜两贵地盘支皆旬空', ()=>{
+		expect(nos(matchBiFa(ctx({ dayGuiBranch: '戌', nightGuiBranch: '亥', xunKongBranches: ['戌', '亥'] })))).toContain(50);
+	});
+	it('no.46 贵人差迭：昼贵临夜地、夜贵临昼方', ()=>{
+		expect(nos(matchBiFa(ctx({ dayGuiBranch: '午', nightGuiBranch: '子' })))).toContain(46); // 午∈夜地, 子∈昼地
 	});
 });
