@@ -7,8 +7,8 @@ function ctx(o){
 		dayGan: '', dayZhi: '', dayGanBranch: '', dayGanWuXing: '', dayZhiWuXing: '',
 		ke1Up: '', ke3Up: '', keUpBranches: [], guizi: '', xunHeadBranch: '', xunTailBranch: '', runYearBranch: '', midBranch: '', firstGod: '', midGod: '', lastGod: '',
 		dayZhiGan: '', yearBranch: '', courseName: '',
-		dayGuiBranch: '', nightGuiBranch: '', dayNight: '',
-		branchGodMap: {}, xunGanMap: {}, upDownMap: {}, layout: null,
+		dayGuiBranch: '', nightGuiBranch: '', dayNight: '', yueGeneralBranch: '',
+		branchGodMap: {}, branchUpMap: {}, xunGanMap: {}, upDownMap: {}, keRaw: [], layout: null,
 	}, o);
 }
 function nos(hits){ return hits.map((h)=>h.no); }
@@ -41,7 +41,7 @@ describe('LRBiFaDoc · matchBiFa A 档自动匹配（宁缺勿滥）', ()=>{
 	});
 
 	it('no.16 空上乘空 / no.74 空空如也 / no.82 不行传', ()=>{
-		expect(nos(matchBiFa(ctx({ firstBranch: '亥', xunKongBranches: ['亥'], branchGodMap: { '亥': '天空' } })))).toContain(16);
+		expect(nos(matchBiFa(ctx({ firstBranch: '亥', xunKongBranches: ['亥'], firstGod: '天空' })))).toContain(16);
 		expect(nos(matchBiFa(ctx({ sanChuanBranches: ['亥', '戌', '酉'], xunKongBranches: ['亥', '戌', '酉'] })))).toContain(74);
 		expect(nos(matchBiFa(ctx({ sanChuanBranches: ['寅', '亥', '戌'], xunKongBranches: ['亥', '戌'] })))).toContain(82);
 	});
@@ -89,11 +89,18 @@ describe('LRBiFaDoc · matchBiFa A 档自动匹配（宁缺勿滥）', ()=>{
 
 	it('no.88 墓覆日辰 / no.91 虎临干鬼', ()=>{
 		expect(nos(matchBiFa(ctx({ dayGanWuXing: '木', dayZhiWuXing: '火', ke1Up: '未', ke3Up: '戌' })))).toContain(88);
-		expect(nos(matchBiFa(ctx({ dayGan: '甲', ke1Up: '申', branchGodMap: { '申': '白虎' } })))).toContain(91);
+		// 91 虎临干鬼：日干上神(一课天将)＝白虎，且克日干。一课天将取 keRaw[0][0]。
+		expect(nos(matchBiFa(ctx({ dayGan: '甲', ke1Up: '申', keRaw: [['白虎', '申', '甲'], [], [], []] })))).toContain(91);
 	});
 
-	it('no.69 虎乘遁鬼：白虎临支遁干克日干', ()=>{
-		expect(nos(matchBiFa(ctx({ dayGan: '甲', branchGodMap: { '申': '白虎' }, xunGanMap: { '申': '庚' } })))).toContain(69);
+	it('no.69 虎乘遁鬼：白虎所乘天盘神之遁干克日干', ()=>{
+		// 白虎在地盘午、所乘天盘神＝申(branchUpMap)，申遁干庚克甲。godRideShen 取天盘神而非地盘格。
+		expect(nos(matchBiFa(ctx({ dayGan: '甲', branchGodMap: { '午': '白虎' }, branchUpMap: { '午': '申' }, xunGanMap: { '申': '庚' } })))).toContain(69);
+	});
+
+	it('no.67 受虎克神：白虎所乘天盘神受克→对应脏腑', ()=>{
+		// 白虎地盘子、所乘天盘神＝申(金)；丙火克申金→主肝经。
+		expect(nos(matchBiFa(ctx({ dayGan: '丙', branchGodMap: { '子': '白虎' }, branchUpMap: { '子': '申' }, upDownMap: { '申': '子' } })))).toContain(67);
 	});
 
 	it('空 / 缺字段 context 不抛错、不误命中', ()=>{
