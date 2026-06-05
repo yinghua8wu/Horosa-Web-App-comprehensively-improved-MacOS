@@ -12,7 +12,7 @@ let HuaJiMap = new Map();
 let HuaMaps = [HuaLuMap, HuaQuanMap, HuaKeMap, HuaJiMap];
 
 function initHuaMap(){
-	let ganhua = ZWConst.SiHua.gan;
+	let ganhua = ZWConst.getActiveSiHuaGan();
 	for(let gan in ganhua){
 		let stars = ganhua[gan];
 		for(let i=0; i<4; i++){
@@ -26,6 +26,25 @@ function initHuaMap(){
 			map.set(stars[i], hua);
 		}
 	}
+}
+
+// ===== P0-4 杂曜/十二神 显示开关（localStorage；四化盘主盘是否渲染 Others/Small 组） =====
+export function zwShowOthers(){
+	const v = localStorage.getItem('ziweiShowOthers');
+	return v === null ? true : v === '1'; // 默认开（杂吉/杂凶）
+}
+export function zwShowSmall(){
+	const v = localStorage.getItem('ziweiShowSmall');
+	return v === '1'; // 默认关（将前/岁前/博士十二神，避免主盘过密）
+}
+
+// P1-A：切流派后必须失效四化缓存并按新表重建（getSiHua 用 size===0 懒初始化，不显式清不会重算）。
+export function resetHuaMap(){
+	HuaLuMap.clear();
+	HuaQuanMap.clear();
+	HuaKeMap.clear();
+	HuaJiMap.clear();
+	initHuaMap();
 }
 
 export function getHouseZiIndex(zi){
@@ -120,13 +139,44 @@ export function ziToHouseIndex(zhi){
 	return getHouseZiIndex(zhi);
 }
 
+// P1-C 流年「将前十二神 / 岁前十二神」（按流年支起，纯地支表；仅流年层用）。
+// 将前：将星按年支三合定位（申子辰→子、寅午戌→午、巳酉丑→酉、亥卯未→卯），其后顺行 12 神。
+// 岁前：岁建=流年支本位（太岁位），顺行 12 神。
+const FLOW_JIANG_ORDER = ['将星', '攀鞍', '岁驿', '息神', '华盖', '劫煞', '灾煞', '天煞', '指背', '咸池', '月煞', '亡神'];
+const FLOW_SUI_ORDER = ['岁建', '晦气', '丧门', '贯索', '官符', '小耗', '岁破', '龙德', '白虎', '天德', '吊客', '病符'];
+const FLOW_JIANG_START = {
+	'申': '子', '子': '子', '辰': '子',
+	'寅': '午', '午': '午', '戌': '午',
+	'巳': '酉', '酉': '酉', '丑': '酉',
+	'亥': '卯', '卯': '卯', '未': '卯',
+};
+export function getFlowJiangSui(zhi){
+	const out = [];
+	if(!zhi){
+		return out;
+	}
+	const jStart = DiZi.indexOf(FLOW_JIANG_START[zhi]);
+	if(jStart >= 0){
+		for(let i=0; i<12; i++){
+			out.push({ name: '流' + FLOW_JIANG_ORDER[i], zhi: DiZi[(jStart + i) % 12], group: 'jiang' });
+		}
+	}
+	const ziIdx = DiZi.indexOf(zhi);
+	if(ziIdx >= 0){
+		for(let i=0; i<12; i++){
+			out.push({ name: '流' + FLOW_SUI_ORDER[i], zhi: DiZi[(ziIdx + i) % 12], group: 'sui' });
+		}
+	}
+	return out;
+}
+
 // 某天干在该命盘上的四化落宫：返回 [{star,hua,houseIndex}]
 export function getLayerSihua(chartObj, gan){
 	const res = [];
 	if(!chartObj || !gan){
 		return res;
 	}
-	const ganhua = ZWConst.SiHua.gan[gan];
+	const ganhua = ZWConst.getActiveSiHuaGan()[gan];
 	if(!ganhua){
 		return res;
 	}

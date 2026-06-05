@@ -1,8 +1,10 @@
 import { Component } from 'react';
-import { Checkbox } from 'antd';
+import { Checkbox, Collapse } from 'antd';
 import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
 import * as ZWCont from '../../constants/ZWConst';
+import * as ZiWeiHelper from './ZiWeiHelper';
+import ZWSihuaCustomModal from './ZWSihuaCustomModal';
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import { XQSelect as Select } from '../xq-ui';
@@ -25,8 +27,28 @@ class ZiWeiInput extends Component{
 			}
 		}
 
+		let showOthers = true;
+		let so = localStorage.getItem('ziweiShowOthers');
+		if(so !== null){ showOthers = (so + '' === '1'); }
+		let showSmall = false;
+		let ss = localStorage.getItem('ziweiShowSmall');
+		if(ss !== null){ showSmall = (ss + '' === '1'); }
+
+		// P1-A 四化流派：默认 beipai（=现状）；立即同步全局单例 + 兼容垫片 + 失效四化缓存。
+		let sihuaSchool = localStorage.getItem('ziweiSihuaSchool') || 'beipai';
+		ZWCont.ZWSchool.school = sihuaSchool;
+		ZWCont.refreshActiveSiHua();
+		ZiWeiHelper.resetHuaMap();
+		// P1-B 小限顺逆：'0'=男顺女逆(现状) / '1'=阳男阴女顺(中州)
+		let xiaoxianMode = localStorage.getItem('ziweiXiaoxianYinyang') || '0';
+
 		this.state = {
 			showTips: showTips,
+			showOthers: showOthers,
+			showSmall: showSmall,
+			sihuaSchool: sihuaSchool,
+			xiaoxianMode: xiaoxianMode,
+			sihuaCustomOpen: false,
 		}
 
         this.tmHook = {
@@ -40,6 +62,13 @@ class ZiWeiInput extends Component{
 		this.onTimeAlgChange = this.onTimeAlgChange.bind(this);
 		this.onChartTypeChange = this.onChartTypeChange.bind(this);
 		this.onTipsChange = this.onTipsChange.bind(this);
+		this.onShowOthersChange = this.onShowOthersChange.bind(this);
+		this.onShowSmallChange = this.onShowSmallChange.bind(this);
+		this.redrawChart = this.redrawChart.bind(this);
+		this.onSihuaSchoolChange = this.onSihuaSchoolChange.bind(this);
+		this.onXiaoxianModeChange = this.onXiaoxianModeChange.bind(this);
+		this.onSihuaCustomOk = this.onSihuaCustomOk.bind(this);
+		this.onSihuaCustomCancel = this.onSihuaCustomCancel.bind(this);
 
 		let type = localStorage.getItem('ziweiChartType');
 		if(type !== undefined && type !== null){
@@ -151,6 +180,79 @@ class ZiWeiInput extends Component{
 		this.setState({
 			showTips: val,
 		});
+	}
+
+	// P0-4：杂曜/十二神显示开关 — 写 localStorage 后触发盘面重绘（后端缓存命中，仅刷新渲染）。
+	redrawChart(){
+		if(this.props.onFieldsChange && this.tmHook && this.tmHook.getValue){
+			let dt = this.tmHook.getValue().value;
+			this.props.onFieldsChange({
+				date: { value: dt.clone() },
+				time: { value: dt.clone() },
+				ad: { value: dt.ad },
+				zone: { value: dt.zone },
+			});
+		}
+	}
+
+	onShowOthersChange(e){
+		let val = e.target.checked;
+		localStorage.setItem('ziweiShowOthers', val ? 1 : 0);
+		this.setState({ showOthers: val });
+		this.redrawChart();
+	}
+
+	onShowSmallChange(e){
+		let val = e.target.checked;
+		localStorage.setItem('ziweiShowSmall', val ? 1 : 0);
+		this.setState({ showSmall: val });
+		this.redrawChart();
+	}
+
+	// P1-A 四化流派切换：写全局单例 + localStorage + 刷新兼容垫片 + 失效四化缓存 + 重绘。
+	applySihuaSchool(val){
+		ZWCont.ZWSchool.school = val;
+		localStorage.setItem('ziweiSihuaSchool', val);
+		ZWCont.refreshActiveSiHua();
+		ZiWeiHelper.resetHuaMap();
+	}
+
+	onSihuaSchoolChange(val){
+		if(val === 'custom'){
+			// 切到自定义：先标记 + 打开编辑器（保存后才真正生效；未存过则编辑器以当前表预填）。
+			this.applySihuaSchool('custom');
+			this.setState({ sihuaSchool: 'custom', sihuaCustomOpen: true });
+			this.redrawChart();
+			return;
+		}
+		this.applySihuaSchool(val);
+		this.setState({ sihuaSchool: val });
+		this.redrawChart();
+	}
+
+	onSihuaCustomOk(table){
+		localStorage.setItem('ziweiSihuaCustom', JSON.stringify(table));
+		this.applySihuaSchool('custom');
+		this.setState({ sihuaSchool: 'custom', sihuaCustomOpen: false });
+		this.redrawChart();
+	}
+
+	onSihuaCustomCancel(){
+		// 取消时若无有效自定义表，回退到 beipai（避免停在空自定义态）。
+		const has = !!localStorage.getItem('ziweiSihuaCustom');
+		if(!has){
+			this.applySihuaSchool('beipai');
+			this.setState({ sihuaSchool: 'beipai', sihuaCustomOpen: false });
+			this.redrawChart();
+			return;
+		}
+		this.setState({ sihuaCustomOpen: false });
+	}
+
+	onXiaoxianModeChange(val){
+		localStorage.setItem('ziweiXiaoxianYinyang', val);
+		this.setState({ xiaoxianMode: val });
+		this.redrawChart();
 	}
 
 
@@ -266,10 +368,40 @@ class ZiWeiInput extends Component{
 								<Option value={ZWCont.ZWChart_SangHe}>三合盘</Option>
 							</Select>
 						</label>
+						<label className="horosa-ziwei-select-field horosa-ziwei-select-field-wide">
+							<span>四化流派</span>
+							<Select value={this.state.sihuaSchool} onChange={this.onSihuaSchoolChange} size='small'>
+								<Option value="beipai">北派·飞星(现状)</Option>
+								<Option value="zhongzhou">中州派</Option>
+								<Option value="custom">自定义…</Option>
+							</Select>
+						</label>
 					</div>
 					<div className="horosa-ziwei-option-card">
 						<Checkbox checked={this.state.showTips} onChange={this.onTipsChange}>允许提示</Checkbox>
+						<Checkbox checked={this.state.showOthers} onChange={this.onShowOthersChange}>显示杂曜</Checkbox>
+						<Checkbox checked={this.state.showSmall} onChange={this.onShowSmallChange}>显示十二神</Checkbox>
 					</div>
+					<Collapse ghost size="small" className="horosa-ziwei-school-collapse">
+						<Collapse.Panel header="流派设置" key="school">
+							<label className="horosa-ziwei-select-field">
+								<span>小限顺逆</span>
+								<Select value={this.state.xiaoxianMode} onChange={this.onXiaoxianModeChange} size='small'>
+									<Option value="0">男顺女逆（现状）</Option>
+									<Option value="1">阳男阴女顺（中州）</Option>
+								</Select>
+							</label>
+							{this.state.sihuaSchool === 'custom' && (
+								<button type="button" className="horosa-ziwei-school-edit-btn" onClick={()=>this.setState({ sihuaCustomOpen: true })}>编辑自定义四化表…</button>
+							)}
+						</Collapse.Panel>
+					</Collapse>
+					<ZWSihuaCustomModal
+						open={this.state.sihuaCustomOpen}
+						table={ZWCont.getActiveSiHuaGan()}
+						onOk={this.onSihuaCustomOk}
+						onCancel={this.onSihuaCustomCancel}
+					/>
 				</div>
 			</div>
 		);

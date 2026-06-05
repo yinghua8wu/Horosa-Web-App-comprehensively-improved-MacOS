@@ -107,11 +107,21 @@ function buildXiaoxianItems(chart, daxian) {
 	const startIdx = houseIdxByBranch(chart, startZhi);
 	if (startIdx < 0) return [];
 	const male = chart.gender === 'Male' || chart.gender === 1 || chart.gender === '1';
+	// P1-B 小限顺逆：'0'=男顺女逆(现状默认，零回归) / '1'=阳男阴女顺、阴男阳女逆(中州)。
+	let xxMode = '0';
+	try { xxMode = localStorage.getItem('ziweiXiaoxianYinyang') || '0'; } catch (e) { xxMode = '0'; }
+	let clockwise;
+	if (xxMode === '1') {
+		const yang = chart.yearPolar === 'Positive';
+		clockwise = (yang && male) || (!yang && !male);
+	} else {
+		clockwise = male;
+	}
 	const birthY = birthYearOf(chart);
 	const out = [];
 	for (let age = daxian.start; age <= daxian.end; age++) {
 		const step = age - 1;
-		const idx = male ? (startIdx + step) % 12 : ((startIdx - step) % 12 + 12) % 12;
+		const idx = clockwise ? (startIdx + step) % 12 : ((startIdx - step) % 12 + 12) % 12;
 		const house = chart.houses[idx];
 		if (!house) continue;
 		const ganzi = house.ganzi;
@@ -318,7 +328,8 @@ class ZWLuckPanel extends Component {
 		const mingIdx = layer.mingIndex;
 		const oppIdx = (mingIdx + 6) % 12;
 		const sihua = ZiWeiHelper.getLayerSihua(chart, layer.gan) || [];
-		const flowStars = (layer.level === 'liunian') ? (ZiWeiHelper.getFlowStars(layer.gan, layer.zhi) || []) : [];
+		// P0-2：流曜下沉到全部层级（大限/流年/小限/流月/流日/流时各按本层干支起流曜），不再只限流年。
+		const flowStars = ZiWeiHelper.getFlowStars(layer.gan, layer.zhi) || [];
 		let sub = '';
 		if (layer.level === 'liunian' && layer.year) sub = `${layer.year}年`;
 		else if (layer.level === 'xiaoxian' && layer.age) sub = `${layer.age}虚岁`;
@@ -347,6 +358,23 @@ class ZWLuckPanel extends Component {
 						))}
 					</div>
 				)}
+				{layer.level === 'liunian' && this.renderFlowJiangSui(chart, layer)}
+			</div>
+		);
+	}
+
+	// P1-C 流年「流将前/流岁前」十二神（仅流年层显示，年神煞不下沉到流月流日）。
+	renderFlowJiangSui(chart, layer) {
+		const js = ZiWeiHelper.getFlowJiangSui(layer.zhi) || [];
+		if (!js.length) {
+			return null;
+		}
+		return (
+			<div className="horosa-ziwei-luck-jiangsui">
+				<span className="js-label">流年神煞</span>
+				{js.map((s) => (
+					<span key={s.name} className={`js-chip js-${s.group}`}>{s.name}<i>{houseName(chart, houseIdxByBranch(chart, s.zhi), true)}</i></span>
+				))}
 			</div>
 		);
 	}

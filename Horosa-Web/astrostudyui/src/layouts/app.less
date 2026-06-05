@@ -15234,6 +15234,21 @@
 		font-size: 12px; color: var(--horosa-text-soft, #52627a);
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-flow .flow-chip i { font-style: normal; font-weight: 600; color: var(--horosa-gold, #9a6a25); }
+	/* P1-C 流年神煞（将前·岁前）chips */
+	.horosa-workspace-shell .horosa-ziwei-luck-jiangsui {
+		display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; align-items: center;
+	}
+	.horosa-workspace-shell .horosa-ziwei-luck-jiangsui .js-label {
+		font-size: 11px; font-weight: 600; color: var(--horosa-muted, #68758a); margin-right: 2px;
+	}
+	.horosa-workspace-shell .horosa-ziwei-luck-jiangsui .js-chip {
+		display: inline-flex; align-items: center; gap: 2px;
+		padding: 2px 7px; border-radius: 10px;
+		border: 1px solid var(--horosa-border, rgba(76, 98, 134, 0.16));
+		background: var(--horosa-surface-solid, #fff);
+		font-size: 11px; color: var(--horosa-text-soft, #52627a);
+	}
+	.horosa-workspace-shell .horosa-ziwei-luck-jiangsui .js-chip i { font-style: normal; font-weight: 600; color: var(--horosa-muted, #8a8f95); }
 	.horosa-workspace-shell .horosa-ziwei-luck-note {
 		display: flex; justify-content: space-between; align-items: center; gap: 8px;
 		padding-top: 4px;
@@ -15283,6 +15298,95 @@
 		margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--horosa-text-soft, #52627a); overflow-wrap: anywhere;
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-src { margin-top: 4px; font-size: 11px; text-align: right; color: var(--horosa-muted, #68758a); }
+	/* P0-3 格局命中详情展开 */
+	.horosa-workspace-shell .horosa-ziwei-pattern-head { cursor: pointer; }
+	.horosa-workspace-shell .horosa-ziwei-pattern-toggle {
+		margin-left: auto; font-size: 11px; font-weight: 600; color: var(--horosa-muted, #68758a);
+	}
+	.horosa-workspace-shell .horosa-ziwei-pattern-detail {
+		margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--horosa-border, rgba(76, 98, 134, 0.18));
+	}
+	.horosa-workspace-shell .horosa-ziwei-pattern-detail-title {
+		font-size: 11px; font-weight: 700; color: var(--horosa-muted, #68758a); margin: 2px 0 4px;
+	}
+	.horosa-workspace-shell .horosa-ziwei-pattern-detail ul {
+		margin: 0 0 6px; padding-left: 16px;
+	}
+	.horosa-workspace-shell .horosa-ziwei-pattern-detail li {
+		font-size: 12px; line-height: 1.7; color: var(--horosa-text-soft, #52627a); overflow-wrap: anywhere;
+	}
+	.horosa-workspace-shell .horosa-ziwei-pattern-detail li.is-broken { color: var(--horosa-danger, #cf1322); }
+	.horosa-workspace-shell .horosa-ziwei-pattern-detail-note {
+		font-size: 12px; line-height: 1.6; color: var(--horosa-text-soft, #52627a);
+	}
+	.horosa-workspace-shell .horosa-ziwei-pattern-detail-src {
+		margin-top: 4px; font-size: 11px; color: var(--horosa-muted, #68758a);
+	}
+	/* P1-A 自定义四化表编辑器（Modal 内，portal 到 body，不加 workspace 作用域） */
+	.horosa-ziwei-sihua-editor { display: flex; flex-direction: column; gap: 6px; }
+	.horosa-ziwei-sihua-editor-row { display: grid; grid-template-columns: 28px repeat(4, 1fr); gap: 6px; align-items: center; }
+	.horosa-ziwei-sihua-editor-row .gan { font-weight: 700; color: var(--horosa-ziwei-house-name, #9b6a2d); text-align: center; }
+	.horosa-ziwei-sihua-editor-head { font-size: 12px; font-weight: 600; color: var(--horosa-muted, #68758a); }
+	.horosa-ziwei-sihua-editor-head span { text-align: center; }
+	.horosa-ziwei-sihua-editor .ant-select { width: 100%; }
+	.horosa-ziwei-sihua-editor-tip { margin-top: 10px; font-size: 11px; color: var(--horosa-muted, #68758a); line-height: 1.6; }
+	/* P1-A/B 流派设置 Collapse + 自定义编辑按钮（暗色为默认基色，浅色用 override；与 option-card 同语言） */
+	.horosa-workspace-shell .horosa-ziwei-school-collapse {
+		margin-top: 8px;
+		border: 1px solid rgba(215, 173, 105, 0.14);
+		border-radius: 6px;
+		background: rgba(255, 255, 255, 0.012);
+		overflow: hidden;
+	}
+	.horosa-workspace-shell .horosa-ziwei-school-collapse .ant-collapse-header {
+		padding: 7px 10px !important;
+		color: var(--horosa-astro-muted) !important;
+		font-size: 12px;
+		font-weight: 650;
+	}
+	.horosa-workspace-shell .horosa-ziwei-school-collapse .ant-collapse-header .ant-collapse-arrow {
+		color: var(--horosa-astro-muted);
+	}
+	.horosa-workspace-shell .horosa-ziwei-school-collapse .ant-collapse-content {
+		background: transparent;
+		border-top: 1px solid rgba(215, 173, 105, 0.10);
+	}
+	.horosa-workspace-shell .horosa-ziwei-school-collapse .ant-collapse-content-box {
+		padding: 9px 10px;
+		display: flex;
+		flex-direction: column;
+		gap: 9px;
+	}
+	:root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-school-collapse {
+		border-color: var(--horosa-border);
+		background: rgba(255, 255, 255, 0.52);
+	}
+	:root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-school-collapse .ant-collapse-header,
+	:root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-school-collapse .ant-collapse-header .ant-collapse-arrow {
+		color: var(--horosa-text-soft) !important;
+	}
+	.horosa-workspace-shell .horosa-ziwei-school-edit-btn {
+		align-self: flex-start;
+		padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+		border-radius: 6px;
+		border: 1px solid rgba(215, 173, 105, 0.45);
+		background: rgba(215, 173, 105, 0.12);
+		color: var(--horosa-gold, #e7bd75);
+		transition: background 0.15s ease;
+	}
+	.horosa-workspace-shell .horosa-ziwei-school-edit-btn:hover { background: rgba(215, 173, 105, 0.22); }
+	:root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-school-edit-btn {
+		border-color: rgba(184, 137, 63, 0.5);
+		background: rgba(184, 137, 63, 0.10);
+		color: #9a6a25;
+	}
+	/* 选项框 checkbox 排版整齐：flex 等距换行 + 去 antd 相邻默认 margin */
+	.horosa-workspace-shell .horosa-ziwei-option-card {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 7px 14px;
+	}
+	.horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper + .ant-checkbox-wrapper { margin-left: 0; }
 	@media (max-width: 1360px) {
 		.horosa-workspace-shell .horosa-ziwei-luck-sihua { grid-template-columns: 1fr; }
 	}

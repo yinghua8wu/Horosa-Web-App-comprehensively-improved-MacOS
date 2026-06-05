@@ -13,6 +13,7 @@ import ZWPatternPanel from './ZWPatternPanel';
 import TipsBoard from '../comp/TipsBoard';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import * as ZWText from '../../constants/ZWText';
+import * as ZWConst from '../../constants/ZWConst';
 import DateTime from '../comp/DateTime';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
@@ -121,6 +122,8 @@ function buildZiWeiSnapshotText(params, result){
 	lines.push(`经纬度：${params.lon} ${params.lat}`);
 	lines.push(`性别：${params.gender}`);
 	lines.push(`时间算法：${params.timeAlg === 1 ? '直接时间' : '真太阳时'}`);
+	const schoolLabel = { beipai: '北派·飞星', zhongzhou: '中州派', custom: '自定义' }[ZWConst.ZWSchool.school] || '北派·飞星';
+	lines.push(`四化流派：${schoolLabel}`);
 	if(yearGan){
 		lines.push(`生年天干：${yearGan}`);
 	}
@@ -174,8 +177,13 @@ export async function buildZiweiSnapshotForParams(params){
 	if(!params){
 		return '';
 	}
+	const p = { ...params };
+	const school = ZWConst.ZWSchool.school;
+	if(school && school !== 'beipai'){
+		p.sihua = ZWConst.getActiveSiHuaGan();
+	}
 	const data = await request(`${Constants.ServerRoot}/ziwei/birth`, {
-		body: JSON.stringify(params),
+		body: JSON.stringify(p),
 		silent: true,
 	});
 	const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
@@ -334,6 +342,11 @@ class ZiWeiMain extends Component{
 			timeAlg: timeAlg === 1 ? 1 : 0,
 			after23NewDay: defaultAfter23NewDay(),
 			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
+		}
+		// P2-1：非默认流派时附四化表，使后端格局判定随流派；beipai(现状)不附＝缓存键不变＝零回归。
+		const school = ZWConst.ZWSchool.school;
+		if(school && school !== 'beipai'){
+			params.sihua = ZWConst.getActiveSiHuaGan();
 		}
 		return params;
 	}

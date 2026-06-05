@@ -418,6 +418,30 @@ else
   warn "[20] 未找到 fat jar 或无 unzip,跳过 jar 内容校验"
 fi
 
+# 20b. 紫微 全面增强 P0–P2(杂曜显示/流派四化表/格局详情/天伤天使) 完整性
+echo "[20b] 紫微 全面增强 P0–P2"
+ZW_HOUSE="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/ziwei/ZWHouse.js"
+ZW_CONST_JS="${REPO_ROOT}/Horosa-Web/astrostudyui/src/constants/ZWConst.js"
+ZW_CHART_JAVA="${ZW_MODEL_DIR}/ZiWeiChart.java"
+ZW_TEST="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/ziwei/__tests__/ziweiEnhance.test.js"
+zw2_ok=1
+grep -q "drawSihuaSmallStars" "${ZW_HOUSE}" 2>/dev/null || { bad "[20b] ZWHouse 缺 drawSihuaSmallStars(十二神角格)"; zw2_ok=0; }
+grep -q "starsOthersGood" "${ZW_HOUSE}" 2>/dev/null || { bad "[20b] ZWHouse 主四化盘未补显杂曜(starsOthersGood)"; zw2_ok=0; }
+{ grep -q "SiHuaTables" "${ZW_CONST_JS}" && grep -q "getActiveSiHuaGan" "${ZW_CONST_JS}"; } 2>/dev/null || { bad "[20b] ZWConst 缺多流派四化表(SiHuaTables/getActiveSiHuaGan)"; zw2_ok=0; }
+grep -q "setupStarsTianShangShi" "${ZW_CHART_JAVA}" 2>/dev/null || { bad "[20b] ZiWeiChart 缺天伤天使安星"; zw2_ok=0; }
+{ grep -q "inOpp" "${ZW_PATTERN_JAVA:-${ZW_MODEL_DIR}/ZiWeiPattern.java}" && grep -q "sandwichHua" "${ZW_MODEL_DIR}/ZiWeiPattern.java"; } 2>/dev/null || { bad "[20b] ZiWeiPattern 缺新 op inOpp/sandwichHua"; zw2_ok=0; }
+[ -f "${ZW_TEST}" ] || { bad "[20b] 缺自检 ziweiEnhance.test.js"; zw2_ok=0; }
+[ "$zw2_ok" -eq 1 ] && ok "[20b] 杂曜显示/流派四化表/天伤天使/新op/自检 源齐全"
+if grep -q "school: 'beipai'" "${ZW_CONST_JS}" 2>/dev/null; then ok "[20b] 四化流派默认 beipai(=现状零回归)"; else bad "[20b] 四化流派默认非 beipai —— 恐改动存量盘四化(回归风险)"; fi
+if [ -f "${ZW_FAT_JAR}" ] && command -v unzip >/dev/null 2>&1; then
+  zw2_cn="$(unzip -Z1 "${ZW_FAT_JAR}" 'BOOT-INF/lib/astrostudycn-*.jar' 2>/dev/null | head -1)"
+  if [ -n "${zw2_cn}" ]; then
+    zw2_dir="$(mktemp -d)"; ( cd "${zw2_dir}" && unzip -oq "${ZW_FAT_JAR}" "${zw2_cn}" 2>/dev/null )
+    if unzip -p "${zw2_dir}/${zw2_cn}" spacex/astrostudycn/model/ZiWeiPattern.class 2>/dev/null | strings | grep -q "inOpp"; then ok "[20b] fat jar ZiWeiPattern 含新 op(inOpp)"; else bad "[20b] fat jar 未含新 op —— 需 astrostudycn install + astrostudyboot clean package"; fi
+    if unzip -p "${zw2_dir}/${zw2_cn}" spacex/astrostudycn/model/ZiWeiChart.class 2>/dev/null | grep -aq "setupStarsTianShangShi"; then ok "[20b] fat jar ZiWeiChart 含天伤天使"; else bad "[20b] fat jar 未含天伤天使 —— 需重编"; fi
+  fi
+fi
+
 # 21. 六壬 起课法/换将/分昼夜(纯前端 castOverride 机制,不动 Java)
 echo "[21] 六壬 起课法/换将/分昼夜哨兵"
 LR_MAIN="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/lrzhan/LiuRengMain.js"

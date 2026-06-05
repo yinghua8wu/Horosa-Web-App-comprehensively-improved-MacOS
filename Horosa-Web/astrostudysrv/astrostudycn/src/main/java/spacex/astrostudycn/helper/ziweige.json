@@ -339,5 +339,62 @@
 				{"op": "huaTrineAll", "huas": ["禄"]}
 			]}
 		]
+	},
+	"清白格": {
+		"category": "文贵", "source_ref": "紫微斗数全书·诸星问答",
+		"duanyi": "廉贞守命入庙旺、三方不逢羊陀火铃，清白能守、名节昭彰，宜法政清要之职。",
+		"logic": "AND",
+		"conditions": [
+			{"op": "inMing", "star": "廉贞"},
+			{"op": "bright", "star": "廉贞", "levels": ["庙", "旺"]}
+		],
+		"breakers": [{"op": "breakBy", "stars": ["擎羊", "陀罗", "火星", "铃星"]}]
+	},
+	"泛水桃花": {
+		"category": "破格", "source_ref": "紫微斗数全书",
+		"duanyi": "贪狼居子或亥守命，更逢咸池天姚来会，泛水桃花，多情敏感、易因色生波。",
+		"logic": "AND",
+		"conditions": [
+			{"op": "inMing", "star": "贪狼"},
+			{"op": "mingZhi", "branches": ["子", "亥"]},
+			{"op": "inTrineAny", "stars": ["咸池", "天姚"], "atLeast": 1}
+		]
+	},
+	"风流彩杖": {
+		"category": "破格", "source_ref": "紫微斗数全书",
+		"duanyi": "贪狼守命于寅而与陀罗同度，风流彩杖，沉迷酒色、影响进取，宜节制自持。",
+		"logic": "AND",
+		"conditions": [
+			{"op": "inMing", "star": "贪狼"},
+			{"op": "mingZhi", "branches": ["寅"]},
+			{"op": "same", "stars": ["贪狼", "陀罗"]}
+		]
+	},
+	"羊陀夹忌": {
+		"category": "破格", "source_ref": "紫微斗数全书·骨髓赋",
+		"duanyi": "生年化忌坐命而擎羊陀罗左右来夹，进退维谷、内外交逼，宜忍让修德以解之。",
+		"logic": "AND",
+		"conditions": [
+			{"op": "huaMing", "hua": "忌"},
+			{"op": "sandwichMing", "stars": ["擎羊", "陀罗"]}
+		]
+	},
+	"火铃照命": {
+		"category": "破格", "source_ref": "紫微斗数全书",
+		"duanyi": "火星或铃星于迁移宫冲照命垣，性烈多变、外出招扰，宜静以制动、慎防意外。",
+		"logic": "AND",
+		"conditions": [
+			{"op": "inOpp", "stars": ["火星", "铃星"]}
+		]
+	},
+	"巨火擎羊": {
+		"category": "破格", "source_ref": "紫微斗数全书·骨髓赋",
+		"duanyi": "巨门、火星、擎羊三方会照命垣，是非凶险、防意外横逆，古云防终身之厄。",
+		"logic": "AND",
+		"conditions": [
+			{"op": "inTrine", "star": "巨门"},
+			{"op": "inTrine", "star": "火星"},
+			{"op": "inTrine", "star": "擎羊"}
+		]
 	}
 }

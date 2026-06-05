@@ -8,6 +8,23 @@
 
 ---
 
+## 紫微斗数 · 全面增强 P0–P2（杂曜显示 / 流派四化表 / 运限流曜 / 格局详情 / 新格局 / 天伤天使）
+
+- **性质：前端为主（P0/P1 纯前端）+ 后端少量（P1-D/E + P2 改 `astrostudycn`，已重编 `astrostudyboot.jar`）。**
+- **改了什么（前端，必重建包）**：
+  - `astrostudyui/src/components/ziwei/`：`ZWHouse.js`（主四化盘补显杂吉/杂凶 starsOthersGood/Bad；十二神 starsSmall 放左下角「纳音格」`drawSihuaSmallStars`）、`ZWLuckPanel.js`（流曜下沉全层 + 流年「流将前/流岁前」+ 小限阴阳顺逆开关）、`ZWPatternPanel.js`（格局命中详情展开 + `opToText`）、`ZiWeiInput.js`（显示开关 + 四化流派 Select + 流派设置 Collapse + 自定义 Modal）、`ZiWeiHelper.js`（`resetHuaMap`/`getFlowJiangSui`/显示开关读取/`getActiveSiHuaGan` 接入）、`ZiWeiMain.js`（快照「四化流派」行 + `genParams` 非默认流派附 `sihua`）、新增 `ZWSihuaCustomModal.js`。
+  - `constants/ZWConst.js`：`SiHuaTables`（beipai=现状默认 / zhongzhou=中州 / custom）+ `ZWSchool` + `getActiveSiHuaGan`/`refreshActiveSiHua`（保留 `SiHua.gan` 兼容垫片）。
+  - `layouts/app.less`：格局详情、自定义四化表编辑器、流派 Collapse、流年神煞 chips 样式（全走 `--horosa-*` 变量）。
+  - 新增单测 `components/ziwei/__tests__/ziweiEnhance.test.js`。
+- **改了什么（后端，随 jar 重编带上）**：`astrostudycn/.../model/ZiWeiPattern.java`（detect 输出 conditions/breakers/logic；新 op `inOpp`/`sandwichHua`；`huaHouse` 优先用 `chart.mySihua`＝流派，回退全局）、`model/ZiWeiChart.java`（`setupStarsTianShangShi`：天伤守交友宫=命前7宫职、天使守疾厄宫=命前5宫职）、`helper/ziweige.json`（34→40 格局：清白格/泛水桃花/风流彩杖/羊陀夹忌/火铃照命/巨火擎羊）、`helper/zwrules.json`（RuleStars 35→108：补杂曜/神煞/十二神判语）。
+- **Windows 必须做什么**：
+  1. 同步上述前端 `.js`/`.less` → **重建前端包**（`npm run build && npm run build:file`）——P0/P1 大部分靠前端，单同步 jar 不生效。
+  2. 同步上述 4 个后端文件 → **重编 fat jar**：`mvn -o -f astrostudycn/pom.xml install -DskipTests && mvn -o -f astrostudyboot/pom.xml clean package -DskipTests`；`javap`/`unzip` 验 `ZiWeiPattern.class` 含 `inOpp/sandwichHua`、`ZiWeiChart.class` 含 `setupStarsTianShangShi`、`ziweige.json`=40 格局、`zwrules.json` RuleStars=108；重启后端。
+- **零回归保证**：四化流派默认 `beipai`＝现状写死表逐字一致；`genParams` 仅在非 beipai 时附 `sihua`（默认缓存键不变＝同一份盘）；杂曜显示默认开/十二神默认关；存档不落流派字段。
+- **为什么/坑**：见 `实现说明 §紫微 全面增强 P0–P2` 与 `docs/紫微斗数-全面增强计划-P0-P3.md`。
+
+---
+
 ## 奇门遁甲 · 法奇门叠加层（荀爽：化解 / 用神 / 取象 — **纯前端，无需重编 jar**）
 - **改了什么**：新增 `astrostudyui/src/components/dunjia/DunJiaFaCalc.js`(分析引擎) + `DunJiaFaDoc.js`(判语库)；`DunJiaMain.js` 加「化解」「用神」两右栏 Tab + 神煞判语 hover + 地支/宫名取象 hover；`DunJiaCalc.js buildDunJiaSnapshotText` 追加法奇门 8 段；`QimenXiangDoc.js` 加地支/八卦宫取象；`aiExport.js` qimen 段表 +8。
 - **Windows 必须做什么**：**纯前端，无 Java/Python 改动、不重编 jar**。同步上述 `.js` 后 `npm run build && npm run build:file` 即可；起盘服务(kinqimen)与 jar 都不变。

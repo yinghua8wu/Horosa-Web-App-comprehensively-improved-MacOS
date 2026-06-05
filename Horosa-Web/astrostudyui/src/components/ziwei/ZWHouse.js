@@ -217,7 +217,14 @@ class ZWHouse extends ZWCommHouse {
 	}
 
 	drawSihuaStars(){
-		let starsCount = this.houseObj.starsMain.length + this.houseObj.starsAssist.length + this.houseObj.starsEvil.length;
+		// P0-1：主四化盘主星行补显后端已落盘但原先未渲染的 杂吉/杂凶（仅三合盘曾显示）。
+		// 十二神（长生/博士/将前/岁前）不进主星行，单独放本宫左下角"纳音格"（见 drawSihuaSmallStars）。
+		// 受 P0-4 开关控制：杂曜默认开、十二神默认关。组别颜色复用既有 ZWColor.*，零新样式。
+		const showOthers = ZiWeiHelper.zwShowOthers();
+		const othersGood = showOthers ? (this.houseObj.starsOthersGood || []) : [];
+		const othersBad = showOthers ? (this.houseObj.starsOthersBad || []) : [];
+		let starsCount = this.houseObj.starsMain.length + this.houseObj.starsAssist.length + this.houseObj.starsEvil.length
+			+ othersGood.length + othersBad.length;
 		if(!starsCount){
 			return;
 		}
@@ -248,11 +255,56 @@ class ZWHouse extends ZWCommHouse {
 			let sx = x + i*w;
 			this.drawStar(star, sx, y, w, h, ZWCont.ZWColor.StarEvilStroke, 560);
 		}
+		x = x + this.houseObj.starsEvil.length * w;
+
+		for(let i=0; i<othersGood.length; i++){
+			let star = othersGood[i];
+			let sx = x + i*w;
+			this.drawStar(star, sx, y, w, h, ZWCont.ZWColor.StarOthersGoodStroke, 480);
+		}
+		x = x + othersGood.length * w;
+
+		for(let i=0; i<othersBad.length; i++){
+			let star = othersBad[i];
+			let sx = x + i*w;
+			this.drawStar(star, sx, y, w, h, ZWCont.ZWColor.StarOthersBadStroke, 480);
+		}
+	}
+
+	// P0-1：十二神（长生/博士/将前/岁前，starsSmall）放本宫左下角"纳音格"内，小字单列，不挤主星行。
+	// 角格坐标 = (this.x, this.y+height*3/4, width/4, height/4)，与 drawSihuaTitle 的纳音格一致。
+	drawSihuaSmallStars(cx, cy, cw, ch){
+		if(!ZiWeiHelper.zwShowSmall()){
+			return;
+		}
+		const smalls = this.houseObj.starsSmall || [];
+		if(!smalls.length){
+			return;
+		}
+		// 照抄三合盘 ZWHouseSangHe.drawTitle 的十二神排法：每神一行(ch/3)、横排二字、
+		// GraphHelper.drawTextH、StarSmallStroke、weight 400（与三合盘逐字同款，外观一致）。
+		let data = [];
+		for(let i=0; i<smalls.length; i++){
+			let star = smalls[i];
+			if(!star || !star.name){
+				continue;
+			}
+			let sy = cy + i*ch/3;
+			data[0] = star.name.substr(0, 1);
+			data[1] = star.name.substr(1, 1);
+			let g = GraphHelper.drawTextH(this.svg.append('g'), data, cx, sy, cw, ch/3, 1.5, ZWCont.ZWColor.StarSmallStroke, 400);
+			let tip = this.ZWRules && this.ZWRules.RuleStars ? this.ZWRules.RuleStars[star.name] : null;
+			if(g && tip){
+				this.genTooltip(g, { title: star.name, tips: tip }, star.name);
+			}
+		}
 	}
 
 	drawSihua(){
 		this.drawSihuaTitle();
 		this.drawSihuaStars();
+		// 十二神放左下角"纳音格"（与 drawSihuaTitle 首格同坐标），不挤主星行。
+		this.drawSihuaSmallStars(this.x, this.y + this.height * 3 / 4, this.width / 4, this.height / 4);
 	}
 
 	shouldShowStarLight(){

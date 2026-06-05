@@ -209,6 +209,7 @@ public class ZiWeiChart {
 		setupStarsBosi();
 		setupStarsJiang();
 		setupStarsTaiSui();
+		setupStarsTianShangShi();
 		
 		setupSmallDirection();
 	}
@@ -523,6 +524,20 @@ public class ZiWeiChart {
 		}
 	}
 	
+	// P2-4 天伤/天使：固定夹迁移 —— 天伤守交友宫(命前7宫职)、天使守疾厄宫(命前5宫职)，归杂凶。
+	private void setupStarsTianShangShi() {
+		int illIdx = (this.lifeHouseIndex - 5 + 12) % 12;     // 疾厄宫 → 天使
+		int friendIdx = (this.lifeHouseIndex - 7 + 12) % 12;  // 交友宫 → 天伤
+		String fz = this.houses[friendIdx].ganzi.substring(1);
+		ZiWeiStar tianShang = new ZiWeiStar("天伤", this.yearGan, fz, this.mySihua, this.mySihuaGan);
+		this.houses[friendIdx].addStar(tianShang, ZiWeiStarType.StarOtherBad.getCode());
+		this.starsHouseIndex.put("天伤", friendIdx);
+		String iz = this.houses[illIdx].ganzi.substring(1);
+		ZiWeiStar tianShi = new ZiWeiStar("天使", this.yearGan, iz, this.mySihua, this.mySihuaGan);
+		this.houses[illIdx].addStar(tianShi, ZiWeiStarType.StarOtherBad.getCode());
+		this.starsHouseIndex.put("天使", illIdx);
+	}
+
 	private void setupStarsJiang() {
 		Map<String, String> map = ZiWeiHelper.StarsJiang.get(this.yearZi);
 		for(Map.Entry<String, String> entry : map.entrySet()) {

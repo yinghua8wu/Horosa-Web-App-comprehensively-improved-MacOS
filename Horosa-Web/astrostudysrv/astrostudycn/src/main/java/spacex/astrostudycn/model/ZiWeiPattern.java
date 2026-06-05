@@ -64,6 +64,10 @@ public class ZiWeiPattern {
 			out.put("duanyi", rule.get("duanyi"));
 			out.put("source_ref", rule.get("source_ref"));
 			out.put("broken", broken);
+			// P2-2：把规则定义原样回传，供前端格局面板「命中详情」可读化展开（不改 eval，零风险）。
+			out.put("logic", logic);
+			out.put("conditions", rule.get("conditions"));
+			out.put("breakers", rule.get("breakers"));
 			res.add(out);
 		}
 		return res;
@@ -206,6 +210,22 @@ public class ZiWeiPattern {
 			}
 			return false;
 		}
+		// P2-3 新增 op：inOpp（对宫/迁移含某星）、sandwichHua（生年某化夹命）。
+		if ("inOpp".equals(op)) {
+			int opp = (ctx.life + 6) % 12;
+			for (String s : list(cond, "stars")) {
+				if (ctx.idx(s) == opp) {
+					return true;
+				}
+			}
+			return false;
+		}
+		if ("sandwichHua".equals(op)) {
+			int l = (ctx.life + 11) % 12;
+			int r = (ctx.life + 1) % 12;
+			int hi = ctx.huaHouse(str(cond, "hua"));
+			return hi == l || hi == r;
+		}
 		return false;
 	}
 
@@ -264,8 +284,18 @@ public class ZiWeiPattern {
 			return (ia == left && ib == right) || (ia == right && ib == left);
 		}
 
-		/** 生年化某化之星所落宫index（-1=该化星未上盘）。 */
+		/** 生年化某化之星所落宫index（优先本盘自定义四化＝流派，回退全局表；-1=该化星未上盘）。 */
 		int huaHouse(String hua) {
+			if (c.mySihua != null && yearGan != null && hua != null) {
+				Map<String, String> m = c.mySihua.get(yearGan);
+				if (m != null) {
+					for (Map.Entry<String, String> en : m.entrySet()) {
+						if (hua.equals(en.getValue())) {
+							return idx(en.getKey());
+						}
+					}
+				}
+			}
 			String[] st = ZiWeiHelper.GanSihuaStars.get(yearGan);
 			Integer hi = HUA_IDX.get(hua);
 			if (st == null || hi == null || hi >= st.length) {
