@@ -148,6 +148,13 @@ function canonicalEntryKey(type, rawKey){
 	if(type === 'stem'){
 		return key.substring(0, 1);
 	}
+	if(type === 'branch'){
+		return key.substring(0, 1);
+	}
+	if(type === 'palace'){
+		const c = key.substring(0, 1);
+		return c === '干' ? '乾' : c;
+	}
 	return key;
 }
 
@@ -156,6 +163,8 @@ const SECTION_KEY_MAP = {
 	八门: 'door',
 	九星: 'star',
 	八神: 'god',
+	地支: 'branch',
+	八卦宫: 'palace',
 };
 
 function parseQimenDoc(rawText){
@@ -165,6 +174,8 @@ function parseQimenDoc(rawText){
 		door: {},
 		star: {},
 		god: {},
+		branch: {},
+		palace: {},
 	};
 	if(!rawText){
 		return doc;
@@ -241,7 +252,53 @@ function parseQimenDoc(rawText){
 	return doc;
 }
 
-const QIMEN_DOC = parseQimenDoc(RAW_DOC);
+// 地支 / 八卦宫 取象（盘面格无地支字段，地支 hover 用于表头四柱；八卦宫 hover 用于盘面宫名）。
+const EXTRA_RAW = `
+## 地支
+### 子
+鼠。水。正北、坎宫。冬、夜半。
+### 丑
+牛。土。东北、艮宫。腊月。
+### 寅
+虎。木。东北、艮宫。正月、生发。
+### 卯
+兔。木。正东、震宫。仲春。
+### 辰
+龙。土。东南、巽宫。水库、季春。
+### 巳
+蛇。火。东南、巽宫。初夏。
+### 午
+马。火。正南、离宫。仲夏、日中。
+### 未
+羊。土。西南、坤宫。木库、季夏。
+### 申
+猴。金。西南、坤宫。初秋。
+### 酉
+鸡。金。正西、兑宫。仲秋。
+### 戌
+狗。土。西北、乾宫。火库、季秋。
+### 亥
+猪。水。西北、乾宫。初冬。
+## 八卦宫
+### 坎
+正北。水。洛书一。子。耳、肾、血、中男、险陷。
+### 坤
+西南。土。洛书二。未申。腹、脾胃、母、众、柔顺。
+### 震
+正东。木。洛书三。卯。足、肝胆、长男、动、雷。
+### 巽
+东南。木。洛书四。辰巳。股、风、长女、绳直、进退。
+### 乾
+西北。金。洛书六。戌亥。首、君、父、金玉、刚健。
+### 兑
+正西。金。洛书七。酉。口、肺、少女、毁折、悦。
+### 艮
+东北。土。洛书八。丑寅。手、止、少男、山、阻。
+### 离
+正南。火。洛书九。午。目、心、中女、文明、丽。
+`;
+
+const QIMEN_DOC = parseQimenDoc(RAW_DOC + EXTRA_RAW);
 
 function resolveEntry(type, rawText){
 	if(!type || !rawText){

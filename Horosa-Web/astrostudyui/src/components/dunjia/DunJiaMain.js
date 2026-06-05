@@ -48,6 +48,24 @@ import {
 	buildQimenXiangTipObj,
 	formatQimenDocLineToHtml,
 } from './QimenXiangDoc';
+import {
+	computeDangers,
+	buildJieHua,
+	computeProtect,
+	computeYongShen,
+	computeWealth,
+	computeCareer,
+	computeRomance,
+	computeGuGua,
+} from './DunJiaFaCalc';
+import {
+	SAN_FA_TEXT,
+	BU_ZHEN_TIPS,
+	DANGER_BRIEF,
+	GAN_XIANG,
+	ZHI_ZODIAC,
+	SHENSHA_DOC,
+} from './DunJiaFaDoc';
 import { BaZiColor, ZhiColor } from '../../msg/bazimsg';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 
@@ -214,6 +232,35 @@ function savePatternInterpretationPreference(value){
 	try{
 		if(typeof window !== 'undefined' && window.localStorage){
 			window.localStorage.setItem(QIMEN_PATTERN_INTERPRETATION_STORAGE_KEY, value ? '1' : '0');
+		}
+	}catch(e){
+	}
+}
+
+// 法奇门「用神」Tab 的显示层偏好（求测事项 + 当面/网测），存 localStorage、不进 fields、不重排盘。
+const QIMEN_FA_ASK_TOPIC_KEY = 'qimenFaAskTopic';
+const FA_ASK_TOPICS = [
+	{ key: 'shexin', label: '识破人心' },
+	{ key: 'wealth', label: '财富' },
+	{ key: 'career', label: '事业' },
+	{ key: 'romance', label: '婚恋' },
+];
+function loadFaAskTopic(){
+	try{
+		if(typeof window !== 'undefined' && window.localStorage){
+			const v = window.localStorage.getItem(QIMEN_FA_ASK_TOPIC_KEY);
+			if(v && FA_ASK_TOPICS.some((t)=>t.key === v)){
+				return v;
+			}
+		}
+	}catch(e){
+	}
+	return 'shexin';
+}
+function saveFaAskTopic(value){
+	try{
+		if(typeof window !== 'undefined' && window.localStorage){
+			window.localStorage.setItem(QIMEN_FA_ASK_TOPIC_KEY, value);
 		}
 	}catch(e){
 	}
@@ -1573,7 +1620,7 @@ class DunJiaMain extends Component {
 							...palaceStyle,
 						}}
 					>
-						{cell.palaceName}
+						{this.renderQimenHoverInline('palace', cell.palaceName, <span>{cell.palaceName}</span>, `pn_${cell.palaceNum}`)}
 					</div>
 				)}
 			</div>
@@ -1691,7 +1738,7 @@ class DunJiaMain extends Component {
 											}}
 										>
 											{this.renderQimenHoverInline('stem', p.gan, <span style={{ color: p.ganColor }}>{p.gan || ' '}</span>, `qimen_hd_gan_${p.key}`)}
-											<span style={{ color: p.zhiColor, marginTop: 4 }}>{p.zhi || ' '}</span>
+											{this.renderQimenHoverInline('branch', p.zhi, <span style={{ color: p.zhiColor, marginTop: 4 }}>{p.zhi || ' '}</span>, `qimen_hd_zhi_${p.key}`)}
 										</div>
 										<span
 											style={{
@@ -1877,10 +1924,230 @@ class DunJiaMain extends Component {
 		);
 	}
 
+	renderJieHuaPanel(pan){
+		if(!pan){
+			return <Card size='small'><div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>请先起盘后查看化解。</div></Card>;
+		}
+		const DANGER_DOT = { 击刑: '#cf1322', 入墓: '#8b5e3c', 庚: '#d4380d', 白虎: '#a8071a', 门迫: '#fa8c16', 空亡: '#2f54eb' };
+		const soft = 'var(--horosa-text-soft, #595959)';
+		const muted = 'var(--horosa-muted, #8c8c8c)';
+		const border = 'var(--horosa-border, #f0f0f0)';
+		const dangers = computeDangers(pan);
+		const jieHua = buildJieHua(pan);
+		const protect = computeProtect(pan, { topic: this.state.faAskTopic || 'shexin' });
+		const badge = (ch, color, size)=>(
+			<span style={{ flex: '0 0 auto', width: size || 22, height: size || 22, borderRadius: '50%', background: `${color}1a`, color, fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{ch}</span>
+		);
+		return (
+			<div>
+				<Card size='small' style={{ marginBottom: 10, borderRadius: 8 }}>
+					<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+						<span style={{ fontWeight: 600 }}>六害总览</span>
+						<Tag color={dangers.length ? 'volcano' : 'green'} style={{ marginRight: 0 }}>{dangers.length ? `${dangers.length} 处` : '无六害'}</Tag>
+					</div>
+					<div style={{ color: muted, fontSize: 12, marginBottom: 8 }}>危害递减：刑＞墓＞庚＞虎＞迫＞空；天干＞一切，先解击刑天干。</div>
+					{dangers.length ? dangers.map((d, i)=>(
+						<div key={`hz_${i}`} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '6px 0', borderTop: i ? `1px solid ${border}` : 'none' }}>
+							{badge(d.oneChar, DANGER_DOT[d.type])}
+							<div style={{ flex: 1, minWidth: 0 }}>
+								<div style={{ lineHeight: '20px' }}><span style={{ color: DANGER_DOT[d.type], fontWeight: 600 }}>{d.type}</span><span style={{ color: soft }}> · {d.palaceName}{d.palaceNum}宫 · {d.direction} · {d.symbol}</span></div>
+								<div style={{ color: muted, fontSize: 12, lineHeight: '18px' }}>{DANGER_BRIEF[d.type] || d.note}</div>
+							</div>
+						</div>
+					)) : <div style={{ color: soft }}>本局四纲八宫未现六害，吉。</div>}
+				</Card>
+				{jieHua.map((c, i)=>{
+					const worst = (c.dangers[0] && c.dangers[0].type) || '';
+					const col = DANGER_DOT[worst] || '#d9d9d9';
+					return (
+						<Card size='small' style={{ marginBottom: 8, borderRadius: 8, borderLeft: `3px solid ${col}` }} key={`jh_${i}`}>
+							<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+								<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
+									{c.dangers.map((d, k)=>(<span key={`db_${k}`} style={{ display: 'inline-flex' }}>{badge(d.oneChar, DANGER_DOT[d.type])}</span>))}
+									<span style={{ fontWeight: 600, color: col }}>{c.palaceName}{c.palaceNum}宫<span style={{ color: muted, fontWeight: 400, fontSize: 12 }}> · {c.direction} · {c.deg}</span></span>
+								</span>
+								<Tag style={{ marginRight: 0, flex: '0 0 auto' }}>天盘干「{c.tianGan}」</Tag>
+							</div>
+							<div style={{ color: soft, lineHeight: '22px' }}>
+								{c.mie.length ? (
+									<div style={{ marginBottom: 4 }}><span style={{ color: muted }}>① 灭象（先移走）</span>
+										{c.mie.map((m, k)=>(<div key={`mie_${k}`} style={{ paddingLeft: 20 }}>· {m}</div>))}
+									</div>
+								) : null}
+								{c.placements.length ? (
+									<div style={{ marginBottom: 4 }}><span style={{ color: muted }}>② 布阵（再放上）</span>
+										{c.placements.map((p, k)=>(<div key={`pl_${k}`} style={{ paddingLeft: 20 }}><span style={{ color: '#2e7d32', fontWeight: 600 }}>{p.where}</span>　{p.text}</div>))}
+									</div>
+								) : null}
+								<div><span style={{ color: muted }}>③ 时机　</span>本宫 {c.benZhi}日 / {c.ben}　｜　对宫 {c.duiZhi}日 / {c.dui}</div>
+								{c.notes.map((n, k)=>(<div key={`nt_${k}`} style={{ color: muted, fontSize: 12, marginTop: 2 }}>※ {n}</div>))}
+							</div>
+						</Card>
+					);
+				})}
+				<Card size='small' style={{ marginBottom: 8, borderRadius: 8 }}>
+					<div style={{ fontWeight: 600, marginBottom: 6 }}>解局三法（逆天程度递增）</div>
+					<div style={{ color: soft, lineHeight: '22px' }}>
+						{SAN_FA_TEXT.map((f, i)=>(<div key={`sf_${i}`}><span style={{ fontWeight: 600 }}>{f.name}</span><span style={{ color: muted }}>（{f.scope}）</span>　{f.desc}</div>))}
+					</div>
+				</Card>
+				<Card size='small' style={{ marginBottom: 8, borderRadius: 8 }}>
+					<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+						<span style={{ fontWeight: 600 }}>八门化气大阵 · 必护天干</span>
+						<Tag color='geekblue' style={{ marginRight: 0 }}>{protect.filter((r)=>r.palaceNum && !r.ok).length} 处需护</Tag>
+					</div>
+					<div style={{ color: muted, fontSize: 12, marginBottom: 6 }}>先离刑墓庚（主），再离虎迫空（次）；天干往高处放、地支往低处放。下列天干勿落六害宫、勿受克。</div>
+					{protect.map((r, i)=>(
+						<div key={`pr_${i}`} style={{ lineHeight: '22px', padding: '3px 0', borderTop: i ? `1px solid ${border}` : 'none' }}>
+							<span style={{ fontWeight: 600 }}>{r.label}{r.gan ? `「${r.gan}」` : ''}</span>
+							<span style={{ color: soft }}>：{r.palaceNum ? `${r.palaceName}${r.palaceNum}宫·${r.direction}` : '局中未现'}</span>
+							{r.hazards.length ? <Tag color='red' style={{ marginLeft: 6 }}>{r.hazards.join('/')}</Tag> : (r.palaceNum ? <Tag color='green' style={{ marginLeft: 6 }}>平稳</Tag> : null)}
+							<div style={{ color: muted, fontSize: 12, paddingLeft: 2 }}>{r.advice}</div>
+						</div>
+					))}
+					<div style={{ color: muted, fontSize: 12, marginTop: 8, paddingTop: 6, borderTop: `1px solid ${border}` }}>
+						<div style={{ marginBottom: 2 }}>※「生年干」指<strong>局中所有相关人</strong>（本人 / 家人 / 牵涉者）的出生年天干，都不能落刑墓——此处仅按本盘年干示例，其余请按各人属相或八字年干自行加护。</div>
+						{BU_ZHEN_TIPS.map((t, i)=>(<div key={`bz_${i}`}>· {t}</div>))}
+					</div>
+				</Card>
+				<Card size='small' style={{ marginBottom: 8, borderRadius: 8 }}>
+					<div style={{ fontWeight: 600, marginBottom: 6 }}>干支形象表（造象参考）</div>
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 12, rowGap: 2, color: soft, lineHeight: '22px', fontSize: 13 }}>
+						{Object.keys(GAN_XIANG).map((g)=>(<span key={`gx_${g}`}><span style={{ fontWeight: 600 }}>{g}</span>　{GAN_XIANG[g].color}·{GAN_XIANG[g].material}（{GAN_XIANG[g].branch}{ZHI_ZODIAC[GAN_XIANG[g].branch]}）</span>))}
+					</div>
+				</Card>
+				<Card size='small' style={{ borderRadius: 8 }}>
+					<div style={{ fontWeight: 600, marginBottom: 6 }}>换局 / 移星</div>
+					<div style={{ color: soft, lineHeight: '22px' }}>局太差、改不动时可整盘换局＝左栏「移星」顺转宫位（移即催）。转两三个重点宫为宜，勿全转。</div>
+				</Card>
+			</div>
+		);
+	}
+
+	renderYongShenPanel(pan){
+		const soft = 'var(--horosa-text-soft, #595959)';
+		const muted = 'var(--horosa-muted, #8c8c8c)';
+		const topic = this.state.faAskTopic || loadFaAskTopic();
+		const setTopic = (k)=>{ this.setState({ faAskTopic: k }); saveFaAskTopic(k); };
+		const hazardTag = (it)=>{
+			if(!it || !it.palaceNum){ return <Tag color='default' style={{ marginRight: 0 }}>未现</Tag>; }
+			return it.hazards && it.hazards.length ? <Tag color='red' style={{ marginRight: 0 }}>{it.hazards.join('/')}</Tag> : <Tag color='green' style={{ marginRight: 0 }}>平稳</Tag>;
+		};
+		const locLine = (label, it, extra)=>(
+			<div key={`loc_${label}`} style={{ lineHeight: '24px' }}>
+				<span style={{ fontWeight: 600 }}>{label}</span>
+				{it && it.symbol ? <span style={{ color: soft }}>（{it.symbol}）</span> : null}
+				<span style={{ color: soft }}>：{it && it.palaceNum ? `${it.palaceName}${it.palaceNum}宫·${it.direction}` : '局中未现'}</span>
+				{' '}{hazardTag(it)}
+				{extra ? <span style={{ color: muted }}> {extra}</span> : null}
+			</div>
+		);
+		const topicBtns = (
+			<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+				{FA_ASK_TOPICS.map((t)=>(
+					<Button key={`ft_${t.key}`} size='small' shape='round' type={topic === t.key ? 'primary' : 'default'} onClick={()=>setTopic(t.key)}>{t.label}</Button>
+				))}
+			</div>
+		);
+		if(!pan){
+			return <div>{topicBtns}<Card size='small'><div style={{ color: muted }}>请先起盘后查看用神分论。</div></Card></div>;
+		}
+		const ys = computeYongShen(pan, { faceToFace: true });
+		const guGua = computeGuGua(pan);
+		const cellOf = (p)=>(pan.cells || []).find((c)=>c.palaceNum === p) || {};
+		const yongShenCard = (
+			<Card size='small' style={{ marginBottom: 8, borderRadius: 8 }}>
+				<div style={{ fontWeight: 600, marginBottom: 6 }}>用神定位</div>
+				<div style={{ color: soft, lineHeight: '22px', marginBottom: 6 }}>{ys.yongShenText}</div>
+				{locLine('日干·内心/实质', ys.dayGan)}
+				{locLine('时干·外在/表象', ys.timeGan)}
+				{ys.ganHe ? locLine('干合·配偶/理想型', ys.ganHe) : null}
+				{locLine('值符·话语权', ys.zhiFu)}
+				{locLine('值使·用武之地', ys.zhiShi)}
+				<div style={{ color: muted, marginTop: 4 }}>六亲：{ys.liuQin.map((r)=>`${r.rel.split('·')[1]}(${r.symbol}${r.palaceNum ? r.palaceName + r.palaceNum + '宫' : '未现'})`).join('　')}</div>
+			</Card>
+		);
+		let topicCard = null;
+		if(topic === 'shexin'){
+			const renderCellSymbols = (p)=>{
+				const c = cellOf(p);
+				if(!c.palaceNum){ return <span style={{ color: muted }}>未现</span>; }
+				return (
+					<span>
+						{this.renderQimenHoverInline('stem', c.tianGan, <span style={{ color: 'var(--horosa-text, #262626)', fontWeight: 600 }}>{c.tianGan}</span>, `sx_t_${p}`)}{' '}
+						{this.renderQimenHoverInline('god', c.god, <span>{c.god}</span>, `sx_g_${p}`)}{' '}
+						{this.renderQimenHoverInline('door', c.door, <span>{c.door}门</span>, `sx_d_${p}`)}{' '}
+						{this.renderQimenHoverInline('star', c.tianXing, <span>{c.tianXing}</span>, `sx_s_${p}`)}{' '}
+						{this.renderQimenHoverInline('stem', c.diGan, <span style={{ color: muted }}>{c.diGan}(地)</span>, `sx_dg_${p}`)}
+					</span>
+				);
+			};
+			topicCard = (
+				<Card size='small' style={{ borderRadius: 8 }}>
+					<div style={{ fontWeight: 600, marginBottom: 6 }}>识破人心（日干内在 / 时干外在）</div>
+					<div style={{ color: soft, lineHeight: '24px' }}>
+						<div>内在·日干宫（{ys.dayGan.palaceName}{ys.dayGan.palaceNum}）：{renderCellSymbols(ys.dayGan.palaceNum)}</div>
+						<div style={{ marginTop: 4 }}>外在·时干宫（{ys.timeGan.palaceName}{ys.timeGan.palaceNum}）：{renderCellSymbols(ys.timeGan.palaceNum)}</div>
+						<div style={{ color: muted, marginTop: 6 }}>悬浮各符号看取象，叠加成性格画像。</div>
+					</div>
+				</Card>
+			);
+		}else if(topic === 'wealth'){
+			const w = computeWealth(pan);
+			topicCard = (
+				<Card size='small' style={{ borderRadius: 8 }}>
+					<div style={{ fontWeight: 600, marginBottom: 6 }}>财富七要</div>
+					<div style={{ color: soft }}>
+						{w.items.map((it)=>locLine(it.name, it, it.note))}
+						<div style={{ lineHeight: '24px' }}><span style={{ fontWeight: 600 }}>月令</span>：{w.month.zhi}（{w.month.wuxing}）{w.month.relation ? <Tag color='gold' style={{ marginLeft: 4 }}>{w.month.relation}</Tag> : null}</div>
+						<div style={{ lineHeight: '24px' }}><span style={{ fontWeight: 600 }}>干财</span>：{w.ganCai.length ? w.ganCai.map((c)=>`${c.src}${c.symbol}(${c.palaceNum ? c.palaceName + c.palaceNum + '宫' : '未现'}${c.hazards && c.hazards.length ? '·' + c.hazards.join('/') : ''})`).join('　') : '—'}</div>
+						<div style={{ color: muted, marginTop: 4, fontSize: 12 }}>{w.industryHint}</div>
+					</div>
+				</Card>
+			);
+		}else if(topic === 'career'){
+			const c = computeCareer(pan);
+			topicCard = (
+				<Card size='small' style={{ borderRadius: 8 }}>
+					<div style={{ fontWeight: 600, marginBottom: 6 }}>事业七要</div>
+					<div style={{ color: soft }}>
+						{c.items.map((it)=>locLine(it.name, it, it.note))}
+						{c.fuShi.map((r)=>locLine(r.rel, r))}
+						<div style={{ color: muted, marginTop: 4 }}>诸干：{c.zhuGan.map((r)=>`${r.rel.split('·')[1]}(${r.symbol}${r.palaceNum ? r.palaceName + r.palaceNum + '宫' : '未现'})`).join('　')}</div>
+						<div style={{ color: muted, marginTop: 4, fontSize: 12 }}>{c.industryHint}</div>
+					</div>
+				</Card>
+			);
+		}else if(topic === 'romance'){
+			const r = computeRomance(pan);
+			topicCard = (
+				<Card size='small' style={{ borderRadius: 8 }}>
+					<div style={{ fontWeight: 600, marginBottom: 6 }}>恋爱姻缘</div>
+					<div style={{ color: soft }}>
+						{r.zhengYuan.map((z)=>locLine(z.name, z))}
+						<div style={{ lineHeight: '24px' }}><span style={{ fontWeight: 600 }}>三奇·桃花</span>：{r.taoHua.sanQi.map((s)=>`${s.gan}(${s.palaceNum ? s.palaceName + s.palaceNum + '宫' : '未现'})`).join('　')}</div>
+						<div style={{ lineHeight: '24px' }}><span style={{ fontWeight: 600 }}>沐浴位</span>：{r.taoHua.muYu.zhi}（{r.taoHua.muYu.palaceNum ? r.taoHua.muYu.palaceName + r.taoHua.muYu.palaceNum + '宫·' + r.taoHua.muYu.direction : '—'}）</div>
+						<div style={{ marginTop: 6, color: muted, fontSize: 12 }}>{r.zhanTaoHua}</div>
+						<div style={{ marginTop: 6 }}><span style={{ fontWeight: 600 }}>情感不顺</span>：{r.trouble.length ? r.trouble.map((t, i)=>(<div key={`tr_${i}`} style={{ color: muted }}>· {t}</div>)) : <span style={{ color: muted }}>无明显凶象</span>}</div>
+					</div>
+				</Card>
+			);
+		}
+		const guGuaCard = guGua.length ? (
+			<Card size='small' style={{ marginTop: 8, borderRadius: 8 }}>
+				<div style={{ fontWeight: 600, marginBottom: 6 }}>解孤辰寡宿</div>
+				<div style={{ color: soft, lineHeight: '24px' }}>
+					{guGua.map((g, i)=>(<div key={`gg_${i}`}>{g.name}（{g.zhi}）：{g.jie}</div>))}
+				</div>
+			</Card>
+		) : null;
+		return <div>{topicBtns}{yongShenCard}{topicCard}{guGuaCard}</div>;
+	}
+
 	renderRight(){
 		const pan = this.state.pan;
 		const opt = this.state.options;
-		const validPanelTabs = ['overview', 'shensha', 'bagong'];
+		const validPanelTabs = ['overview', 'shensha', 'bagong', 'jiehua', 'yongshen'];
 		const panelTab = validPanelTabs.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';
 		const bagongPalace = BAGONG_PALACE_NAME[this.state.bagongPalace] ? this.state.bagongPalace : BAGONG_PALACE_ORDER[0];
 		const bagongData = buildQimenBaGongPanelData(pan, bagongPalace);
@@ -2047,7 +2314,17 @@ class DunJiaMain extends Component {
 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
 							<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', columnGap: 14, rowGap: 6, lineHeight: '24px' }}>
 								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
-									? pan.shenSha.allItems.map((item)=>(<div key={`ss_item_${item.name}`}><span style={{ color: 'var(--horosa-text, #262626)' }}>{item.name}-</span><span style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>{item.value}</span></div>))
+									? pan.shenSha.allItems.map((item)=>{
+										const doc = SHENSHA_DOC[item.name];
+										const luckColor = doc && doc.luck === '吉' ? '#2e7d32' : (doc && doc.luck === '凶' ? '#b71c1c' : 'var(--horosa-text, #262626)');
+										const node = (<div key={`ss_item_${item.name}`}><span style={{ color: luckColor, cursor: doc ? 'help' : 'default' }}>{item.name}-</span><span style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>{item.value}</span></div>);
+										if(!doc){ return node; }
+										return (
+											<Popover key={`ss_pop_${item.name}`} trigger="hover" placement="bottomLeft" content={<div style={{ maxWidth: 240 }}><div style={{ fontWeight: 600 }}>{item.name}（{doc.luck}）</div><div style={{ color: 'var(--horosa-text-soft, #595959)' }}>{doc.brief}</div></div>}>
+												{node}
+											</Popover>
+										);
+									})
 									: <div>暂无神煞</div>}
 							</div>
 						</Card>
@@ -2141,13 +2418,23 @@ class DunJiaMain extends Component {
 							)}
 						</Card>
 					</TabPane>
+					<TabPane tab="化解" key="jiehua">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
+							{this.renderJieHuaPanel(pan)}
+						</Card>
+					</TabPane>
+					<TabPane tab="用神" key="yongshen">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
+							{this.renderYongShenPanel(pan)}
+						</Card>
+					</TabPane>
 				</Tabs>
 			</div>
 		);
 	}
 
 	renderQuickDock(){
-		const validPanelTabs = ['overview', 'shensha', 'bagong'];
+		const validPanelTabs = ['overview', 'shensha', 'bagong', 'jiehua', 'yongshen'];
 		const panelTab = validPanelTabs.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';
 		const showPatternInterpretation = this.state.showPatternInterpretation !== false;
 		const items = [

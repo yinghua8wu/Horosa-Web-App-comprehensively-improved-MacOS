@@ -8,6 +8,13 @@
 
 ---
 
+## 奇门遁甲 · 法奇门叠加层（荀爽：化解 / 用神 / 取象 — **纯前端，无需重编 jar**）
+- **改了什么**：新增 `astrostudyui/src/components/dunjia/DunJiaFaCalc.js`(分析引擎) + `DunJiaFaDoc.js`(判语库)；`DunJiaMain.js` 加「化解」「用神」两右栏 Tab + 神煞判语 hover + 地支/宫名取象 hover；`DunJiaCalc.js buildDunJiaSnapshotText` 追加法奇门 8 段；`QimenXiangDoc.js` 加地支/八卦宫取象；`aiExport.js` qimen 段表 +8。
+- **Windows 必须做什么**：**纯前端，无 Java/Python 改动、不重编 jar**。同步上述 `.js` 后 `npm run build && npm run build:file` 即可；起盘服务(kinqimen)与 jar 都不变。
+- **为什么/坑**：详见 `实现说明 §奇门遁甲·法奇门叠加层` 与 `docs/奇门遁甲-法奇门叠加层-实现详解.md`（六害化解以荀爽视频 docx 为准、八神勾雀→虎玄归一、AI 四同步只走 `buildDunJiaSnapshotText` 一个 builder）。
+
+---
+
 ## 总则（每次同步都先看）
 
 1. **两个仓库是平台分叉，不是同一份代码。** macOS 端在

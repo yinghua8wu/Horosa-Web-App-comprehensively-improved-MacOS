@@ -486,6 +486,21 @@ fi
 # 四同步跨系统自检断言须在(任何技法漏接 导出/设置/挂载/储存 其一即在 jest 红)
 if grep -q "四同步跨系统一致性" "${AIEXPORT_TEST_JS}" 2>/dev/null; then ok "[24] AI 四同步跨系统自检断言在(导出/设置/挂载/储存)"; else bad "[24] 缺 AI 四同步跨系统自检断言"; fi
 
+# 26. 奇门法奇门叠加层(荀爽:化解/用神/取象;纯前端,无 jar)四同步 + 引擎自检
+echo "[26] 奇门法奇门叠加层(化解/用神/取象)"
+DUNJIA_FACALC="${UISRC}/components/dunjia/DunJiaFaCalc.js"
+DUNJIA_FADOC="${UISRC}/components/dunjia/DunJiaFaDoc.js"
+DUNJIA_CALC_JS="${UISRC}/components/dunjia/DunJiaCalc.js"
+if [ -f "${DUNJIA_FACALC}" ] && [ -f "${DUNJIA_FADOC}" ]; then ok "[26] DunJiaFaCalc/DunJiaFaDoc 在"; else bad "[26] 法奇门叠加层文件缺失"; fi
+# 快照 8 段必须在(漏接=AI 导出/挂载/储存看不到化解·用神)
+if grep -q "\[六害总览\]" "${DUNJIA_CALC_JS}" 2>/dev/null && grep -q "\[化解方案\]" "${DUNJIA_CALC_JS}" 2>/dev/null && grep -q "\[用神分论\]" "${DUNJIA_CALC_JS}" 2>/dev/null; then ok "[26] buildDunJiaSnapshotText 含法奇门段(六害/化解/用神)"; else bad "[26] 快照漏法奇门段(AI 四同步看不到化解·用神)"; fi
+# 导出段表同步(漏=导出设置隐身)
+if grep -q "'六害总览', '化解方案'" "${AIEXPORT_JS}" 2>/dev/null; then ok "[26] aiExport.qimen 段表含法奇门段"; else bad "[26] aiExport.qimen 段表漏法奇门段(导出设置隐身)"; fi
+# 八神勾雀→虎玄归一(白虎检测两遁通用)必在
+if grep -q "replace(/勾/g" "${DUNJIA_CALC_JS}" 2>/dev/null; then ok "[26] 八神勾雀→虎玄归一在(白虎检测两遁通用)"; else bad "[26] 缺勾雀→虎玄归一(阳遁白虎检测会失效)"; fi
+# 神煞判语全覆盖自检 + 法奇门引擎单测在
+if grep -q "神煞判语全覆盖" "${UISRC}/components/dunjia/__tests__/DunJiaFaDoc.test.js" 2>/dev/null; then ok "[26] 神煞判语全覆盖自检在"; else bad "[26] 缺神煞判语全覆盖自检"; fi
+
 # 25. 经纬度/时区 全半球转换 + 真太阳时/直接时间(用户验收追加)
 echo "[25] 经纬度/时区转换 + timeAlg 哨兵"
 ASTROHELPER_JS="${UISRC}/components/astro/AstroHelper.js"
