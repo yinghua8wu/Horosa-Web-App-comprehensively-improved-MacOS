@@ -5,7 +5,7 @@ function ctx(o){
 		sanChuanBranches: [], sanChuanGans: [], courseBranches: [],
 		xunKongBranches: [], dingHorseBranches: [], yiMaBranches: [], firstBranch: '', lastBranch: '',
 		dayGan: '', dayZhi: '', dayGanBranch: '', dayGanWuXing: '', dayZhiWuXing: '',
-		ke1Up: '', ke3Up: '', keUpBranches: [], guizi: '', xunHeadBranch: '',
+		ke1Up: '', ke3Up: '', keUpBranches: [], guizi: '', xunHeadBranch: '', xunTailBranch: '', runYearBranch: '', midBranch: '', firstGod: '',
 		branchGodMap: {}, xunGanMap: {}, layout: null,
 	}, o);
 }
@@ -21,7 +21,7 @@ function layoutWith(upPairs){
 describe('LRBiFaDoc · matchBiFa A 档自动匹配（宁缺勿滥）', ()=>{
 	it('BIFA_LIST 收录 100 条毕法，BIFA_MATCHERS 至少 35 个高置信判定', ()=>{
 		expect(BIFA_LIST.length).toBe(100);
-		expect(Object.keys(BIFA_MATCHERS).length).toBeGreaterThanOrEqual(35);
+		expect(Object.keys(BIFA_MATCHERS).length).toBeGreaterThanOrEqual(50);
 	});
 
 	it('no.5 六阳 / no.6 六阴：四课三传全阳 / 全阴', ()=>{
@@ -97,5 +97,30 @@ describe('LRBiFaDoc · matchBiFa A 档自动匹配（宁缺勿滥）', ()=>{
 	it('空 / 缺字段 context 不抛错、不误命中', ()=>{
 		expect(matchBiFa(null)).toEqual([]);
 		expect(matchBiFa(ctx({}))).toEqual([]);
+	});
+
+	it('no.2 首尾相见：干上旬尾、支上旬首', ()=>{
+		expect(nos(matchBiFa(ctx({ xunHeadBranch: '寅', xunTailBranch: '亥', ke1Up: '亥', ke3Up: '寅' })))).toContain(2);
+	});
+	it('no.21 交车相合：干寄宫合支上神、日支合干上神', ()=>{
+		expect(nos(matchBiFa(ctx({ dayGan: '甲', dayGanBranch: '寅', dayZhi: '午', ke1Up: '未', ke3Up: '亥' })))).toContain(21);
+	});
+	it('no.22 上下皆合：干支上神六合（子丑）', ()=>{
+		expect(nos(matchBiFa(ctx({ ke1Up: '子', ke3Up: '丑' })))).toContain(22);
+	});
+	it('no.37 末助初：末传生初传（寅木生午火）', ()=>{
+		expect(nos(matchBiFa(ctx({ firstBranch: '午', lastBranch: '寅' })))).toContain(37);
+	});
+	it('no.43 害贵：贵人与发用六害（丑午）', ()=>{
+		expect(nos(matchBiFa(ctx({ guizi: '丑', firstBranch: '午' })))).toContain(43);
+	});
+	it('no.75 宾主不投：干支上神见刑（子卯）', ()=>{
+		expect(nos(matchBiFa(ctx({ ke1Up: '子', ke3Up: '卯' })))).toContain(75);
+	});
+	it('no.83 三六合：三传申子辰三合、中传子合丑', ()=>{
+		expect(nos(matchBiFa(ctx({ sanChuanBranches: ['申', '子', '辰'], midBranch: '子', ke1Up: '丑' })))).toContain(83);
+	});
+	it('no.86 将逢内战：发用申金乘六合木（金克木）', ()=>{
+		expect(nos(matchBiFa(ctx({ firstBranch: '申', firstGod: '六合' })))).toContain(86);
 	});
 });

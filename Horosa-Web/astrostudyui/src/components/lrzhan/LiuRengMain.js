@@ -13,7 +13,7 @@ import { normalizeLiuRengJiangName } from '../liureng/LRShenJiangDoc';
 import ChuangChart from '../liureng/ChuangChart';
 import { buildXiangContext } from '../liureng/LRXiangDoc';
 import { computeFrontendShenSha } from '../liureng/LRShenShaDoc';
-import { ZHANDUAN_CATEGORIES, ZHANDUAN_DOC } from '../liureng/LRZhanDuanDoc';
+import { ZHANDUAN_CATEGORIES, ZHANDUAN_DOC, RELATED_BIFA } from '../liureng/LRZhanDuanDoc';
 import { matchBiFa, BIFA_LIST } from '../liureng/LRBiFaDoc';
 import LRSanChuanRelationMini from '../liureng/LRSanChuanRelationMini';
 import { detectGuiSpecials } from '../liureng/LRBiFa';
@@ -767,6 +767,33 @@ const XIAO_JU_META = {
 		condition: '三传依次相邻（进连珠或退连珠）',
 		summary: '势能连绵，吉凶皆有持续效应。',
 		priority: 81,
+	},
+	jianchuan: {
+		key: 'jianchuan',
+		name: '间传',
+		categoryKey: 'keshi',
+		categoryName: '课式局',
+		condition: '三传等隔（隔一位，顺间传 / 逆间传，如寅辰午 / 午辰寅）',
+		summary: '跳跃前行 / 后退，事非直线、有间隔阻滞，须越障而达。',
+		priority: 78,
+	},
+	liuchun: {
+		key: 'liuchun',
+		name: '六纯',
+		categoryKey: 'keshi',
+		categoryName: '课式局',
+		condition: '四课三传地支全阳（六阳）或全阴（六阴）',
+		summary: '六阳气纯利公开、主动、显达；六阴气纯利私谋、隐晦、阴事。',
+		priority: 77,
+	},
+	panzhu: {
+		key: 'panzhu',
+		name: '盘珠',
+		categoryKey: 'keshi',
+		categoryName: '课式局',
+		condition: '三传尽入四课上神（三传皆为四课之神）',
+		summary: '三传不出四课，事在目前、范围紧凑，无外溢之象。',
+		priority: 76,
 	},
 	yanshang: {
 		key: 'yanshang',
@@ -3628,6 +3655,22 @@ function matchXiaoJuReferences(context){
 				forward ? '进连珠' : '退连珠',
 			]);
 		}
+		const jianForward = scIdx[1] === (scIdx[0] + 2) % 12 && scIdx[2] === (scIdx[1] + 2) % 12;
+		const jianBackward = scIdx[1] === (scIdx[0] + 10) % 12 && scIdx[2] === (scIdx[1] + 10) % 12;
+		if(jianForward || jianBackward){
+			add('jianchuan', [
+				`三传地支：${context.sanChuanBranchText || '—'}`,
+				jianForward ? '顺间传，跳跃前行' : '逆间传，跳跃后退',
+			]);
+		}
+	}
+	const liuchunAllYang = context.courseBranches.length > 0 && context.courseBranches.every((item)=>LRConst.YangZi.indexOf(item) >= 0);
+	const liuchunAllYin = context.courseBranches.length > 0 && context.courseBranches.every((item)=>LRConst.YingZi.indexOf(item) >= 0);
+	if(liuchunAllYang || liuchunAllYin){
+		add('liuchun', [liuchunAllYang ? '四课三传地支全阳（六阳），利公开主动' : '四课三传地支全阴（六阴），利私谋隐晦']);
+	}
+	if(context.sanChuanBranches.length === 3 && Array.isArray(context.keUpBranches) && context.sanChuanBranches.every((item)=>context.keUpBranches.indexOf(item) >= 0)){
+		add('panzhu', [`三传${context.sanChuanBranchText || '—'}尽入四课上神，事在目前`]);
 	}
 	if(context.sanChuanBranches.length === 3 && context.sanChuanBranches.every((item)=>['寅', '午', '戌'].indexOf(item) >= 0)){
 		add('yanshang', [`三传地支：${context.sanChuanBranchText || '—'}`]);
@@ -5253,6 +5296,7 @@ class LiuRengMain extends Component{
 		}
 		const zd = ZHANDUAN_DOC[key];
 		if(!zd){ return (<div className="horosa-liureng-reference-tab-body"><Card size='small'><div style={muted}>暂无该占类资料。</div></Card>{yingQiCard}</div>); }
+		const relBifa = (RELATED_BIFA[key] || []).map((no)=>BIFA_LIST.find((b)=>b.no === no)).filter(Boolean);
 		const godValues = refCtx && refCtx.branchGodMap ? Object.keys(refCtx.branchGodMap).map((k)=>refCtx.branchGodMap[k]) : [];
 		const sectionTitle = { fontWeight: 600, margin: '8px 0 4px' };
 		const sectionBody = { color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px' };
@@ -5280,6 +5324,7 @@ class LiuRengMain extends Component{
 					<div style={sectionBody}>{(zd.avoid || []).map((f, i)=>(<div key={i}>· {f}</div>))}</div>
 					<div style={sectionTitle}>三传提示</div>
 					<div style={sectionBody}>{zd.sanChuanTip}</div>
+					{relBifa.length ? (<><div style={sectionTitle}>相关毕法</div>{relBifa.map((b)=>(<div key={b.no} style={{ ...sectionBody, marginBottom: 2 }}><span style={{ fontWeight: 600 }}>{`${b.no}. ${b.name}`}</span>　{b.explain}</div>))}</>) : null}
 				</Card>
 				<Card size='small'><div style={{ ...muted, fontSize: 12 }}>用神落点为确定性指引，吉凶须合全盘与三传旺衰判之。</div></Card>
 				{yingQiCard}

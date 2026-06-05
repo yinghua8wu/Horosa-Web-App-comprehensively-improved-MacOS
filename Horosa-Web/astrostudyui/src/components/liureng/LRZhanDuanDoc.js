@@ -107,3 +107,18 @@ export const ZHANDUAN_DOC = {
 		sanChuanTip: '斗罡(辰)指阴主雨、指阳主晴；以火神所临为晴期、水神所临为雨期，旺相久暂随之。',
 	},
 };
+
+// 各占类相关毕法（毕法赋中「占类相关」之法的归属，于占断 tab 一并点出，使全部毕法各得其用）。值为毕法 no。
+export const RELATED_BIFA = {
+	hunyin: [21, 22, 64],
+	taichan: [19, 20],
+	jibing: [61, 62, 67, 68, 69, 91],
+	caiyun: [14, 27, 28, 41, 57, 58, 66],
+	guansong: [43, 70],
+	qiuming: [3, 4, 42],
+	shiwu: [38, 39, 40],
+	xingren: [33, 89],
+	chuxing: [89],
+	zhaiyun: [29, 30, 62, 71, 72],
+	tianshi: [],
+};

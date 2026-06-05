@@ -135,6 +135,14 @@ function ganPhase(ctx, b){ try{ return (ZhangSheng && ZhangSheng.ganzi) ? (Zhang
 function branchOver(ctx, top, bottom){ const L = ctx.layout; if(!L || !Array.isArray(L.downZi) || !Array.isArray(L.upZi)){ return false; } const i = L.downZi.indexOf(zi(bottom)); return i >= 0 && zi(L.upZi[i]) === zi(top); }
 function isFuYin(ctx){ const L = ctx.layout; return !!(L && Array.isArray(L.upZi) && Array.isArray(L.downZi) && L.upZi.length === 12 && L.upZi.every((b, i)=>zi(b) === zi(L.downZi[i]))); }
 function isFanYin(ctx){ const L = ctx.layout; if(!(L && Array.isArray(L.upZi) && Array.isArray(L.downZi) && L.upZi.length === 12)){ return false; } return L.upZi.every((b, i)=>{ const di = Z.indexOf(zi(L.downZi[i])); return di >= 0 && Z.indexOf(zi(b)) === (di + 6) % 12; }); }
+// 三合局集、天将五行、五行生克、六亲。
+const SAN_HE_SETS = [['申', '子', '辰'], ['亥', '卯', '未'], ['寅', '午', '戌'], ['巳', '酉', '丑']];
+const TIANJIANG_WX = { '贵人': '土', '螣蛇': '火', '朱雀': '火', '六合': '木', '勾陈': '土', '青龙': '木', '天空': '土', '白虎': '金', '太常': '土', '玄武': '水', '太阴': '金', '天后': '水' };
+const WX_SHENG = { '木': '火', '火': '土', '土': '金', '金': '水', '水': '木' };
+const WX_KE = { '木': '土', '土': '水', '水': '火', '火': '金', '金': '木' };
+function wxOf(b){ return LRConst.GanZiWuXing[zi(b)] || ''; }
+function isSanHeSet(list){ const s = (list || []).map(zi); if(s.length < 3) return false; const set = new Set(s); return SAN_HE_SETS.some((g)=>g.every((x)=>set.has(x))); }
+function liuqinOf(ctx, b){ return (ctx.dayGan && LRConst.ZiLiuQin[zi(b)]) ? (LRConst.ZiLiuQin[zi(b)][zi(ctx.dayGan)] || '') : ''; }
 
 // 仅登记「高置信度、纯机械可判」的法（凭旬空/三传四课地支生克/遁干/天将所乘之支/禄墓/课式 即可确定）。
 // 键＝法 no。每个 matcher 只读 ctx，返回 null 或 {evidence:[...]}。其余法只浏览、不自动命中。
@@ -177,6 +185,20 @@ export const BIFA_MATCHERS = {
 	89: (ctx)=>{ if(!isFuYin(ctx)) return null; const cb = ctx.courseBranches || []; const dm = (ctx.dingHorseBranches || []).filter((b)=>cb.indexOf(zi(b)) >= 0); const ma = (ctx.yiMaBranches || []).filter((b)=>cb.indexOf(zi(b)) >= 0); return (dm.length || ma.length) ? { evidence: ['伏吟课见丁神 / 驿马（任信丁马须言动）'] } : null; },
 	90: (ctx)=>{ if(!isFanYin(ctx)) return null; const s = ctx.sanChuanBranches || []; return (s.length === 3 && s.every((b)=>inKong(ctx, b))) ? { evidence: ['返吟课三传俱空（来去俱空）'] } : null; },
 	91: (ctx)=>{ return (ke(ctx.ke1Up, ctx.dayGan) && godOf(ctx, ctx.ke1Up) === '白虎') ? { evidence: ['日鬼乘白虎临干（虎临干鬼凶速速）'] } : null; },
+	2: (ctx)=>{ const h = zi(ctx.xunHeadBranch), t = zi(ctx.xunTailBranch); if(!h || !t || !ctx.ke1Up || !ctx.ke3Up) return null; return ((ctx.ke1Up === t && ctx.ke3Up === h) || (ctx.ke1Up === h && ctx.ke3Up === t)) ? { evidence: ['干上见旬尾、支上见旬首（或反之，首尾相见）'] } : null; },
+	4: (ctx)=>{ const y = zi(ctx.runYearBranch); return (y && godOf(ctx, y) === '白虎' && ke(y, ctx.dayGan)) ? { evidence: [`年命${y}乘白虎且为日鬼（催官使者）`] } : null; },
+	15: (ctx)=>{ const u = ctx.ke1Up; if(!u || !gen(ctx.dayGan, u)) return null; const g = godOf(ctx, u); return (g && TIANJIANG_WX[g] && WX_SHENG[wxOf(u)] === TIANJIANG_WX[g]) ? { evidence: ['日干生干上神、干上神又生其天将（脱上逢脱）'] } : null; },
+	21: (ctx)=>{ return (ctx.dayGanBranch && ctx.dayZhi && ctx.ke1Up && ctx.ke3Up && LRConst.ZiHe[zi(ctx.dayGanBranch)] === ctx.ke3Up && LRConst.ZiHe[zi(ctx.dayZhi)] === ctx.ke1Up) ? { evidence: ['干与支上神合、支与干上神合（交车相合）'] } : null; },
+	22: (ctx)=>{ return (ctx.ke1Up && ctx.ke3Up && LRConst.ZiHe[zi(ctx.ke1Up)] === zi(ctx.ke3Up)) ? { evidence: ['干上神与支上神作六合（上下皆合，两心齐）'] } : null; },
+	27: (ctx)=>{ const s = ctx.sanChuanBranches || []; if(s.length < 3) return null; const allCai = s.every((b)=>liuqinOf(ctx, b) === '妻财'); return (allCai && ke(ctx.ke1Up, ctx.dayGan)) ? { evidence: ['三传皆财、干上神克日干（传财化鬼，取财致祸）'] } : null; },
+	37: (ctx)=>{ return (ctx.lastBranch && ctx.firstBranch && gen(ctx.lastBranch, ctx.firstBranch)) ? { evidence: ['末传生助初传（末助初，三等论）'] } : null; },
+	40: (ctx)=>{ const vb = godBranch(ctx, '玄武'); return (vb && (ctx.dingHorseBranches || []).indexOf(zi(vb)) >= 0) ? { evidence: [`玄武乘${vb}加丁神（主失脱逃亡）`] } : null; },
+	43: (ctx)=>{ return (ctx.guizi && ctx.firstBranch && LRConst.ZiHai[zi(ctx.guizi)] === ctx.firstBranch) ? { evidence: [`贵人${zi(ctx.guizi)}与发用${ctx.firstBranch}六害（害贵，讼直反屈）`] } : null; },
+	53: (ctx)=>{ const mu = ganMu(ctx); return (mu && ctx.ke1Up === mu && godOf(ctx, mu) === '螣蛇') ? { evidence: [`日干墓${mu}乘螣蛇（两蛇夹墓之象）`] } : null; },
+	66: (ctx)=>{ const mu = zhiMu(ctx); return (mu && ctx.firstBranch === mu && liuqinOf(ctx, mu) === '妻财') ? { evidence: [`日支墓${mu}作日干财发用（支坟财并，旅程稽迟）`] } : null; },
+	75: (ctx)=>{ const a = ctx.ke1Up, b = ctx.ke3Up; if(!a || !b) return null; const sx = (x)=>['辰', '午', '酉', '亥'].indexOf(zi(x)) >= 0; return (LRConst.ZiXing[zi(a)] === zi(b) || LRConst.ZiXing[zi(b)] === zi(a) || sx(a) || sx(b)) ? { evidence: ['干支上神见刑（宾主不投，各有异心）'] } : null; },
+	83: (ctx)=>{ const s = ctx.sanChuanBranches || []; if(!isSanHeSet(s)) return null; const he = ctx.midBranch ? LRConst.ZiHe[zi(ctx.midBranch)] : ''; return (he && (he === ctx.ke1Up || he === ctx.ke3Up)) ? { evidence: ['三传成三合、中传与干支上神六合（三六合，万事喜忻）'] } : null; },
+	86: (ctx)=>{ const g = ctx.firstGod; const bw = wxOf(ctx.firstBranch); const gw = TIANJIANG_WX[g]; return (g && bw && gw && (WX_KE[gw] === bw || WX_KE[bw] === gw)) ? { evidence: [`发用天将${g}与所乘${ctx.firstBranch}五行相战（将逢内战，所谋危）`] } : null; },
 };
 
 // 运行 A 档匹配，返回命中项（含 evidence）。绝不命中未登记 matcher 的法（宁缺勿滥）。
