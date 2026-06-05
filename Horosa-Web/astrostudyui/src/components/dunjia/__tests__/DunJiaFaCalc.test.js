@@ -175,7 +175,7 @@ describe('DunJiaFaCalc · buildJieHua（逐宫合并化解）', ()=>{
 });
 
 describe('DunJiaFaCalc · computeProtect（八门化气大阵保护清单）', ()=>{
-	it('日干/时干/生年干(甲取值符宫)/意象/符使均定位且标六害态', ()=>{
+	it('日干/时干/意象/符使均定位；生年干随相关人员逐人显示（未选则不出该行）', ()=>{
 		const pan = mkPan({
 			ganzhi: { year: '甲子', month: '丙寅', day: '戊午', time: '辛丑' },
 			zhiFuPalace: 9,
@@ -190,15 +190,22 @@ describe('DunJiaFaCalc · computeProtect（八门化气大阵保护清单）', (
 		});
 		const rows = computeProtect(pan, { topic: 'wealth' });
 		const day = rows.find((r)=>r.label.indexOf('日干') >= 0);
-		const year = rows.find((r)=>r.label.indexOf('生年') >= 0);
 		expect(day.gan).toBe('戊');
 		expect(day.palaceNum).toBe(4);
 		expect(day.hazards).toContain('击刑');
 		expect(day.ok).toBe(false);
-		expect(year.gan).toBe('甲');
-		expect(year.palaceNum).toBe(9); // 甲＝值符宫
+		// 未选相关人员 → 不出「生年干」行（占位「示本盘年干」已移除）。
+		expect(rows.some((r)=>r.label.indexOf('生年') >= 0)).toBe(false);
 		expect(rows.some((r)=>r.label.indexOf('值符') >= 0)).toBe(true);
 		expect(rows.some((r)=>r.label.indexOf('意象') >= 0)).toBe(true);
+		// 选入相关人员（生年干甲）→ 逐人一行（标姓名），定位到甲所在的值符宫(9)。
+		pan.faRelatedPeople = [{ cid: 'c1', name: '张三', yearGan: '甲' }];
+		const rows2 = computeProtect(pan, { topic: 'wealth' });
+		const year = rows2.find((r)=>r.label.indexOf('生年') >= 0);
+		expect(year).toBeTruthy();
+		expect(year.gan).toBe('甲');
+		expect(year.palaceNum).toBe(9); // 甲＝值符宫
+		expect(year.label.indexOf('张三') >= 0).toBe(true);
 	});
 });
 

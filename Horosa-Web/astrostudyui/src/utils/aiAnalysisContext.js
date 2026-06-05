@@ -556,11 +556,15 @@ async function regenerateQimenSnapshot(record, payload){
 	if(!nongli){
 		return '';
 	}
+	// 兼容事盘(payload.options/faRelatedPeople)与命盘(payload.qimen.{options,faRelatedPeople})两种结构。
+	const qs = payload && payload.qimen && typeof payload.qimen === 'object' ? payload.qimen : payload;
 	const options = {
 		...DEFAULT_QIMEN_OPTIONS,
-		...(payload && payload.options ? payload.options : {}),
+		...(qs && qs.options ? qs.options : {}),
 	};
 	const pan = calcDunJia(fields, nongli, options, {});
+	// 显式还原相关人员(空[]也算显式、覆盖全局兜底)，使八门化气大阵生年干随已存记录一致(AI 挂载/储存四同步)。
+	pan.faRelatedPeople = qs && Array.isArray(qs.faRelatedPeople) ? qs.faRelatedPeople : [];
 	return buildDunJiaSnapshotText(pan);
 }
 
@@ -657,11 +661,17 @@ function generateCaseTechniqueSnapshot(record, moduleName, payload){
 			record.gender !== undefined && record.gender !== null ? record.gender : 1
 		);
 	}
-	case 'qimen':
-		if(!payload || !(payload.pan || (payload.result && payload.result.dunjia) || payload.dunjia)){
+	case 'qimen': {
+		const qpan = payload && (payload.pan || (payload.result && payload.result.dunjia) || payload.dunjia);
+		if(!qpan){
 			return '';
 		}
-		return buildDunJiaSnapshotText(payload.pan || (payload.result && payload.result.dunjia) || payload.dunjia);
+		// 已存事盘 pan 多已带 faRelatedPeople(存盘时 stamp)；旧记录无则显式置空数组(避免误用全局当前选择)。
+		if(!Array.isArray(qpan.faRelatedPeople)){
+			qpan.faRelatedPeople = payload && Array.isArray(payload.faRelatedPeople) ? payload.faRelatedPeople : [];
+		}
+		return buildDunJiaSnapshotText(qpan);
+	}
 	case 'tongshefa': {
 		const selection = payload && (payload.selection || (payload.tongshefa && payload.tongshefa.selection));
 		if(!selection){

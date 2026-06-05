@@ -814,8 +814,8 @@ export default {
 			}else if(values.key === 'chartadd'){
 				yield put({
 					type: 'user/newCurrentChart',
-					payload: { },
-				});	
+					payload: values.record ? values.record : { },
+				});
 			}else if(values.key === 'chartlist'){
 				yield put({
 					type: 'user/fetchCharts',

@@ -480,10 +480,11 @@ export default {
 			const fld = astrostate.fields;
 			let date = fld.date.value.format('YYYY-MM-DD');
 			let time = fld.date.value.format('HH:mm:ss');
-			let birth = date + ' ' + time;
+			// 调用方可注入完整出生时间(如奇门「保存为命盘」用起局时间作生时)；占星新增命盘不传 → 沿用全局 fields,行为不变。
+			let birth = (values && values.birth) ? `${values.birth}` : (date + ' ' + time);
 			let chart = newEmptyChartFields();
 			let tm = new DateTime();
-			tm.setZone(fld.zone.value);
+			tm.setZone((values && values.zone) ? values.zone : fld.zone.value);
 			chart.birth.value = tm.parse(birth, 'YYYY-MM-DD HH:mm:ss');
 			chart.zone.value = tm.zone;
 			chart.lat.value = fld.lat.value;
@@ -532,6 +533,14 @@ export default {
 				if(values.chartType !== undefined){
 					chart.chartType.value = values.chartType;
 				}
+				// 调用方可注入完整人盘信息(奇门「保存为命盘」补性别/经纬度/地名,使命盘管理里信息完整)；占星新增不传 → 不变。
+				if(values.gender !== undefined && values.gender !== null && chart.gender){ chart.gender.value = values.gender; }
+				if(values.pos !== undefined && values.pos !== null && chart.pos){ chart.pos.value = values.pos; }
+				if(values.lat !== undefined && values.lat !== null){ chart.lat.value = values.lat; }
+				if(values.lon !== undefined && values.lon !== null){ chart.lon.value = values.lon; }
+				if(values.gpsLat !== undefined && values.gpsLat !== null && chart.gpsLat){ chart.gpsLat.value = values.gpsLat; }
+				if(values.gpsLon !== undefined && values.gpsLon !== null && chart.gpsLon){ chart.gpsLon.value = values.gpsLon; }
+				if(values.name !== undefined && values.name !== null && chart.name){ chart.name.value = values.name; }
 			}
 
 			yield put({

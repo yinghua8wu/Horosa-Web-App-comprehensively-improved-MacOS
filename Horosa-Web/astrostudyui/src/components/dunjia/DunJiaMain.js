@@ -21,6 +21,7 @@ import SpaceTimePanel from '../comp/SpaceTimePanel';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { getStore } from '../../utils/storageutil';
+import { listLocalCharts } from '../../utils/localcharts';
 import {
 	SEX_OPTIONS,
 	PAIPAN_OPTIONS,
@@ -32,6 +33,8 @@ import {
 	TIME_ALG_OPTIONS,
 	YIXING_OPTIONS,
 	DAY_SWITCH_OPTIONS,
+	CHART_CATEGORY_OPTIONS,
+	birthToYearGan,
 	calcDunJia,
 	fetchQimenPan,
 	isKinqimenMode,
@@ -406,6 +409,22 @@ function needJieqiYearSeed(options){
 	return opt.paiPanType === 3 && opt.qijuMethod === 'zhirun';
 }
 
+function sameRelatedPeople(a, b){
+	const aa = Array.isArray(a) ? a : [];
+	const bb = Array.isArray(b) ? b : [];
+	if(aa.length !== bb.length){
+		return false;
+	}
+	for(let i = 0; i < aa.length; i++){
+		const x = aa[i] || {};
+		const y = bb[i] || {};
+		if(`${x.cid}` !== `${y.cid}` || `${x.yearGan}` !== `${y.yearGan}`){
+			return false;
+		}
+	}
+	return true;
+}
+
 function rememberDunJiaLiveState(payload){
 	if(!payload || !payload.pan){
 		return;
@@ -418,6 +437,7 @@ function rememberDunJiaLiveState(payload){
 		displaySolarTime: payload.displaySolarTime || '',
 		pan: payload.pan,
 		options: payload.options ? { ...payload.options } : null,
+		faRelatedPeople: Array.isArray(payload.faRelatedPeople) ? payload.faRelatedPeople : [],
 	};
 }
 
@@ -465,12 +485,16 @@ class DunJiaMain extends Component {
 			leftBoardHeight: 0,
 			viewportHeight: getViewportHeight(),
 			options: initialOptions,
+			faRelatedPeople: restoredLiveState && Array.isArray(restoredLiveState.faRelatedPeople) ? restoredLiveState.faRelatedPeople : [],
+			chartCategory: 'shi',
 		};
 
 		this.unmounted = false;
 		this.jieqiSeedPromises = {};
 		this.jieqiYearSeeds = {};
 		this.lastRestoredCaseId = null;
+		this.lastRestoredChartId = null;
+		this._yearGanCache = {};
 		this.timeHook = {};
 		this.lastNongliKey = restoredLiveState ? restoredLiveState.lastNongliKey : '';
 		this.lastPanSignature = restoredLiveState ? restoredLiveState.lastPanSignature : '';
@@ -497,7 +521,12 @@ class DunJiaMain extends Component {
 		this.clickPlot = this.clickPlot.bind(this);
 		this.getTimeFieldsFromSelector = this.getTimeFieldsFromSelector.bind(this);
 		this.restoreOptionsFromCurrentCase = this.restoreOptionsFromCurrentCase.bind(this);
+		this.restoreFromCurrentChart = this.restoreFromCurrentChart.bind(this);
 		this.parseCasePayload = this.parseCasePayload.bind(this);
+		this.applyFaRelatedToPan = this.applyFaRelatedToPan.bind(this);
+		this.getRelatedPeopleOptions = this.getRelatedPeopleOptions.bind(this);
+		this.onRelatedPeopleChange = this.onRelatedPeopleChange.bind(this);
+		this.onChartCategoryChange = this.onChartCategoryChange.bind(this);
 		this.captureLeftBoardHost = this.captureLeftBoardHost.bind(this);
 		this.handleWindowResize = this.handleWindowResize.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
@@ -508,6 +537,7 @@ class DunJiaMain extends Component {
 					return;
 				}
 				this.restoreOptionsFromCurrentCase();
+				this.restoreFromCurrentChart();
 				if(fields){
 					this.setState({
 						localFields: fields,
@@ -576,6 +606,7 @@ class DunJiaMain extends Component {
 			window.addEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
 		}
 		this.restoreOptionsFromCurrentCase(true);
+		this.restoreFromCurrentChart(true);
 		window.addEventListener('resize', this.handleWindowResize);
 		this.handleWindowResize();
 		this.prefetchJieqiSeedForFields(this.state.localFields || this.props.fields);
@@ -584,6 +615,7 @@ class DunJiaMain extends Component {
 
 	componentDidUpdate(){
 		this.restoreOptionsFromCurrentCase();
+		this.restoreFromCurrentChart();
 	}
 
 	componentWillUnmount(){
@@ -614,6 +646,7 @@ class DunJiaMain extends Component {
 			return;
 		}
 		if(this.state.pan){
+			this.applyFaRelatedToPan(this.state.pan);
 			const snapshotText = saveQimenLiveSnapshot(this.state.pan);
 			if(snapshotText){
 				saveModuleAISnapshot('qimen', snapshotText);
@@ -736,12 +769,18 @@ class DunJiaMain extends Component {
 				changed = true;
 			}
 		}
+		const nextFaRelated = Array.isArray(payload.faRelatedPeople) ? payload.faRelatedPeople : [];
+		if(!sameRelatedPeople(nextFaRelated, this.state.faRelatedPeople)){
+			changed = true;
+		}
 		this.lastRestoredCaseId = caseVersion;
 		if(!changed){
 			return;
 		}
 		this.setState({
 			options: nextOptions,
+			faRelatedPeople: nextFaRelated,
+			chartCategory: 'shi',
 		}, ()=>{
 			const calcFields = this.state.localFields || this.props.fields;
 			const calcFieldKey = getFieldKey(calcFields);
@@ -758,6 +797,145 @@ class DunJiaMain extends Component {
 				}
 			}
 		});
+	}
+
+	// —— 命盘(localCharts)往返：奇门设置存于 currentChart.payload.qimen，重开时还原；命盘本体是普通人命盘，跨技法自由使用。——
+	restoreFromCurrentChart(force){
+		const store = getStore();
+		const userState = store && store.user ? store.user : null;
+		const currentChart = userState && userState.currentChart ? userState.currentChart : null;
+		if(!currentChart || !currentChart.cid || !currentChart.cid.value){
+			return;
+		}
+		const cid = `${currentChart.cid.value}`;
+		const updateTime = currentChart.updateTime && currentChart.updateTime.value ? `${currentChart.updateTime.value}` : '';
+		const chartVersion = `${cid}|${updateTime}`;
+		if(!force && this.lastRestoredChartId === chartVersion){
+			return;
+		}
+		const payload = this.parseCasePayload(currentChart.payload ? currentChart.payload.value : null);
+		const qimen = payload && payload.qimen && typeof payload.qimen === 'object' ? payload.qimen : null;
+		// 标记已处理此命盘版本（无论是否带奇门设置，避免反复触发）。
+		this.lastRestoredChartId = chartVersion;
+		if(!qimen){
+			return;
+		}
+		const nextOptions = { ...this.state.options };
+		let changed = false;
+		const savedOptions = qimen.options && typeof qimen.options === 'object' ? qimen.options : null;
+		if(savedOptions){
+			Object.keys(DEFAULT_OPTIONS).forEach((key)=>{
+				if(savedOptions[key] !== undefined){
+					nextOptions[key] = savedOptions[key];
+					changed = true;
+				}
+			});
+		}
+		if(nextOptions.paiPanType === 1){
+			nextOptions.paiPanType = 3;
+			changed = true;
+		}
+		const nextFaRelated = Array.isArray(qimen.faRelatedPeople) ? qimen.faRelatedPeople : [];
+		if(!sameRelatedPeople(nextFaRelated, this.state.faRelatedPeople)){
+			changed = true;
+		}
+		if(!changed){
+			return;
+		}
+		this.setState({
+			options: nextOptions,
+			faRelatedPeople: nextFaRelated,
+			chartCategory: 'ming',
+		}, ()=>{
+			const calcFields = this.state.localFields || this.props.fields;
+			const calcFieldKey = getFieldKey(calcFields);
+			const nongliKey = getNongliRequestKey(calcFields, nextOptions);
+			const canRecalc = this.state.nongli
+				&& calcFieldKey
+				&& nongliKey
+				&& nongliKey === this.lastNongliKey;
+			if(this.state.hasPlotted){
+				if(canRecalc){
+					this.recalc(this.state.localFields || this.props.fields, this.state.nongli, nextOptions, this.state.displaySolarTime);
+				}else{
+					this.requestNongli(calcFields, true);
+				}
+			}
+		});
+	}
+
+	// 把当前选中的「相关人员」捕获快照写到 pan 上（单源：快照/导出/挂载/储存全读 pan.faRelatedPeople）。
+	applyFaRelatedToPan(pan){
+		const arr = Array.isArray(this.state.faRelatedPeople) ? this.state.faRelatedPeople : [];
+		if(pan){
+			pan.faRelatedPeople = arr;
+		}
+		// 同步全局当前选择，供 AI 挂载里「重算 pan（未 stamp）」的路径兜底，确保四同步无遗漏。
+		if(typeof window !== 'undefined'){
+			window.__horosa_qimen_related_people = arr;
+		}
+		return pan;
+	}
+
+	// 命盘库全部人 → 多选项（label 带生年干）；生年干按 cid+birth 缓存，避免下拉重复计算。并入当前已选(防源命盘被删后标签丢失)。
+	getRelatedPeopleOptions(){
+		let list = [];
+		try{
+			list = listLocalCharts() || [];
+		}catch(e){
+			list = [];
+		}
+		this._yearGanCache = this._yearGanCache || {};
+		const opts = [];
+		const seen = {};
+		list.forEach((c)=>{
+			if(!c || !c.cid){
+				return;
+			}
+			const key = `${c.cid}|${c.birth}`;
+			let yg = this._yearGanCache[key];
+			if(yg === undefined){
+				yg = birthToYearGan(c.birth) || '';
+				this._yearGanCache[key] = yg;
+			}
+			const name = c.name ? `${c.name}` : '未命名';
+			opts.push({ value: `${c.cid}`, name, yearGan: yg, label: `${name}·${yg || '?'}年` });
+			seen[`${c.cid}`] = true;
+		});
+		(this.state.faRelatedPeople || []).forEach((p)=>{
+			if(p && p.cid && !seen[`${p.cid}`]){
+				const name = p.name ? `${p.name}` : '未命名';
+				opts.push({ value: `${p.cid}`, name, yearGan: p.yearGan || '', label: `${name}·${p.yearGan || '?'}年` });
+				seen[`${p.cid}`] = true;
+			}
+		});
+		return opts;
+	}
+
+	onRelatedPeopleChange(cids){
+		const opts = this.getRelatedPeopleOptions();
+		const byCid = {};
+		opts.forEach((o)=>{ byCid[o.value] = o; });
+		const people = (cids || []).map((cid)=>{
+			const o = byCid[`${cid}`];
+			return o ? { cid: o.value, name: o.name, yearGan: o.yearGan } : { cid: `${cid}`, name: '', yearGan: '' };
+		});
+		this.setState({ faRelatedPeople: people }, ()=>{
+			const pan = this.state.pan;
+			// 总是同步全局当前选择(即使尚未起盘),供 AI 挂载兜底。
+			this.applyFaRelatedToPan(pan);
+			if(pan){
+				const snapshotText = saveQimenLiveSnapshot(pan);
+				if(snapshotText){
+					saveModuleAISnapshot('qimen', snapshotText);
+				}
+				this.forceUpdate();
+			}
+		});
+	}
+
+	onChartCategoryChange(value){
+		this.setState({ chartCategory: value === 'ming' ? 'ming' : 'shi' });
 	}
 
 	onFieldsChange(field, syncOnly){
@@ -957,6 +1135,7 @@ class DunJiaMain extends Component {
 		}
 		try{
 			const pan = await this.getResolvedPan(flds, nongli || this.state.nongli, fixedOptions, displaySolar);
+			this.applyFaRelatedToPan(pan);
 			this.lastPanSignature = panSignature;
 			this.setState({ pan, displaySolarTime: displaySolar, loading: false }, ()=>{
 				if(pan){
@@ -968,6 +1147,7 @@ class DunJiaMain extends Component {
 						displaySolarTime: displaySolar,
 						pan,
 						options: fixedOptions,
+						faRelatedPeople: this.state.faRelatedPeople,
 					});
 					const snapshotText = saveQimenLiveSnapshot(pan);
 					if(snapshotText){
@@ -1191,6 +1371,7 @@ class DunJiaMain extends Component {
 						displaySolarTime,
 					].join('|');
 					const pan = await this.getResolvedPan(flds, result, fixedOptions, displaySolarTime);
+					this.applyFaRelatedToPan(pan);
 					this.lastNongliKey = requestKey;
 					this.lastPanSignature = panSignature;
 						this.setState({
@@ -1209,6 +1390,7 @@ class DunJiaMain extends Component {
 								displaySolarTime,
 								pan,
 								options: fixedOptions,
+								faRelatedPeople: this.state.faRelatedPeople,
 							});
 							const snapshotText = saveQimenLiveSnapshot(pan);
 							if(snapshotText){
@@ -1299,16 +1481,26 @@ class DunJiaMain extends Component {
 		if(!flds){
 			return;
 		}
+		this.applyFaRelatedToPan(pan);
+		const faRelated = Array.isArray(this.state.faRelatedPeople) ? this.state.faRelatedPeople : [];
+		const fixedOptions = {
+			...this.state.options,
+			fengJu: !!this.state.options.fengJu,
+		};
+		// 命盘：复用命盘库(localCharts)，奇门设置存 payload.qimen；命盘本体跨技法自由使用。
+		if(this.state.chartCategory === 'ming'){
+			this.saveAsMingChart(flds, fixedOptions, faRelated);
+			return;
+		}
+		// 事盘：案例库(localCases)。payload 增 faRelatedPeople 以便重开还原。
 		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
 		const snapshot = loadModuleAISnapshot('qimen');
 		const payload = {
 			module: 'qimen',
 			snapshot: snapshot,
 			pan: pan,
-			options: {
-				...this.state.options,
-				fengJu: !!this.state.options.fengJu,
-			},
+			options: fixedOptions,
+			faRelatedPeople: faRelated,
 		};
 		if(this.props.dispatch){
 			this.props.dispatch({
@@ -1327,6 +1519,37 @@ class DunJiaMain extends Component {
 						pos: flds.pos ? flds.pos.value : '',
 						payload: payload,
 						sourceModule: 'qimen',
+					},
+				},
+			});
+		}
+	}
+
+	// 保存为「命盘」：始终弹出「新增星盘」抽屉(复用命盘管理新增流程)，用户填姓名后入命盘库 localCharts。
+	// birth/经纬度/性别已预填完整、奇门设置塞进 payload.qimen；命盘是普通人盘、日后可被占星/八字等任意技法自由使用。
+	saveAsMingChart(flds, fixedOptions, faRelated){
+		const qimenSettings = {
+			options: fixedOptions,
+			faRelatedPeople: faRelated,
+			version: 1,
+		};
+		if(this.props.dispatch){
+			const birthStr = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
+			// 注入完整人盘信息(起局时间作生时 + 经纬度/地名/性别)，使新建命盘在「命盘管理」里信息完整。
+			this.props.dispatch({
+				type: 'astro/openDrawer',
+				payload: {
+					key: 'chartadd',
+					record: {
+						birth: birthStr,
+						zone: flds.zone ? flds.zone.value : undefined,
+						lat: flds.lat ? flds.lat.value : undefined,
+						lon: flds.lon ? flds.lon.value : undefined,
+						gpsLat: flds.gpsLat ? flds.gpsLat.value : undefined,
+						gpsLon: flds.gpsLon ? flds.gpsLon.value : undefined,
+						pos: flds.pos ? flds.pos.value : undefined,
+						gender: this.state.options ? this.state.options.sex : undefined,
+						payload: { qimen: qimenSettings },
 					},
 				},
 			});
@@ -1853,6 +2076,12 @@ class DunJiaMain extends Component {
 								{QIJU_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
 							</Select>
 						</label>
+						<label className="horosa-dunjia-select-field">
+							<span>盘类</span>
+							<Select size="small" value={this.state.chartCategory} onChange={this.onChartCategoryChange}>
+								{CHART_CATEGORY_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
 						<label className="horosa-dunjia-select-field is-wide">
 							<span>月家</span>
 							<Select size="small" value={opt.yueJiaQiJuType} disabled={opt.paiPanType !== 1} onChange={(v)=>this.onOptionChange('yueJiaQiJuType', v)}>
@@ -1914,6 +2143,20 @@ class DunJiaMain extends Component {
 								{showPatternInterpretation ? '显示' : '隐藏'}
 							</Button>
 						</div>
+						<label className="horosa-dunjia-select-field is-wide">
+							<span>相关人员</span>
+							<Select
+								size="small"
+								mode="multiple"
+								allowClear
+								value={(this.state.faRelatedPeople || []).map((p)=>p.cid)}
+								placeholder="从命盘库选择（可多人，护其生年干）"
+								optionFilterProp="label"
+								onChange={this.onRelatedPeopleChange}
+							>
+								{this.getRelatedPeopleOptions().map((item)=><Option key={item.value} value={item.value} label={item.label}>{item.label}</Option>)}
+							</Select>
+						</label>
 					</div>
 					<div className="horosa-dunjia-action-row">
 						<Button type="primary" onClick={this.clickPlot} loading={this.state.loading} disabled={this.state.loading}>起盘</Button>

@@ -1,4 +1,4 @@
-import { PAIPAN_OPTIONS, calcDunJia, isKinqimenMode } from '../DunJiaCalc';
+import { PAIPAN_OPTIONS, calcDunJia, isKinqimenMode, birthToYearGan } from '../DunJiaCalc';
 import { buildLocalBaziResult } from '../../../utils/baziLunarLocal';
 import { buildLocalJieqiYearSeed } from '../../../utils/localNongliAdapter';
 
@@ -454,5 +454,20 @@ describe('DunJiaCalc options', ()=>{
 			8: '癸',
 			9: '己',
 		});
+	});
+});
+
+describe('DunJiaCalc · birthToYearGan（相关人员生年干，按立春分界）', ()=>{
+	test('立春前后年柱天干不同（2000 立春约2/4：2/3→己、2/5→庚）', ()=>{
+		expect(birthToYearGan('2000-02-03 12:00:00')).toEqual('己');
+		expect(birthToYearGan('2000-02-05 12:00:00')).toEqual('庚');
+	});
+	test('常规年份取年柱天干（1990 庚午年→庚）', ()=>{
+		expect(birthToYearGan('1990-06-15 10:30:00')).toEqual('庚');
+	});
+	test('缺日期/空串/非法值安全返回空', ()=>{
+		expect(birthToYearGan('')).toEqual('');
+		expect(birthToYearGan(null)).toEqual('');
+		expect(birthToYearGan('not-a-date')).toEqual('');
 	});
 });

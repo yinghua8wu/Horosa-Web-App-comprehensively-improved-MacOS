@@ -1,4 +1,5 @@
 import * as LRConst from '../liureng/LRConst';
+import { Solar } from 'lunar-javascript';
 import { buildQimenBaGongSnapshotLines, buildQimenFuShiYiGua } from './DunJiaBaGongRules';
 import { buildFaQimenAnalysis } from './DunJiaFaCalc';
 import request from '../../utils/request';
@@ -104,6 +105,44 @@ export const YIXING_OPTIONS = [
 	{ value: 6, label: '顺转六宫' },
 	{ value: 7, label: '顺转七宫' },
 ];
+
+// 命盘 / 事盘：保存去向。事盘→案例库 localCases（现状）；命盘→命盘库 localCharts（完整人命盘，跨技法自由使用，奇门设置存 payload.qimen）。
+export const CHART_CATEGORY_OPTIONS = [
+	{ value: 'shi', label: '事盘' },
+	{ value: 'ming', label: '命盘' },
+];
+
+// 由出生时间求八字「年柱」天干（按立春分界，与奇门默认 yearGanZhiType=2 立春交接一致）。供左栏「相关人员」算各人生年干复用。按出生串缓存。
+const YEAR_GAN_CACHE = {};
+export function birthToYearGan(birth){
+	if(!birth){
+		return '';
+	}
+	const key = `${birth}`;
+	if(YEAR_GAN_CACHE[key] !== undefined){
+		return YEAR_GAN_CACHE[key];
+	}
+	let gan = '';
+	try{
+		const m = key.trim().match(/(-?\d{1,6})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+		if(m){
+			const y = parseInt(m[1], 10);
+			const mo = parseInt(m[2], 10);
+			const d = parseInt(m[3], 10);
+			const h = m[4] !== undefined ? parseInt(m[4], 10) : 12;
+			const mi = m[5] !== undefined ? parseInt(m[5], 10) : 0;
+			const s = m[6] !== undefined ? parseInt(m[6], 10) : 0;
+			const solar = Solar.fromYmdHms(y, mo, d, h, mi, s);
+			const lunar = solar.getLunar();
+			const gz = lunar.getYearInGanZhiByLiChun ? lunar.getYearInGanZhiByLiChun() : lunar.getYearInGanZhi();
+			gan = gz ? `${gz}`.charAt(0) : '';
+		}
+	}catch(e){
+		gan = '';
+	}
+	YEAR_GAN_CACHE[key] = gan;
+	return gan;
+}
 
 const GAN = '甲乙丙丁戊己庚辛壬癸'.split('');
 const ZHI = '子丑寅卯辰巳午未申酉戌亥'.split('');

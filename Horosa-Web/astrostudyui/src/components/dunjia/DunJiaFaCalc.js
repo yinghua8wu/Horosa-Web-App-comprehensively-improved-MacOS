@@ -350,7 +350,17 @@ export function computeProtect(pan, ctx){
 	};
 	addGan('日干·内心/实质', (gz.day || '').charAt(0));
 	addGan('时干·外在/表象', (gz.time || '').charAt(0));
-	addGan('生年干·局中各人（示本盘年干）', (gz.year || '').charAt(0));
+	// 生年干·局中各人：从左栏「相关人员」选入者的生年干（捕获快照，逐人一行）；未选则不显示该类。
+	// pan.faRelatedPeople 为显式数组(含空[])时以它为准(储存/重开/已保存记录)；缺省(undefined)时兜底读全局当前选择
+	// (覆盖 AI 挂载里「重算 pan 不带 stamp」的路径，保证四同步无遗漏)。
+	const relatedPeople = Array.isArray(pan.faRelatedPeople)
+		? pan.faRelatedPeople
+		: ((typeof window !== 'undefined' && Array.isArray(window.__horosa_qimen_related_people)) ? window.__horosa_qimen_related_people : []);
+	relatedPeople.forEach((person)=>{
+		if(person && person.yearGan){
+			addGan(`生年干·${person.name || '相关人员'}`, person.yearGan);
+		}
+	});
 	const yx = TOPIC_YIXIANG[topic];
 	if(yx){
 		addGan(`意象·${yx.label}`, yx.gan);

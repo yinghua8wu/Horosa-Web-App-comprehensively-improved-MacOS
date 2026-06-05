@@ -25,6 +25,13 @@ export default class ChartAddFormComp extends Component{
 			for(let key in flds){
 				params[key] = flds[key].value;
 			}
+			// 透传非表单字段：模块特殊设置(payload)与来源标记(sourceModule/chartType)随命盘存档。
+			// 占星正常新增命盘时这些恒为 null/undefined → 行为逐字节不变；仅当其他模块(如奇门)注入 payload 时生效。
+			if(this.props.fields){
+				if(this.props.fields.payload){ params.payload = this.props.fields.payload.value; }
+				if(this.props.fields.sourceModule){ params.sourceModule = this.props.fields.sourceModule.value; }
+				if(this.props.fields.chartType){ params.chartType = this.props.fields.chartType.value; }
+			}
 
 			this.props.dispatch({
 				type: 'user/addChart',
