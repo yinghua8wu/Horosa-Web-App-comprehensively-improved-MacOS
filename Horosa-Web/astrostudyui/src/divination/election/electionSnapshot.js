@@ -23,6 +23,20 @@ export function buildElectionSnapshot(j){
 		j.topicPack.items.forEach((it) => L.push(`- ${it.pass ? '✓' : '✗'} ${it.kind === 'avoid' ? '忌' : '宜'}：${it.label}`));
 		if(j.topicPack.notes) L.push('注：' + j.topicPack.notes);
 	}
+	L.push('[应期]');
+	if(j.timing && j.timing.length){
+		j.timing.forEach((t) => L.push(`- 月亮 ${t.angle}° ${t.otherCn}（误差 ${t.orb != null ? Number(t.orb).toFixed(1) : '-'}°，越紧越近发动）`));
+	}else{
+		L.push('月亮无紧密相位，应期不显。');
+	}
+	if(j.natal && j.natal.available){
+		L.push('[本命合参]');
+		j.natal.notes.forEach((n) => L.push(`- ${n.pol === 'positive' ? '✓' : (n.pol === 'negative' ? '✗' : '·')} ${n.text}`));
+	}
+	if(j.mundane && j.mundane.available){
+		L.push('[时势合参]');
+		j.mundane.notes.forEach((n) => L.push(`- ${n.pol === 'positive' ? '✓' : (n.pol === 'negative' ? '✗' : '·')} ${n.text}`));
+	}
 	L.push('[建议]');
 	j.recommendations.forEach((r) => L.push('- ' + r));
 	return L.join('\n');

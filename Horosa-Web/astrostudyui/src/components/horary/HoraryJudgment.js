@@ -5,8 +5,26 @@ import { buildHorarySnapshot } from '../../divination/horary/horarySnapshot';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { PLANETS } from '../../divination/data/planets';
 import { SIGNS } from '../../divination/data/signs';
+import * as AstroText from '../../constants/AstroText';
+import * as AstroConst from '../../constants/AstroConst';
+import { getQuestionGuide } from '../../divination/horary/questionGuide';
 
 const TabPane = XQTabs.TabPane;
+// 古典·接纳/互容（卜卦右栏「古典」tab）：直接读排盘引擎已算的后端 chart.receptions / chart.mutuals，
+// 与「占星·古典」同一套成熟数据（正/邪接纳、正/邪互容、庙旺三分界面尊贵 + 拒绝），不再用前端近似引擎。
+const RECEPTION_REFUSE_TOKENS = ['exile', 'fall'];
+function dignCn(ary){ return (ary || []).map((t) => AstroText.AstroMsg[t] || t).join('+'); }
+function pGlyph(id){ return AstroText.AstroMsg[id] || id; }
+function gly(id){ return <span style={{ fontFamily: AstroConst.AstroFont }}>{pGlyph(id)}</span>; }
+function hasRefuse(tokens){ return (tokens || []).some((t) => RECEPTION_REFUSE_TOKENS.includes(t)); }
+function classicalReception(chart){
+	const recp = (chart && chart.receptions) || {};
+	const mut = (chart && chart.mutuals) || {};
+	return {
+		recNormal: recp.normal || [], recAbnormal: recp.abnormal || [],
+		mutNormal: mut.normal || [], mutAbnormal: mut.abnormal || [],
+	};
+}
 let _lastHorarySnap = '';
 function cn(k){ return (PLANETS[k] || {}).cn || k || '—'; }
 const ANG_CN = { angular: '角宫·有力', succedent: '续宫·中等', cadent: '果宫·偏弱' };
@@ -53,6 +71,8 @@ class HoraryJudgment extends Component{
 		const facts = j.facts;
 		const moonStory = j.moonStory || { separating: [], applying: [] };
 		const allAspects = j.allAspects || [];
+		const cls = classicalReception(chart);
+		const guide = getQuestionGuide(category);
 
 		return (
 			<XQTabs defaultActiveKey="verdict" className="horosa-inspector-tabs horosa-content-tabs">
@@ -62,6 +82,14 @@ class HoraryJudgment extends Component{
 							{lean.word}
 							<div className="sub">{lean.sub}</div>
 						</div>
+						{guide ? (
+							<div className="horosa-divi-card">
+								<div className="horosa-divi-card-head">断法要点 · {guide.title}</div>
+								<div className="horosa-divi-kv" style={{ opacity: 0.85 }}>{guide.focus}</div>
+								<div className="horosa-divi-testi is-pos"><span className="dot">▲</span><span>偏成之征：{guide.yes}</span></div>
+								<div className="horosa-divi-testi is-neg"><span className="dot">▼</span><span>偏阻之征：{guide.no}</span></div>
+							</div>
+						) : null}
 						<div className="horosa-divi-card">
 							<div className="horosa-divi-subhead pos">有利证词（{v.positive.length}）</div>
 							{v.positive.length ? v.positive.map((p, i) => <div key={i} className="horosa-divi-testi is-pos"><span className="dot">▲</span><span>{p.text}</span></div>) : <div className="horosa-divi-line">暂无明显有利证词。</div>}
@@ -95,7 +123,20 @@ class HoraryJudgment extends Component{
 							<div className="horosa-divi-kv">{sig.quesitedLabel || '所问之事'} ＝ {sig.quesitedHouse ? sig.quesitedHouse + '宫主 ' : ''}<span className="tag">{cn(sig.quesitedKey)}</span></div>
 							{sig.natural ? <div className="horosa-divi-kv">自然征象星（该事项的天然代表）＝ <span className="tag">{cn(sig.natural)}</span></div> : null}
 							<div className="horosa-divi-kv">此刻「时主星」（活跃征象）＝ <span className="tag">{cn(j.hourRuler)}</span></div>
+							{j.hourAgreement ? <div className={'horosa-divi-testi ' + (j.hourAgreement.agree ? 'is-pos' : '')}><span className="dot">{j.hourAgreement.agree ? '✓' : '·'}</span><span>{j.hourAgreement.text}</span></div> : null}
 						</div>
+						{(j.fixedStars && j.fixedStars.length) ? (
+							<div className="horosa-divi-card">
+								<div className="horosa-divi-card-head">恒星会合（≤1°）</div>
+								<div className="horosa-divi-legend">征象星 / 命度 / 天顶 紧密会合精选恒星 → 叠加该星吉凶之力（卜卦取少而精的一组恒星）。</div>
+								{j.fixedStars.map((s, i) => (
+									<div key={i} className={'horosa-divi-testi ' + (s.nature === 'boost' ? 'is-pos' : 'is-neg')}>
+										<span className="dot">{s.nature === 'boost' ? '★' : '⚠'}</span>
+										<span><b>{s.point}</b> 会合 <b>{s.star}</b>（{s.meaning}）</span>
+									</div>
+								))}
+							</div>
+						) : null}
 						<div className="horosa-divi-legend">各征象星力量：入庙旺=有力；落陷/游走/燃烧/逆行=无力或受损；角宫快而有力，果宫弱而拖延。</div>
 						{Object.keys(j.conditions).map((k) => {
 							const c = j.conditions[k];
@@ -142,7 +183,52 @@ class HoraryJudgment extends Component{
 					</div>
 				</TabPane>
 
-				<TabPane tab="时空" key="timing">
+				<TabPane tab="古典" key="reception">
+						<div className="horosa-divi-judge">
+							<div className="horosa-divi-legend">接纳＝一星「作客」于另一星的尊贵处（庙/旺/三分/界/面）→ 后者以礼相待、愿助其事。<b>正接纳</b>（居对方庙旺等强位）能化解凶相、助成；<b>互容</b>（彼此接纳）尤吉；供方落陷弱位时标「拒绝」。卜卦判断中，征象星间有无接纳，往往决定成败与意愿。</div>
+							<div className="horosa-divi-card">
+								<div className="horosa-divi-card-head">接纳关系</div>
+								{(cls.recNormal.length || cls.recAbnormal.length) ? [
+									(cls.recNormal.length ? <div key="rnh" className="horosa-divi-line" style={{ fontWeight: 600 }}>正接纳</div> : null),
+									...cls.recNormal.map((it, i) => (
+										<div key={'rn' + i} className="horosa-divi-testi is-pos">
+											<span className="dot">✦</span>
+											<span>{gly(it.beneficiary)} 被 {gly(it.supplier)} 接纳（{dignCn(it.supplierRulerShip)}）{hasRefuse(it.supplierRulerShip) ? <span style={{ color: 'var(--horosa-cinnabar, #b71c1c)' }}> · 拒绝</span> : null}</span>
+										</div>
+									)),
+									(cls.recAbnormal.length ? <div key="rah" className="horosa-divi-line" style={{ fontWeight: 600, marginTop: 4 }}>邪接纳（借次尊贵 / 弱位）</div> : null),
+									...cls.recAbnormal.map((it, i) => (
+										<div key={'ra' + i} className="horosa-divi-testi">
+											<span className="dot">◦</span>
+											<span>{gly(it.beneficiary)} 被 {gly(it.supplier)} 接纳（{dignCn(it.supplierRulerShip)}）{hasRefuse(it.supplierRulerShip) ? <span style={{ color: 'var(--horosa-cinnabar, #b71c1c)' }}> · 拒绝</span> : null}</span>
+										</div>
+									)),
+								] : <div className="horosa-divi-line">七政之间暂无接纳关系。</div>}
+							</div>
+							<div className="horosa-divi-card">
+								<div className="horosa-divi-card-head">互容（Mutual Reception）</div>
+								{(cls.mutNormal.length || cls.mutAbnormal.length) ? [
+									(cls.mutNormal.length ? <div key="mnh" className="horosa-divi-line" style={{ fontWeight: 600 }}>正互容</div> : null),
+									...cls.mutNormal.map((m, i) => (
+										<div key={'mn' + i} className="horosa-divi-testi is-pos">
+											<span className="dot">⇄</span>
+											<span>{gly((m.planetA||{}).id)}（{dignCn((m.planetA||{}).rulerShip)}） 与 {gly((m.planetB||{}).id)}（{dignCn((m.planetB||{}).rulerShip)}） 互容</span>
+										</div>
+									)),
+									(cls.mutAbnormal.length ? <div key="mah" className="horosa-divi-line" style={{ fontWeight: 600, marginTop: 4 }}>邪互容</div> : null),
+									...cls.mutAbnormal.map((m, i) => (
+										<div key={'ma' + i} className="horosa-divi-testi">
+											<span className="dot">⇄</span>
+											<span>{gly((m.planetA||{}).id)}（{dignCn((m.planetA||{}).rulerShip)}） 与 {gly((m.planetB||{}).id)}（{dignCn((m.planetB||{}).rulerShip)}） 互容</span>
+										</div>
+									)),
+								] : <div className="horosa-divi-line">无互容。</div>}
+							</div>
+							<div className="horosa-divi-muted">接纳/互容由排盘引擎按庙旺三分界面尊贵自动判定（与「占星·古典」同源）；正接纳＝居对方庙旺等强位，邪接纳＝借次尊贵或弱位，供方落陷则标「拒绝」。</div>
+						</div>
+					</TabPane>
+
+					<TabPane tab="时空" key="timing">
 					<div className="horosa-divi-judge">
 						<div className="horosa-divi-card">
 							<div className="horosa-divi-card-head">何时（应期）</div>

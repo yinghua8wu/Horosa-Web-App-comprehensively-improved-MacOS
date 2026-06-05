@@ -13,8 +13,51 @@ import { describePerson, THIEF_BY_PLANET, DISEASE_BY_ELEMENT, DEATH_MODE } from 
 import { runTheft } from './theftModule';
 import { PLANETS } from '../data/planets';
 import { SIGNS } from '../data/signs';
+import { FIXED_STARS, starLonAt } from '../data/fixedStars';
+import { angularDist } from '../engine/utils';
 
 function cn(k){ return (PLANETS[k] || {}).cn || k; }
+
+// 取本盘公历年（恒星岁差修正）：读 /chart 回传 params.birth/date；缺则用中性年。
+function chartYear(facts){
+	try{
+		const p = facts && facts.result && facts.result.params;
+		const ds = p && (p.birth || p.date);
+		if(ds){ const m = String(ds).match(/(-?\d{3,4})/); if(m){ return Number(m[1]); } }
+	}catch(e){ /* noop */ }
+	return 2000;
+}
+
+// D2 恒星会合：征象星/命度/天顶 ≤1° 会合精选恒星。
+function buildFixedStars(facts, sigs){
+	const year = chartYear(facts);
+	const out = [];
+	const points = {};
+	if(facts.meta.ascLon != null){ points['命度'] = facts.meta.ascLon; }
+	if(facts.meta.mcLon != null){ points['天顶'] = facts.meta.mcLon; }
+	[['命主', sigs.querentKey], ['事项', sigs.quesitedKey], ['月亮', 'moon']].forEach((pair) => {
+		const label = pair[0]; const k = pair[1];
+		if(k && facts.planets[k] && facts.planets[k].lon != null){ points[`${label}·${cn(k)}`] = facts.planets[k].lon; }
+	});
+	Object.keys(points).forEach((label) => {
+		const lon = points[label];
+		FIXED_STARS.forEach((st) => {
+			if(angularDist(lon, starLonAt(st.lon_1995, year)) <= 1){
+				out.push({ point: label, star: st.name_cn, meaning: st.meaning, nature: (st.election && st.election.avoid) ? 'caution' : 'boost' });
+			}
+		});
+	});
+	return out;
+}
+
+// D5 行星时佐证：时主星与命主/事项星一致 → 时辰与盘相合（根本性佐证）。
+function buildHourAgreement(facts, sigs){
+	const hr = facts.meta.hourRuler;
+	if(!hr){ return null; }
+	if(hr === sigs.querentKey){ return { agree: true, text: `时主星 ${cn(hr)} ＝ 命主：时辰与盘相合（根本性佐证）。` }; }
+	if(hr === sigs.quesitedKey){ return { agree: true, text: `时主星 ${cn(hr)} ＝ 事项守护星：时辰与所问相合（佐证）。` }; }
+	return { agree: false, text: `时主星 ${cn(hr)} 与命主/事项星不一致，作一般参考。` };
+}
 
 export const ASPECT_CN = { 0: '合相', 60: '六合', 90: '四分(刑)', 120: '三合', 180: '对分(冲)' };
 const ASPECT_NATURE = { 0: 'neutral', 60: 'positive', 120: 'positive', 90: 'negative', 180: 'negative' };
@@ -162,6 +205,8 @@ export function runHorary(result, category){
 		radicality: rad, moon, perfection: perf, thirds, conditions: conds, queries, timing, verdict, describe, theft,
 		allAspects: buildAllAspects(facts), moonStory: buildMoonStory(facts),
 		hourRuler: facts.meta.hourRuler,
+		fixedStars: buildFixedStars(facts, { querentKey, quesitedKey }),
+		hourAgreement: buildHourAgreement(facts, { querentKey, quesitedKey }),
 	};
 }
 

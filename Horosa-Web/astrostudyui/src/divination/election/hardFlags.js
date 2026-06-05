@@ -5,6 +5,7 @@ import { aspectsOf } from '../engine/aspectsEngine';
 import { isViaCombusta } from '../engine/moon';
 import { PLANETS } from '../data/planets';
 import { SIGNS } from '../data/signs';
+import { angularDist } from '../engine/utils';
 
 function lord1Of(facts){
 	const s = facts.meta.ascSign;
@@ -77,6 +78,24 @@ export function evalHardFlags(facts, topic){
 		const p = facts.planets[k];
 		if(p && p.peregrine) add('peregrine_significator', 'low', `用事星 ${cn(k)} 游走（无尊贵），缺乏力量`, k);
 	});
+
+	// 守留日：行星速度近 0（顺逆转向），力量停滞，重要用事宜避。
+	['mercury', 'venus', 'mars', 'jupiter', 'saturn'].forEach((k) => {
+		const p = facts.planets[k];
+		if(p && p.speed !== undefined && p.speed !== null && Math.abs(p.speed) < 0.05){
+			add('station_day', 'medium', `${cn(k)} 守留（速度近 0、顺逆转向）：停滞之象，重要用事宜避`, k);
+		}
+	});
+
+	// 火星合/刑命度：冲动、伤厄、争端，多数用事忌。
+	const mars = facts.planets.mars;
+	const ascLon = facts.meta.ascLon;
+	if(mars && mars.lon != null && ascLon != null){
+		const dConj = angularDist(mars.lon, ascLon);
+		const dSq = Math.min(angularDist(mars.lon, (ascLon + 90) % 360), angularDist(mars.lon, (ascLon + 270) % 360));
+		if(dConj <= 3) add('asc_mars_hard', 'high', '火星合命度：易冲动/伤厄，多数用事忌', 'mars');
+		else if(dSq <= 3) add('asc_mars_hard', 'medium', '火星刑命度：阻力/争端', 'mars');
+	}
 
 	return flags;
 }

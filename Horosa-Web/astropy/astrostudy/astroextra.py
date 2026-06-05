@@ -579,7 +579,10 @@ def calc_lunar_phases(start_jd, end_jd, zone):
         while jd < end_jd:
             nxt = min(jd + 0.5, end_jd)
             cur = norm180(moon_sun_elongation(nxt) - target)
-            if (prev <= 0 <= cur) or (prev >= 0 >= cur):
+            # ⚠️ 必须排除 norm180 在 ±180 处的回绕跳变(真交叉 step 仅~6°/12h、回绕 step≈360°)。
+            # 否则 target=0(新月)会在 elong=180(对分)处 f 从 +179 跳到 −179 被误判成过零 →
+            # 每个朔望时刻同时被标 New Moon + Full Moon,前端新月/满月列表全被串成对方。
+            if ((prev <= 0 <= cur) or (prev >= 0 >= cur)) and abs(cur - prev) < 180:
                 def f(x):
                     return norm180(moon_sun_elongation(x) - target)
                 hit_jd = refine_crossing(f, jd, nxt)
@@ -1110,6 +1113,170 @@ def compute_great_conjunctions(data):
         prev_jd, prev_d = cur, d
         cur += step
     return {'conjunctions': results, 'startYear': start_year, 'endYear': end_year}
+
+
+_SWE_PLANET_BY_NAME = {
+    'Sun': swisseph.SUN, 'Moon': swisseph.MOON, 'Mercury': swisseph.MERCURY,
+    'Venus': swisseph.VENUS, 'Mars': swisseph.MARS, 'Jupiter': swisseph.JUPITER,
+    'Saturn': swisseph.SATURN, 'Uranus': swisseph.URANUS, 'Neptune': swisseph.NEPTUNE,
+    'Pluto': swisseph.PLUTO, 'Node': swisseph.TRUE_NODE,
+}
+
+# 各体平均回归周期（天），仅用于步进定位返照点。
+_MEAN_PERIOD_DAYS = {
+    swisseph.SUN: 365.2422, swisseph.MOON: 27.3217, swisseph.MERCURY: 87.969,
+    swisseph.VENUS: 224.701, swisseph.MARS: 686.980, swisseph.JUPITER: 4332.59,
+    swisseph.SATURN: 10759.22, swisseph.URANUS: 30688.5, swisseph.NEPTUNE: 60182.0,
+    swisseph.PLUTO: 90560.0, swisseph.TRUE_NODE: 6793.48,
+}
+
+
+def compute_planet_cycles(data):
+    """ 任意两慢星的合/冲时间轴（A4b 外行星周期）：泛化 compute_great_conjunctions。
+        params: startYear,endYear,p1,p2(星名),aspect(0 合 / 180 冲)。 """
+    try:
+        start_year = int(data.get('startYear', 1900))
+    except Exception:
+        start_year = 1900
+    try:
+        end_year = int(data.get('endYear', 2100))
+    except Exception:
+        end_year = 2100
+    if end_year < start_year:
+        start_year, end_year = end_year, start_year
+    if end_year - start_year > 3400:
+        end_year = start_year + 3400
+    p1 = _SWE_PLANET_BY_NAME.get(str(data.get('p1', 'Jupiter')), swisseph.JUPITER)
+    p2 = _SWE_PLANET_BY_NAME.get(str(data.get('p2', 'Saturn')), swisseph.SATURN)
+    try:
+        aspect = float(data.get('aspect', 0))
+    except Exception:
+        aspect = 0.0
+
+    def _lon(jd_, planet):
+        return swisseph.calc_ut(jd_, planet)[0][0]
+
+    def _signed_diff(jd_):
+        d = _lon(jd_, p1) - _lon(jd_, p2) - aspect
+        return ((d + 180.0) % 360.0) - 180.0
+
+    jd = swisseph.julday(start_year, 1, 1, 0.0)
+    end_jd = swisseph.julday(end_year, 12, 31, 0.0)
+    step = 6.0
+    prev_jd = jd
+    prev_d = _signed_diff(jd)
+    results = []
+    cur = jd + step
+    while cur <= end_jd:
+        d = _signed_diff(cur)
+        if (prev_d < 0) != (d < 0) and abs(prev_d - d) < 180.0:
+            lo, hi, dlo = prev_jd, cur, prev_d
+            for _ in range(50):
+                mid = (lo + hi) / 2.0
+                dm = _signed_diff(mid)
+                if (dm < 0) == (dlo < 0):
+                    lo, dlo = mid, dm
+                else:
+                    hi = mid
+            cjd = (lo + hi) / 2.0
+            jl = _lon(cjd, p1) % 360.0
+            y, m, dd, hh = swisseph.revjul(cjd)
+            results.append({
+                'jd': round(cjd, 4),
+                'year': int(y), 'month': int(m), 'day': int(dd),
+                'lon': round(jl, 2), 'sign': int(jl / 30.0) % 12,
+            })
+        prev_jd, prev_d = cur, d
+        cur += step
+    return {
+        'events': results,
+        'startYear': start_year, 'endYear': end_year,
+        'p1': str(data.get('p1', 'Jupiter')), 'p2': str(data.get('p2', 'Saturn')),
+        'aspect': aspect,
+    }
+
+
+def compute_planet_return(data):
+    """ 多重回归（C5）：行星返照到本命黄经的时刻列表。
+        params: date/time/zone/lat/lon(本命) + body(星名) + count(几次)。 """
+    date = data.get('date')
+    time = data.get('time', '12:00:00')
+    zone = data.get('zone', '+00:00')
+    body = _SWE_PLANET_BY_NAME.get(str(data.get('body', 'Saturn')), swisseph.SATURN)
+    try:
+        count = int(data.get('count', 3))
+    except Exception:
+        count = 3
+    count = max(1, min(12, count))
+    natal_dt = Datetime(date, time, zone)
+    natal_jd = natal_dt.jd
+    natal_lon = swisseph.calc_ut(natal_jd, body)[0][0] % 360.0
+    mean_days = _MEAN_PERIOD_DAYS.get(body, 4332.59)
+
+    def _diff(jd_):
+        d = swisseph.calc_ut(jd_, body)[0][0] - natal_lon
+        return ((d + 180.0) % 360.0) - 180.0
+
+    results = []
+    for which in range(1, count + 1):
+        center = natal_jd + which * mean_days
+        span = mean_days * 0.2
+        step = max(0.5, mean_days / 240.0)
+        jd = center - span
+        prev = _diff(jd)
+        found = None
+        scan = jd + step
+        while scan <= center + span:
+            cur = _diff(scan)
+            if (prev <= 0 <= cur) or (prev >= 0 >= cur):
+                lo, hi = scan - step, scan
+                base_neg = prev <= 0
+                for _ in range(50):
+                    mid = (lo + hi) / 2.0
+                    dm = _diff(mid)
+                    if (dm <= 0) == base_neg:
+                        lo = mid
+                    else:
+                        hi = mid
+                found = (lo + hi) / 2.0
+                break
+            prev = cur
+            jd = scan
+            scan += step
+        if found is None:
+            found = center
+        det = date_time_from_jd(found, zone)
+        det['which'] = which
+        det['jd'] = round(found, 4)
+        results.append(det)
+    return {'returns': results, 'natalLon': round(natal_lon, 3), 'body': str(data.get('body', 'Saturn'))}
+
+
+def compute_eclipse_detail(data):
+    """ 食时长定则（A4b）：日食持续 N 小时 → 影响约 N 年；月食 N 小时 → N 月。
+        params: date/time/zone(食时刻附近) + eclipseKind(solar/lunar)。返回 swe 全球食的初亏-复圆时长。 """
+    date = data.get('date')
+    time = data.get('time', '12:00:00')
+    zone = data.get('zone', '+00:00')
+    kind = str(data.get('eclipseKind', 'solar'))
+    result = {'kind': kind, 'durationHours': 0.0, 'influence': 0.0, 'influenceUnit': ('年' if kind == 'solar' else '月')}
+    try:
+        dt = Datetime(date, time, zone)
+        jd_search = dt.jd - 2.0
+        if kind == 'lunar':
+            _ret, tret = swisseph.lun_eclipse_when(jd_search, swisseph.FLG_SWIEPH, 0, False)
+            begin = tret[2] if tret[2] else tret[6]
+            end = tret[3] if tret[3] else tret[7]
+        else:
+            _ret, tret = swisseph.sol_eclipse_when_glob(jd_search, swisseph.FLG_SWIEPH, 0, False)
+            begin = tret[2]
+            end = tret[3]
+        dur_h = (end - begin) * 24.0 if (begin and end and end > begin) else 0.0
+        result['durationHours'] = round(dur_h, 2)
+        result['influence'] = round(dur_h, 1)
+    except Exception:
+        pass
+    return result
 
 
 def build_draconic(data):

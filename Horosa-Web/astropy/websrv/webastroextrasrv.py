@@ -112,6 +112,36 @@ class AstroExtraSrv:
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
     @cherrypy.tools.json_in()
+    def planetcycles(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(astroextra.compute_planet_cycles(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def planetreturn(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(astroextra.compute_planet_return(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def eclipsedetail(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(astroextra.compute_eclipse_detail(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
     def relative(self, **params):
         enable_crossdomain()
         try:

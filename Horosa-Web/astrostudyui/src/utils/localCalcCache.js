@@ -1,6 +1,6 @@
 const NONG_LI_NS = 'horosa.localcalc.nongli.v1';
 const JIE_QI_NS = 'horosa.localcalc.jieqi.v2';
-const JIE_QI_YEAR_NS = 'horosa.localcalc.jieqiYear.v1';
+const JIE_QI_YEAR_NS = 'horosa.localcalc.jieqiYear.v2';
 const BIRTH_GANZI_NS = 'horosa.localcalc.birthGanzhi.v1';
 const LIURENG_RUNYEAR_NS = 'horosa.localcalc.liureng.runyear.v1';
 const MAX_NONG_LI = 512;
@@ -94,7 +94,9 @@ function trimByCount(mapObj, maxCount){
 
 const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'after23NewDay', 'lateZiHourUseNextDay', 'timeAlg'];
 const JIE_QI_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'timeAlg', 'jieqis', 'seedOnly'];
-const JIE_QI_YEAR_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'timeAlg', 'hsys', 'zodiacal', 'doubingSu28', 'needBazi', 'needCharts'];
+// ⚠️ 必须含 jieqis + seedOnly：seedOnly 模式下只返回所请求的节气,否则按粗 key(无 jieqis)缓存会让
+// 春分(先请求,只返春分)的缓存被秋分/夏至/冬至命中 → seed[其它节气]缺失 → 入宫盘「未取到入宫时刻」(顺序依赖)。
+const JIE_QI_YEAR_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'timeAlg', 'hsys', 'zodiacal', 'doubingSu28', 'needBazi', 'needCharts', 'jieqis', 'seedOnly'];
 
 export function getNongliLocalCache(params){
 	loadIfNeeded();

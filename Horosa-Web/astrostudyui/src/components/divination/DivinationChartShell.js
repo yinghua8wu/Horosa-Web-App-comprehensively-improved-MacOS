@@ -67,6 +67,7 @@ class DivinationChartShell extends Component{
 		this.castNow = this.castNow.bind(this);
 		this.setExtra = this.setExtra.bind(this);
 		this.setTimeDt = this.setTimeDt.bind(this);
+		this.patchFields = this.patchFields.bind(this);
 	}
 
 	setTimeDt(dt){
@@ -275,23 +276,25 @@ class DivinationChartShell extends Component{
 					</div>
 				</div>
 
-				<div className="horosa-field-block">
-					<div className="horosa-field-label">时间</div>
-					<Popover content={timeEditor} trigger="click" placement="rightTop" overlayClassName="horosa-time-adjust-popover">
-						<button type="button" className="horosa-unified-field">
-							<XQIcon name="clock" />
-							<span>{timeText}</span>
-						</button>
-					</Popover>
-					<div className="horosa-time-adjust-inline">
-						<PlusMinusTime value={dt} onChange={this.changeTime} adjustOnly />
+				{!this.props.hideTime ? (
+					<div className="horosa-field-block">
+						<div className="horosa-field-label">时间</div>
+						<Popover content={timeEditor} trigger="click" placement="rightTop" overlayClassName="horosa-time-adjust-popover">
+							<button type="button" className="horosa-unified-field">
+								<XQIcon name="clock" />
+								<span>{timeText}</span>
+							</button>
+						</Popover>
+						<div className="horosa-time-adjust-inline">
+							<PlusMinusTime value={dt} onChange={this.changeTime} adjustOnly />
+						</div>
+						{this.props.castNowLabel ? (
+							<XQButton size="small" iconName="refresh" onClick={this.castNow} style={{ marginTop: 6 }}>
+								{this.props.castNowLabel}
+							</XQButton>
+						) : null}
 					</div>
-					{this.props.castNowLabel ? (
-						<XQButton size="small" iconName="refresh" onClick={this.castNow} style={{ marginTop: 6 }}>
-							{this.props.castNowLabel}
-						</XQButton>
-					) : null}
-				</div>
+				) : null}
 
 				<div className="horosa-field-block">
 					<div className="horosa-field-label">地点</div>
@@ -312,7 +315,7 @@ class DivinationChartShell extends Component{
 				</div>
 
 				{typeof this.props.renderLeftExtra === 'function'
-					? this.props.renderLeftExtra({ extra: this.state.extra, setExtra: this.setExtra, fields, chart: this.state.chart, setTime: this.setTimeDt })
+					? this.props.renderLeftExtra({ extra: this.state.extra, setExtra: this.setExtra, fields, chart: this.state.chart, setTime: this.setTimeDt, patchFields: this.patchFields })
 					: null}
 
 				<div className="horosa-field-grid">

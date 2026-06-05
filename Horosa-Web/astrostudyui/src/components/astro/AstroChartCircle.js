@@ -939,6 +939,39 @@ export default class AstroChartCircle {
 	
 	
 	
+	// 行星 glyph 防重叠铺开(成熟方案):从最大圆周空隙处「断环」展开 → unwrap 成单调序列 → 前向顺延 ≥ angoffset。
+	// 设 obj.poslon(显示位,可 >360,glyph 与相位线共用)。解决「极少数盘把行星挤成一团」:旧逻辑按 lon 升序硬推,
+	// 跨 0°/360° 的密集团会被推过 360° 绕回与开头互挤。objects 须已按 lon 升序(调用处 1589/1795 已 sort)。
+	declusterPlanetPositions(objects, planetDisplay, angoffset){
+		const vis = [];
+		for(let i=0; i<objects.length; i++){
+			const o = objects[i];
+			if(o && planetDisplay && planetDisplay.has(o.id)){ vis.push(o); }
+		}
+		if(vis.length === 0){ return; }
+		if(vis.length === 1){ vis[0].poslon = vis[0].lon; return; }
+		// 找最大「前向圆周空隙」,从其后那颗开始展开(把接缝放到最空处,避免跨 0° 互挤)
+		let startIdx = 0; let maxGap = -1;
+		for(let k=0; k<vis.length; k++){
+			const cur = vis[k].lon;
+			const next = vis[(k + 1) % vis.length].lon;
+			const gap = (((next - cur) % 360) + 360) % 360;
+			if(gap > maxGap){ maxGap = gap; startIdx = (k + 1) % vis.length; }
+		}
+		// unwrap 成单调递增 → 前向顺延 ≥ angoffset
+		let prev = null;
+		let base = vis[startIdx].lon;
+		for(let k=0; k<vis.length; k++){
+			const p = vis[(startIdx + k) % vis.length];
+			let lon = p.lon;
+			while(lon < base - 1e-6){ lon += 360; }
+			base = lon;
+			if(prev !== null && lon < prev + angoffset){ lon = prev + angoffset; }
+			prev = lon;
+			p.poslon = lon;
+		}
+	}
+
 	desposeStars(svg, chartObj, r, rStep, houses, objects, planetDisplay, flags, house1Ang, txtsu28){
 		let samecolorwithsign = (flags & AstroConst.CHART_PLANETCOLORWITHSIGN) === 0 ? false : true;
 		let txtforward = (flags & AstroConst.CHART_TXTPLANETFORWARD) === 0 ? false : true;
@@ -1000,20 +1033,15 @@ export default class AstroChartCircle {
 				.attr('fill', AstroConst.AstroColor.PlanetZoneFill[house.id]);
 		}
 	
+		const angoffset = r >= this.rThreshold ? 7.5 : 11;
+		this.declusterPlanetPositions(objects, planetDisplay, angoffset);
 		for(let i=0; i<objects.length; i++){
 			let pnt = objects[i];
 			let pntstr = pnt.id;
 			if(!planetDisplay.has(pntstr)){
 				continue;
 			}
-			let angoffset = r >= this.rThreshold ? 7.5 : 11;
-			let tmplon = pnt.lon;
-			if((degSet.length > 0 && distanceInCircleAbs(degSet[degSet.length-1], tmplon) < angoffset) || 
-				(degSet.length > 0 && degSet[degSet.length-1] + angoffset > tmplon)){
-				tmplon = degSet[degSet.length-1] + angoffset;
-			}
-			degSet.push(tmplon);
-			pnt.poslon = tmplon;
+			let tmplon = (pnt.poslon !== undefined && pnt.poslon !== null) ? pnt.poslon : pnt.lon;
 			let lon = tmplon * Math.PI / 180;
 			let lblgroup = stars.append('g').attr("text-anchor", "middle");
 			this.genTooltip(lblgroup, pnt);

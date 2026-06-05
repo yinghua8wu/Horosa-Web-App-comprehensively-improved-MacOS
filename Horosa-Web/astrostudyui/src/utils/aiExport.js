@@ -108,8 +108,9 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 // v18 — 四同步审计补全:migration keys 补齐占星/星运核心 + 卜卦/择日 19 技法(此前漏登记 → 这些技法预设新增分段
 //        升级后并不并入老用户设置;astrochart 的「12分度/主宰链/寿命格局」即曾受此坑)。jieqi 系列走自有 split 迁移,不在此列。
 // 升 SETTINGS_VERSION 触发用户旧 export presets 回收;升 MIGRATION_VERSION 把新段并入既有预设(union,不删用户项)。
-export const AI_EXPORT_SETTINGS_VERSION = 18;
-const AI_EXPORT_SECTION_MIGRATION_VERSION = 18;
+// v19 — 占星全面扩建:世俗盘(新月/满月/日食/月食/地区盘/行星周期/世俗宫义)+ 星运三技法(三分主星/数字相位/月相推运)。
+export const AI_EXPORT_SETTINGS_VERSION = 19;
+const AI_EXPORT_SECTION_MIGRATION_VERSION = 19;
 const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	// v18 补:占星/星运核心 + 卜卦/择日(此前漏登记)。务必与新增「有 preset 的技法」同步(aiExport.test 跨系统自检守)。
 	'astrochart',
@@ -166,6 +167,10 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'persiandirected',
 	'yearsystem129',
 	'balbillus',
+	'triplicityrulers',
+	'keypoints',
+	'lunationphase',
+	'extrareturns',
 	'canping',
 	'heluo',
 ];
@@ -198,6 +203,10 @@ const AI_EXPORT_PLANET_INFO_TECHNIQUES = new Set([
 	'persiandirected',
 	'yearsystem129',
 	'balbillus',
+	'triplicityrulers',
+	'keypoints',
+	'lunationphase',
+	'extrareturns',
 	'jieqi',
 	'jieqi_meta',
 	'jieqi_chunfen',
@@ -260,6 +269,10 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'persiandirected', label: '星运-波斯向运' },
 	{ key: 'yearsystem129', label: '星运-129年系统' },
 	{ key: 'balbillus', label: '星运-Balbillus' },
+	{ key: 'triplicityrulers', label: '星运-三分主星' },
+	{ key: 'keypoints', label: '星运-数字相位' },
+	{ key: 'lunationphase', label: '星运-月相推运' },
+	{ key: 'extrareturns', label: '星运-多重回归' },
 	{ key: 'bazi', label: '八字' },
 	{ key: 'ziwei', label: '紫微斗数' },
 	{ key: 'suzhan', label: '宿占' },
@@ -299,11 +312,11 @@ const AI_EXPORT_TECHNIQUES = [
 
 const AI_EXPORT_PRESET_SECTIONS = {
 	horary: ['起卦信息', '根本性', '征象星指派', '完成分析', '月亮的故事', '相位全览', '裁决', '应期方位', '描述'],
-	election: ['起盘信息', '总评', '红线', '分项', '用事专属', '应期', '建议'],
+	election: ['起盘信息', '总评', '红线', '分项', '用事专属', '应期', '本命合参', '时势合参', '建议'],
 	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '寿命格局', '可能性'],
 	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '可能性'],
 	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '寿命格局', '可能性'],
-	mundane: ['世俗入宫', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '寿命格局', '可能性'],
+	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '世俗宫义', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '寿命格局', '可能性'],
 	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '合成图盘', '影响图盘-星盘A', '影响图盘-星盘B'],
 	primarydirect: ['出生时间', '星盘信息', '主/界限法设置', '主/界限法表格'],
 	distributions: ['界推运（分配法 / Distributions）'],
@@ -324,6 +337,10 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	persiandirected: ['波斯向运（Persian Directed）'],
 	yearsystem129: ['129年系统表格'],
 	balbillus: ['Balbillus'],
+	triplicityrulers: ['三分主星推运'],
+	keypoints: ['数字相位推运'],
+	lunationphase: ['月相推运'],
+	extrareturns: ['多重回归'],
 	bazi: ['起盘信息', '四柱与三元', '神煞（四柱与三元）', '大运', '流年行运概略'],
 	ziwei: ['起盘信息', '宫位总览', '来因宫', '命中格局'],
 	suzhan: ['起盘信息', '宿盘宫位与二十八宿星曜'],
@@ -1644,6 +1661,10 @@ function resolveActiveContext(){
 		{ label: '波斯向运', key: 'persiandirected', name: '星运-波斯向运' },
 		{ label: '129年系统', key: 'yearsystem129', name: '星运-129年系统' },
 		{ label: 'Balbillus', key: 'balbillus', name: '星运-Balbillus' },
+		{ label: '三分主星', key: 'triplicityrulers', name: '星运-三分主星' },
+		{ label: '数字相位', key: 'keypoints', name: '星运-数字相位' },
+		{ label: '月相推运', key: 'lunationphase', name: '星运-月相推运' },
+		{ label: '多重回归', key: 'extrareturns', name: '星运-多重回归' },
 	];
 	const predictiveByTop = predictiveLabelMap.find((item)=>topLabel && topLabel.includes(item.label));
 	if(predictiveByTop){
@@ -1738,18 +1759,27 @@ function resolveActiveContext(){
 		const subLabel = textOf(subActiveTab);
 		context.subLabel = subLabel || '';
 		context.scopeRoot = subTabs ? (getDirectActivePane(subTabs) || topPane) : topPane;
-		if(subLabel.includes('十三分盘') || subLabel.includes('占星地图')){
-			context.key = 'astrochart_like';
-			context.displayName = subLabel;
+		// 🔒 显式映射每个辅盘子页 → 对应技法 key。**严禁默认成量化盘(germany)**——否则卜卦/择日/世俗/调波/龙盘点 AI导出全被串成量化盘。
+		const auxSubMap = [
+			{ label: '卜卦盘', key: 'horary', name: '卜卦盘' },
+			{ label: '择日盘', key: 'election', name: '择日盘' },
+			{ label: '世俗盘', key: 'mundane', name: '世俗盘' },
+			{ label: '十三分盘', key: 'astrochart_like', name: '十三分盘' },
+			{ label: '占星地图', key: 'astrochart_like', name: '占星地图' },
+			{ label: '调波盘', key: 'astrochart_like', name: '调波盘' },
+			{ label: '龙盘', key: 'astrochart_like', name: '龙盘' },
+			{ label: '骰子', key: 'otherbu', name: '骰子' },
+			{ label: '量化盘', key: 'germany', name: '量化盘' },
+		];
+		const auxHit = auxSubMap.find((item)=>subLabel && subLabel.includes(item.label));
+		if(auxHit){
+			context.key = auxHit.key;
+			context.displayName = auxHit.name;
 			return context;
 		}
-		if(subLabel.includes('骰子')){
-			context.key = 'otherbu';
-			context.displayName = '骰子';
-			return context;
-		}
-		context.key = 'germany';
-		context.displayName = subLabel || '量化盘';
+		// 子标签识别失败:回落 generic 走 store 兜底,绝不默认量化盘。
+		context.key = 'generic';
+		context.displayName = subLabel || '辅盘';
 		return context;
 	}
 	if(topLabel.includes('星盘') || topLabel.includes('三维盘')){
@@ -1976,6 +2006,10 @@ function resolveContextByAstroState(){
 			persiandirected: { key: 'persiandirected', displayName: '星运-波斯向运', domain: 'predictive_raw' },
 			yearsystem129: { key: 'yearsystem129', displayName: '星运-129年系统', domain: 'predictive_raw' },
 			balbillus: { key: 'balbillus', displayName: '星运-Balbillus', domain: 'predictive_raw' },
+			triplicityrulers: { key: 'triplicityrulers', displayName: '星运-三分主星', domain: 'predictive_raw' },
+			keypoints: { key: 'keypoints', displayName: '星运-数字相位', domain: 'predictive_raw' },
+			lunationphase: { key: 'lunationphase', displayName: '星运-月相推运', domain: 'predictive_raw' },
+			extrareturns: { key: 'extrareturns', displayName: '星运-多重回归', domain: 'predictive_raw' },
 		};
 		const auxchartMap = {
 			germanytech: { key: 'germany', displayName: '量化盘' },
@@ -3710,7 +3744,8 @@ async function extractGenericContent(context){
 	}
 	if(context.key === 'planetaryages' || context.key === 'vedicprog' || context.key === 'jaynesprog'
 		|| context.key === 'planetaryarc' || context.key === 'persiandirected' || context.key === 'yearsystem129'
-		|| context.key === 'balbillus'){
+		|| context.key === 'balbillus' || context.key === 'triplicityrulers' || context.key === 'keypoints'
+		|| context.key === 'lunationphase' || context.key === 'extrareturns'){
 		const cached = getModuleCachedContent(context.key);
 		if(cached){
 			return cached;
@@ -4900,7 +4935,11 @@ function isPredictiveExportKey(key){
 		|| val === 'planetaryarc'
 		|| val === 'persiandirected'
 		|| val === 'yearsystem129'
-		|| val === 'balbillus';
+		|| val === 'balbillus'
+		|| val === 'triplicityrulers'
+		|| val === 'keypoints'
+		|| val === 'lunationphase'
+		|| val === 'extrareturns';
 }
 
 function isAstroFamilyExportKey(key){
@@ -4948,7 +4987,7 @@ function getCandidateExportKeys(context){
 		context && context.displayName ? context.displayName : '',
 		stateContext && stateContext.displayName ? stateContext.displayName : '',
 	].join(' ');
-	const predictiveKeys = ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus'];
+	const predictiveKeys = ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
 	const primaryIsPredictive = isPredictiveExportKey(primary);
 	const stateIsPredictive = isPredictiveExportKey(stateKey);
 	// 仅在上下文无法定位具体推运子模块时，才展开推运候选全量兜底；
@@ -4978,6 +5017,15 @@ function getCandidateExportKeys(context){
 	}
 	if(topInfo.includes('量化盘') && !hasPrimarySpecific){
 		keys.push('germany');
+	}
+	if(topInfo.includes('卜卦') && !hasPrimarySpecific){
+		keys.push('horary');
+	}
+	if(topInfo.includes('择日') && !hasPrimarySpecific){
+		keys.push('election');
+	}
+	if(topInfo.includes('世俗') && !hasPrimarySpecific){
+		keys.push('mundane');
 	}
 	if((topInfo.includes('合盘') || topInfo.includes('关系盘')) && !hasPrimarySpecific){
 		keys.push('relative');
@@ -5045,7 +5093,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 	}
 	if(topInfo.includes('星运') || topInfo.includes('推运盘') || topInfo.includes('主/界限法') || topInfo.includes('法达星限')
 		|| topInfo.includes('太阳弧') || topInfo.includes('太阳返照') || topInfo.includes('月亮返照')){
-		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus');
+		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns');
 	}
 	if(topInfo.includes('三式合一')){
 		push('sanshiunited', 'qimen', 'jinkou', 'liureng', 'sixyao', 'tongshefa', 'taiyi', 'astrochart');
@@ -5090,13 +5138,17 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 		'astrochart', 'astrochart_like', 'indiachart',
 		'relative', 'germany', 'jieqi',
 		'primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials',
-		'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus',
+		'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns',
 		'sanshiunited', 'qimen', 'liureng', 'jinkou', 'sixyao', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'taiyi', 'suzhan',
 		'guolao', 'qizhengkin', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'xianqin', 'cetian', 'otherbu', 'fengshui',
 		'bazi', 'ziwei',
 	);
 	return keys;
 }
+
+// 「简单模块」预测技法：内容来自前端保存的模块快照(saveModuleAISnapshot)而非预测后端 payload。
+// 路由与自检共用此单一真值表 —— 防「登记进 predictive 却漏配 extractContentByKey 路由」(extrareturns 曾正是漏此条 → AI导出/挂载拿不到多重回归快照)。
+export const AI_EXPORT_SIMPLE_MODULE_KEYS = ['planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
 
 async function extractContentByKey(exportKey, context){
 	if(exportKey === 'astrochart' || exportKey === 'astrochart_like' || exportKey === 'indiachart'){
@@ -5107,6 +5159,11 @@ async function extractContentByKey(exportKey, context){
 	}
 	if(exportKey === 'jieqi' || isJieQiSplitSettingKey(exportKey)){
 		return extractJieQiContent(context);
+	}
+	if(exportKey === 'horary' || exportKey === 'election' || exportKey === 'mundane'){
+		// 卜卦/择日:读 saveModuleAISnapshot 存的模块快照;世俗:走 refresh-event(DivinationChartShell 写 detail.snapshotText)。
+		// extractSimpleModuleContent 先派发 refresh-event 再回落 cached,三者统一覆盖(此前缺分支 → 落 generic / 被辅盘默认串成量化盘)。
+		return extractSimpleModuleContent(exportKey);
 	}
 	if(exportKey === 'primarydirect'){
 		return extractPrimaryDirectContent(context);
@@ -5138,9 +5195,7 @@ async function extractContentByKey(exportKey, context){
 	if(exportKey === 'decennials'){
 		return extractDecennialsContent(context);
 	}
-	if(exportKey === 'planetaryages' || exportKey === 'vedicprog' || exportKey === 'jaynesprog'
-		|| exportKey === 'planetaryarc' || exportKey === 'persiandirected' || exportKey === 'yearsystem129'
-		|| exportKey === 'balbillus'){
+	if(AI_EXPORT_SIMPLE_MODULE_KEYS.indexOf(exportKey) >= 0){
 		return extractSimpleModuleContent(exportKey);
 	}
 	if(exportKey === 'sixyao'){

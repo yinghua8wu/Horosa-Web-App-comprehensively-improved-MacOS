@@ -17,6 +17,11 @@ import AstroDecennials from '../astro/AstroDecennials';
 import AstroPlanetaryAges from '../astro/AstroPlanetaryAges';
 import AstroVedicProgressions from '../astro/AstroVedicProgressions';
 import AstroBalbillus from '../astro/AstroBalbillus';
+import AstroTriplicityRulers from '../astro/AstroTriplicityRulers';
+import AstroKeypoints from '../astro/AstroKeypoints';
+import AstroLunationPhase from '../astro/AstroLunationPhase';
+import AstroExtraReturns from '../astro/AstroExtraReturns';
+import { getFirdariaInterp } from '../../utils/firdariaInterp';
 import AstroYearSystem129 from '../astro/AstroYearSystem129';
 import AstroPlanetaryArc from '../astro/AstroPlanetaryArc';
 import AstroPersianDirected from '../astro/AstroPersianDirected';
@@ -313,6 +318,15 @@ function buildFirdariaSnapshotText(chartObj){
 			lines.push('| 无 | 无 | 无 |');
 		}
 	}
+	// 法达解读层：逐主限时段主题（并入「法达星限表格」段，无需新增预设段）。
+	if(firdaria.length){
+		lines.push('');
+		lines.push('解读：');
+		firdaria.forEach((main)=>{
+			const interp = getFirdariaInterp(main && main.mainDirect);
+			if(interp){ lines.push(`· ${interp.mainShort}主限 — ${interp.mainTheme}`); }
+		});
+	}
 	return lines.join('\n');
 }
 
@@ -546,6 +560,18 @@ class AstroDirectMain extends Component{
 					fun: null
 				},
 				balbillus:{
+					fun: null
+				},
+				triplicityrulers:{
+					fun: null
+				},
+				keypoints:{
+					fun: null
+				},
+				lunationphase:{
+					fun: null
+				},
+				extrareturns:{
 					fun: null
 				},
 				yearsystem129:{
@@ -1332,6 +1358,38 @@ class AstroDirectMain extends Component{
 								chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+						</TabPane>
+
+						<TabPane tab="三分主星" key="triplicityrulers">
+							<AstroTriplicityRulers
+								value={this.props.chartObj}
+								height={height}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+						</TabPane>
+
+						<TabPane tab="数字相位" key="keypoints">
+							<AstroKeypoints
+								value={this.props.chartObj}
+								height={height}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+						</TabPane>
+
+						<TabPane tab="月相推运" key="lunationphase">
+							<AstroLunationPhase
+								value={this.props.chartObj}
+								height={height}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+						</TabPane>
+
+						<TabPane tab="多重回归" key="extrareturns">
+							<AstroExtraReturns
+								value={this.props.chartObj}
+								height={height}
 								showAstroMeaning={this.props.showAstroMeaning}
 							/>
 						</TabPane>

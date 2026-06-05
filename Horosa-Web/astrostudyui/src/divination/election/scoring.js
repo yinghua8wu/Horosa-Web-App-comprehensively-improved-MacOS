@@ -3,7 +3,7 @@
 export const WEIGHTS = {
 	moon: 0.22, asc_ruler: 0.18, ascendant: 0.12, topic_significators: 0.16,
 	angles: 0.14, topic_house: 0.06, sun: 0.05, aspect_patterns: 0.04,
-	reception_fixedstar_midpoint: 0.03,
+	reception_fixedstar_midpoint: 0.03, fixed_stars: 0.03,
 };
 
 const PENALTY = { critical: 40, high: 15, medium: 8, low: 3 };

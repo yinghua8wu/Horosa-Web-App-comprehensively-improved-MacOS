@@ -43,6 +43,10 @@ import { buildAgePointSnapshotText } from '../components/astro/AstroAgePoint';
 import { buildPlanetaryAgesSnapshotText } from './planetaryAges';
 import { buildVedicProgSnapshotText } from '../components/astro/AstroVedicProgressions';
 import { buildBalbillusSnapshotText } from './balbillus';
+import { buildTriplicityRulersSnapshotText } from './triplicityRulers';
+import { buildKeypointsSnapshotText } from './keypoints120';
+import { buildLunationPhaseSnapshotText } from './lunationPhase';
+import { buildExtraReturnsSnapshotText } from '../components/astro/AstroExtraReturns';
 import { buildYearSystem129SnapshotText } from '../components/astro/AstroYearSystem129';
 import { buildPlanetaryArcSnapshotText } from '../components/astro/AstroPlanetaryArc';
 import { buildPersianDirectedSnapshotText } from '../components/astro/AstroPersianDirected';
@@ -119,6 +123,10 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	planetaryages: '星运-行星年龄',
 	vedicprog: '星运-恒星推运',
 	balbillus: '星运-Balbillus',
+	triplicityrulers: '星运-三分主星',
+	keypoints: '星运-数字相位',
+	lunationphase: '星运-月相推运',
+	extrareturns: '星运-多重回归',
 	yearsystem129: '星运-129年系统',
 	planetaryarc: '星运-行星弧',
 	persiandirected: '星运-波斯向运',
@@ -138,6 +146,7 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	taiyi: '太乙',
 	horary: '卜卦盘',
 	election: '择日盘',
+	mundane: '世俗盘',
 	canping: '邵子参评数',
 	heluo: '河洛理数',
 	xianqin: '演禽',
@@ -171,6 +180,10 @@ export const ANALYSIS_CHART_TECHNIQUES = [
 	'planetaryages',
 	'vedicprog',
 	'balbillus',
+	'triplicityrulers',
+	'keypoints',
+	'lunationphase',
+	'extrareturns',
 	'yearsystem129',
 	'planetaryarc',
 	'persiandirected',
@@ -196,6 +209,7 @@ export const ANALYSIS_CASE_TECHNIQUES = [
 	'suzhan',
 	'horary',
 	'election',
+	'mundane',
 ];
 
 // 「时间确定式法」：盘面完全由起课时间 + 默认设置(含地点)决定，可即时起盘。
@@ -660,6 +674,10 @@ function generateCaseTechniqueSnapshot(record, moduleName, payload){
 			return '';
 		}
 		return buildGuaSnapshotText(buildCaseSnapshotFields(record), payload && payload.gua ? payload.gua : {});
+	case 'mundane':
+		// 世俗盘(入宫/新月/满月/日食/月食/地区盘/行星周期):astro 类事盘,存档时 DivinationChartShell 已写
+		// 格式化 buildAiSnapshot 全文于 payload.aiSnapshot → 挂载直接复用(世俗盘类型多样,不按时间重算)。
+		return (payload && payload.aiSnapshot && `${payload.aiSnapshot}`.trim()) ? `${payload.aiSnapshot}` : '';
 	case 'taiyi':
 		if(!payload || !(payload.pan || (payload.result && payload.result.taiyi) || payload.taiyi)){
 			return '';
@@ -980,6 +998,26 @@ async function regenerateChartTechniqueSnapshot(record, key){
 			// Balbillus：十年大运月制族变体（旺距削减），纯前端独立引擎，读本命盘。
 			const chartObj = await fetchChartResultForRecord(record);
 			return chartObj ? (buildBalbillusSnapshotText(chartObj) || '') : '';
+		}
+		case 'triplicityrulers': {
+			// 三分主星推运：区间光体三分主星分掌人生阶段，纯前端读本命盘。
+			const chartObj = await fetchChartResultForRecord(record);
+			return chartObj ? (buildTriplicityRulersSnapshotText(chartObj) || '') : '';
+		}
+		case 'keypoints': {
+			// 数字相位推运：120 年关键点，小年因数激活，纯前端读本命盘。
+			const chartObj = await fetchChartResultForRecord(record);
+			return chartObj ? (buildKeypointsSnapshotText(chartObj) || '') : '';
+		}
+		case 'lunationphase': {
+			// 月相推运：次限日月八相，纯前端读本命盘。
+			const chartObj = await fetchChartResultForRecord(record);
+			return chartObj ? (buildLunationPhaseSnapshotText(chartObj) || '') : '';
+		}
+		case 'extrareturns': {
+			// 多重回归：土/木/月交返照，请求型(内部拉 /astroextra/planetreturn)。
+			const chartObj = await fetchChartResultForRecord(record);
+			return chartObj ? (await buildExtraReturnsSnapshotText(chartObj) || '') : '';
 		}
 		case 'yearsystem129': {
 			// 129 年系统：七政小年序列（仿 firdaria），随盘 predictive 返回。

@@ -18,8 +18,8 @@ public class AstroExtraController {
 		"ad", "gpsLat", "gpsLon", "southchart", "strongRecption", "virtualPointReceiveAsp",
 		"simpleAsp", "predictive", "tradition", "zodiacal", "fixedStarOrb", "startDate",
 		"endDate", "startTime", "endTime", "includeTransits", "planets", "natalPoints",
-		"aspects", "targetDate", "targetTime", "datetime", "orb", "startYear", "count",
-		"harmonic", "inner", "outer", "relative", "altitude"
+		"aspects", "targetDate", "targetTime", "datetime", "orb", "startYear", "endYear", "count",
+		"harmonic", "inner", "outer", "relative", "altitude", "body", "p1", "p2", "aspect", "eclipseKind"
 	};
 
 	private Map<String, Object> getBaseParams(){
@@ -57,6 +57,16 @@ public class AstroExtraController {
 		Map<String, Object> params = new HashMap<String, Object>();
 		params.put("startYear", TransData.getValueAsInt("startYear", 1900));
 		params.put("endYear", TransData.getValueAsInt("endYear", 2100));
+		return params;
+	}
+
+	private Map<String, Object> getPlanetCyclesParams(){
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("startYear", TransData.getValueAsInt("startYear", 1900));
+		params.put("endYear", TransData.getValueAsInt("endYear", 2100));
+		if(TransData.containsParam("p1")) { params.put("p1", TransData.get("p1")); }
+		if(TransData.containsParam("p2")) { params.put("p2", TransData.get("p2")); }
+		if(TransData.containsParam("aspect")) { params.put("aspect", TransData.get("aspect")); }
 		return params;
 	}
 
@@ -124,6 +134,24 @@ public class AstroExtraController {
 	@RequestMapping("/greatconj")
 	public void greatconj(){
 		TransData.set(AstroHelper.getAstroExtraGreatConj(getGreatConjParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/planetcycles")
+	public void planetcycles(){
+		TransData.set(AstroHelper.getAstroExtraPlanetCycles(getPlanetCyclesParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/planetreturn")
+	public void planetreturn(){
+		TransData.set(AstroHelper.getAstroExtraPlanetReturn(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/eclipsedetail")
+	public void eclipsedetail(){
+		TransData.set(AstroHelper.getAstroExtraEclipseDetail(getBaseParams()));
 	}
 
 	@ResponseBody

@@ -7,6 +7,17 @@ import { runModules } from './modules';
 import { evaluateTopicPack } from './rulePacks';
 import { TOPIC_MASTER } from '../data/topicMaster';
 import { castMoment } from '../data/castMoments';
+import { aspectsOf } from '../engine/aspectsEngine';
+import { PLANETS } from '../data/planets';
+import { natalIntegration } from './natalIntegration';
+import { mundaneIntegration } from './mundaneIntegration';
+
+// 应期参考：月亮临近相位（按误差升序，越紧越近发动）。
+function buildTiming(facts){
+	const ma = aspectsOf(facts, 'moon') || [];
+	return ma.slice().sort((a, b) => (a.orb == null ? 99 : a.orb) - (b.orb == null ? 99 : b.orb)).slice(0, 3)
+		.map((a) => ({ otherCn: (PLANETS[a.other] || {}).cn || a.other, angle: a.angle, orb: a.orb }));
+}
 
 const NO_PERFECT = '没有完美的择日盘：本结果是在你给定时间窗内、以消去法挑出的较优解，仅供参考。择日是助力/润滑油，能强化本命吉兆、缓和（不能完全化解）凶兆——事在人为 + 本命盘 > 择日盘。';
 
@@ -30,7 +41,7 @@ function buildRecommendations(facts, topic, sections, flags, scored){
 	return recs;
 }
 
-export function runElection(result, topicId){
+export function runElection(result, topicId, natalFacts, mundaneSet){
 	const facts = buildFacts(result);
 	if(!facts) return null;
 	const topic = TOPIC_MASTER[topicId] || TOPIC_MASTER.marriage;
@@ -38,6 +49,8 @@ export function runElection(result, topicId){
 	const flags = evalHardFlags(facts, topic);
 	const topicPack = evaluateTopicPack(facts, topic);
 	const scored = scoreReport(sections, flags);
+	const natal = natalFacts ? natalIntegration(natalFacts, facts) : null;
+	const mundane = mundaneSet ? mundaneIntegration(facts, mundaneSet) : null;
 	return {
 		facts, topic,
 		overall: {
@@ -48,6 +61,9 @@ export function runElection(result, topicId){
 		hard_flags: flags,
 		sections,
 		topicPack,
+		natal,
+		mundane,
+		timing: buildTiming(facts),
 		recommendations: buildRecommendations(facts, topic, sections, flags, scored),
 		castMoment: castMoment(topicId),
 		penalty: scored.penalty, base: scored.base,

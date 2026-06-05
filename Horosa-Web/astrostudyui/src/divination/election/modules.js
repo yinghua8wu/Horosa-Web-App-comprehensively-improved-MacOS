@@ -23,6 +23,23 @@ const MALEFICS = ['mars', 'saturn'];
 
 function mkFinding(polarity, message, weight){ return { polarity, message, text_zh: message, weight: weight || 1 }; }
 
+function normLon(x){ return ((Number(x) % 360) + 360) % 360; }
+// 取本盘公历年（用于恒星岁差修正）：优先读 /chart 回传的 params.birth/date；缺则用中性年（岁差差异 <1° 可忽略）。
+function getChartYear(facts){
+	try{
+		const p = facts && facts.result && facts.result.params;
+		const ds = p && (p.birth || p.date);
+		if(ds){ const m = String(ds).match(/(-?\d{3,4})/); if(m){ return Number(m[1]); } }
+	}catch(e){ /* noop */ }
+	return 2000;
+}
+// 两点的短弧中点（落入两点夹角较小一侧）。
+function shortMidpoint(a, b){
+	const m1 = normLon((Number(a) + Number(b)) / 2);
+	const m2 = normLon(m1 + 180);
+	return angularDist(m1, a) <= 90 ? m1 : m2;
+}
+
 function moonModule(facts){
 	const r = moonReport(facts);
 	const findings = r.findings.map((f) => ({ ...f, message: f.text_zh }));
@@ -137,42 +154,89 @@ function topicHouseModule(facts, topic){
 }
 
 function aspectPatternsModule(facts){
-	// 轻量：检测古典星间的大三角(三星互 120°) / 三刑会沖(两星 180° + 皆与第三 90°)
+	// 检测：大三角 / 风筝 / 三刑会沖(T) / 大十字 / 星聚。择日喜大三角·风筝·小三角·矩形，忌 T·大十字。
 	const findings = [];
 	const ps = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'].filter((k) => facts.planets[k]);
-	const trine = [];
-	for(let i = 0; i < ps.length; i++) for(let j = i + 1; j < ps.length; j++){
-		const a = aspectsOf(facts, ps[i]).find((x) => x.other === ps[j] && x.angle === 120);
-		if(a) trine.push([ps[i], ps[j]]);
+	const has = (a, b, ang) => aspectsOf(facts, a).some((x) => x.other === b && x.angle === ang);
+	// 大三角：三星两两 120°
+	let grandTrine = null;
+	for(let i = 0; i < ps.length && !grandTrine; i++){
+		for(let j = i + 1; j < ps.length && !grandTrine; j++){
+			for(let k = j + 1; k < ps.length && !grandTrine; k++){
+				if(has(ps[i], ps[j], 120) && has(ps[j], ps[k], 120) && has(ps[i], ps[k], 120)){ grandTrine = [ps[i], ps[j], ps[k]]; }
+			}
+		}
 	}
-	if(trine.length >= 3) findings.push(mkFinding('positive', '存在大三角格局（吉）', 2));
+	if(grandTrine){
+		findings.push(mkFinding('positive', `大三角格局（${grandTrine.map(cn).join('·')}，能量和谐·吉）`, 2));
+		// 风筝：第四星对冲大三角某顶点
+		let kite = false;
+		grandTrine.forEach((v) => { if(!kite){ const opp = ps.find((p) => grandTrine.indexOf(p) < 0 && has(v, p, 180)); if(opp){ kite = true; } } });
+		if(kite){ findings.push(mkFinding('positive', '风筝格局（大三角 + 对冲焦点，聚力·吉）', 1)); }
+	}
+	// 三刑会沖 T：两星对冲 + 皆 90° 第三星
+	let tsquare = null;
+	for(let i = 0; i < ps.length && !tsquare; i++){
+		for(let j = i + 1; j < ps.length && !tsquare; j++){
+			if(has(ps[i], ps[j], 180)){
+				const apex = ps.find((p) => p !== ps[i] && p !== ps[j] && has(p, ps[i], 90) && has(p, ps[j], 90));
+				if(apex){ tsquare = [ps[i], ps[j], apex]; }
+			}
+		}
+	}
+	if(tsquare){ findings.push(mkFinding('negative', `三刑会沖 T 格局（${tsquare.map(cn).join('·')}，张力·避）`, 2)); }
+	// 大十字：≥2 组对冲
+	const oppPairs = [];
+	for(let i = 0; i < ps.length; i++){ for(let j = i + 1; j < ps.length; j++){ if(has(ps[i], ps[j], 180)){ oppPairs.push([ps[i], ps[j]]); } } }
+	if(oppPairs.length >= 2){ findings.push(mkFinding('negative', '疑似大十字（两组对冲交织，巨张力·避）', 2)); }
+	// 星聚：≥3 星同座
+	const bySign = {};
+	ps.forEach((k) => { const s = facts.planets[k].sign; if(s){ (bySign[s] = bySign[s] || []).push(k); } });
+	Object.keys(bySign).forEach((s) => { if(bySign[s].length >= 3){ findings.push(mkFinding('neutral', `星聚 ${SIGNS[s] ? SIGNS[s].cn : s}（${bySign[s].map(cn).join('·')}，能量集中）`, 1)); } });
 	const score = scoreFromFindings(findings, 60);
-	return { key: 'aspect_patterns', title: '相位格局', verdict: verdictOf(score), score, findings, detail_md: '（大十字/三刑会沖/风筝等完整检测 → 后续增强）' };
+	return { key: 'aspect_patterns', title: '相位格局', verdict: verdictOf(score), score, findings, detail_md: '大三角 / 风筝 / 三刑会沖 / 大十字 / 星聚' };
 }
 
-function receptionModule(facts){
+function receptionModule(facts, topic){
 	const findings = [];
 	const recs = receptionsOf(facts, 'moon').filter((r) => r.strong);
 	if(recs.length) findings.push(mkFinding('positive', '存在强接纳（可救援用事星）', 1));
+	// 日月中点：吉/凶星合日月短弧中点（婚庆/合作类用事尤重）。
+	const sun = facts.planets.sun; const moon = facts.planets.moon;
+	if(sun && moon && sun.lon != null && moon.lon != null){
+		const mid = shortMidpoint(sun.lon, moon.lon);
+		['venus', 'jupiter', 'mars', 'saturn'].forEach((k) => {
+			const p = facts.planets[k]; if(!p || p.lon == null) return;
+			if(angularDist(p.lon, mid) <= 1.5){
+				if(BENEFICS.indexOf(k) >= 0) findings.push(mkFinding('positive', `${cn(k)} 合日月中点（和合·吉）`, 1));
+				else findings.push(mkFinding('negative', `${cn(k)} 合日月中点（扰动·忌）`, 1));
+			}
+		});
+	}
 	const score = scoreFromFindings(findings, 60);
-	return { key: 'reception_fixedstar_midpoint', title: '接纳/恒星/中点', verdict: verdictOf(score), score, findings, detail_md: '' };
+	return { key: 'reception_fixedstar_midpoint', title: '接纳 / 日月中点', verdict: verdictOf(score), score, findings, detail_md: '强接纳救援 + 吉凶星合日月中点（≤1.5°）' };
 }
 
-function fixedStarsModule(facts){
+function fixedStarsModule(facts, topic){
 	const findings = [];
-	const year = 2026;
+	const year = getChartYear(facts);
 	const points = { 命度: facts.meta.ascLon, 天顶: facts.meta.mcLon, 太阳: facts.planets.sun && facts.planets.sun.lon, 月亮: facts.planets.moon && facts.planets.moon.lon };
+	// 命主星
+	const l1 = lord1Of(facts);
+	if(l1 && facts.planets[l1]){ points[`命主星(${cn(l1)})`] = facts.planets[l1].lon; }
+	// 用事自然徵象星
+	(topic && topic.natural_significators || []).forEach((k) => { const p = facts.planets[k]; if(p && p.lon != null){ points[`用事星(${cn(k)})`] = p.lon; } });
 	Object.keys(points).forEach((label) => {
 		const lon = points[label]; if(lon === null || lon === undefined) return;
 		FIXED_STARS.forEach((st) => {
 			if(angularDist(lon, starLonAt(st.lon_1995, year)) <= 1){
-				if(st.election.avoid) findings.push(mkFinding('negative', `${label} 会合凶恒星 ${st.name_cn}（${st.meaning}）`, 2));
+				if(st.election && st.election.avoid) findings.push(mkFinding('negative', `${label} 会合凶恒星 ${st.name_cn}（${st.meaning}）`, 2));
 				else findings.push(mkFinding('positive', `${label} 会合吉恒星 ${st.name_cn}（${st.meaning}）`, 2));
 			}
 		});
 	});
 	const score = scoreFromFindings(findings, 60);
-	return { key: 'fixed_stars', title: '恒星会合', verdict: verdictOf(score), score, findings, detail_md: '（≤1° 会合关键点才计）' };
+	return { key: 'fixed_stars', title: '恒星会合', verdict: verdictOf(score), score, findings, detail_md: `≤1° 会合关键点才计（岁差修正至 ${year} 年）` };
 }
 
 export function runModules(facts, topic){
@@ -186,8 +250,8 @@ export function runModules(facts, topic){
 		sunModule(facts),
 		maleficHandlingModule(facts),
 		aspectPatternsModule(facts),
-		receptionModule(facts),
-		fixedStarsModule(facts),
+		receptionModule(facts, topic),
+		fixedStarsModule(facts, topic),
 	];
 }
 

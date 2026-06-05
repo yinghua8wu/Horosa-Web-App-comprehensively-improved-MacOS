@@ -36,6 +36,17 @@ function lineText(line){
 	return `${line}`.trim();
 }
 
+// 从六爻线值(0阴/1阳,初爻→上爻)算任一卦对象。自给自足:AI挂载经 regenerateSixyaoSnapshot→buildTimeGua 时
+// gua 无 guaDesc(故旧版只剩本卦),但 yao 六爻线值始终在 → 据此稳定算出 之/互/错/综卦,挂载与导出都全面。
+function guaFromYaoValues(values){
+	if(!values || values.length !== 6 || values.some((v)=>v !== 0 && v !== 1)){
+		return null;
+	}
+	const g = getGua64(littleEndian(values));
+	const idx = g ? g.index : null;
+	return (idx !== null && idx !== undefined && Gua64[idx]) ? Gua64[idx] : null;
+}
+
 // 时间起卦（梅花/时间确定式法）——纯函数，供 AI 挂载「起课时间」无头复用（与 genTimeGua 同口径）。
 export function buildTimeGua(nongli){
 	if(!nongli || !nongli.year || !nongli.time || nongli.monthInt === undefined || nongli.dayInt === undefined){
@@ -107,11 +118,28 @@ export function buildGuaSnapshotText(fields, st){
 	}else{
 		lines.push('本卦：未生成');
 	}
-	if(guaDesc.guaMiddle){
-		lines.push(`互卦：${guaText(guaDesc.guaMiddle)}`);
-	}
-	if(guaDesc.guaRes){
-		lines.push(`之卦：${guaText(guaDesc.guaRes)}`);
+	// 之卦/互卦/错卦/综卦：一律从六爻线值直接计算(不依赖 guaDesc) → 挂载经 buildTimeGua(无 guaDesc)时也能全面输出,
+	// 修「AI分析挂载六爻只有本卦」。yao 缺失时回落 guaDesc。
+	const yaoVals = (yao && yao.length === 6 && yao.every((y)=>y && (y.value === 0 || y.value === 1))) ? yao.map((y)=>y.value) : null;
+	if(yaoVals){
+		const hasMoving = yao.some((y)=>y.change);
+		const huGua = guaFromYaoValues([yaoVals[1], yaoVals[2], yaoVals[3], yaoVals[2], yaoVals[3], yaoVals[4]]);
+		const bianGua = guaFromYaoValues(yao.map((y)=>y.change ? (y.value === 1 ? 0 : 1) : y.value));
+		const cuoGua = guaFromYaoValues(yaoVals.map((v)=>(v === 1 ? 0 : 1)));
+		const zongGua = guaFromYaoValues([...yaoVals].reverse());
+		if(huGua){ lines.push(`互卦：${guaText(huGua)}`); }
+		else if(guaDesc.guaMiddle){ lines.push(`互卦：${guaText(guaDesc.guaMiddle)}`); }
+		if(hasMoving){
+			if(bianGua){ lines.push(`之卦(变卦)：${guaText(bianGua)}`); }
+			else if(guaDesc.guaRes){ lines.push(`之卦(变卦)：${guaText(guaDesc.guaRes)}`); }
+		}else{
+			lines.push('之卦(变卦)：无动爻,卦不变');
+		}
+		if(cuoGua){ lines.push(`错卦(阴阳全变)：${guaText(cuoGua)}`); }
+		if(zongGua){ lines.push(`综卦(上下颠倒)：${guaText(zongGua)}`); }
+	}else{
+		if(guaDesc.guaMiddle){ lines.push(`互卦：${guaText(guaDesc.guaMiddle)}`); }
+		if(guaDesc.guaRes){ lines.push(`之卦：${guaText(guaDesc.guaRes)}`); }
 	}
 
 	lines.push('');

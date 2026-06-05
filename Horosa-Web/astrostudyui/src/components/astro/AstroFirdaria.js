@@ -9,6 +9,7 @@ import { buildMeaningTipByCategory, } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import styles from '../../css/styles.less';
 import { XQTable as Table } from '../xq-ui';
+import { getFirdariaInterp } from '../../utils/firdariaInterp';
 
 class AstroFirdaria extends Component{
 
@@ -129,7 +130,18 @@ class AstroFirdaria extends Component{
 			let pd = firdaria[i];
 			let ds = this.convertToDataSource(pd);
 			let tbldom = this.genFirdariaDom(ds);
-			rowobj.push(tbldom);
+			const interp = getFirdariaInterp(pd.mainDirect);
+			const cell = (
+				<div key={randomStr(8)}>
+					{interp ? (
+						<div style={{ fontSize: 11, opacity: 0.78, lineHeight: '16px', margin: '0 0 4px', padding: '4px 8px', background: 'var(--horosa-accent-soft, rgba(184,134,11,0.08))', borderRadius: 6 }}>
+							<b>{interp.mainShort}主限</b> · {interp.mainTheme}
+						</div>
+					) : null}
+					{tbldom}
+				</div>
+			);
+			rowobj.push(cell);
 		}
 
 		for(let i=0; i<rows.length; i++){

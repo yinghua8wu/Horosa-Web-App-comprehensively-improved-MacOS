@@ -5,8 +5,13 @@ import DivinationChartShell from '../divination/DivinationChartShell';
 import ElectionJudgment from './ElectionJudgment';
 import { fetchChart } from '../../services/astro';
 import { buildChartParams } from '../../divination/engine/chartRequest';
+import { buildFacts } from '../../divination/engine/chartFacts';
 import { runElection } from '../../divination/election/electionEngine';
 import { generateCandidates, rankResults, buildScanRecommendation } from '../../divination/election/workflow';
+import ChartSearchModal from '../astro/ChartSearchModal';
+import { fetchMundaneEvents, chartAtMoment } from '../../divination/mundane/momentPipeline';
+import { fetchPreciseJieqiSeed } from '../../utils/preciseCalcBridge';
+import moment from 'moment';
 
 const Option = XQSelect.Option;
 
@@ -37,11 +42,82 @@ const GRADE_DOT = { 极佳: '#2f9e6f', 不错: '#1aa3b8', 中等: '#3b82f6', 欠
 class ElectionMain extends Component{
 	constructor(props){
 		super(props);
-		this.state = { scanning: false, scanResults: null, scanOpen: false, scanMode: 'hours' };
+		this.state = { scanning: false, scanResults: null, scanOpen: false, scanMode: 'hours', natalRec: null, natalFacts: null, natalLoading: false, mundaneSet: null, mundaneLoading: false };
 		this._fields = null; this._setTime = null; this._topicId = 'marriage';
 		this.runScan = this.runScan.bind(this);
 		this.useCandidate = this.useCandidate.bind(this);
+		this.selectNatal = this.selectNatal.bind(this);
+		this.clearNatal = this.clearNatal.bind(this);
+		this.fetchMundaneSet = this.fetchMundaneSet.bind(this);
+		this.clearMundane = this.clearMundane.bind(this);
 	}
+
+	geoFromFields(){
+		const f = this._fields || {};
+		return {
+			zone: f.zone ? f.zone.value : '+08:00',
+			lon: f.lon ? f.lon.value : '116e23',
+			lat: f.lat ? f.lat.value : '39n54',
+			gpsLat: f.gpsLat ? f.gpsLat.value : 39.9,
+			gpsLon: f.gpsLon ? f.gpsLon.value : 116.38,
+			hsys: f.hsys ? f.hsys.value : 0,
+			zodiacal: f.zodiacal ? f.zodiacal.value : 0,
+			tradition: f.tradition ? f.tradition.value : 1,
+		};
+	}
+
+	async fetchMundaneSet(){
+		const baseDt = this._fields && this._fields.date && this._fields.date.value;
+		if(!baseDt || !baseDt.format){ return; }
+		const baseStr = baseDt.format('YYYY-MM-DD');
+		const geo = this.geoFromFields();
+		const minus = (d) => moment(baseStr, 'YYYY-MM-DD').subtract(d, 'days').format('YYYY-MM-DD');
+		const fieldsLike = { zone: geo.zone, lon: geo.lon, lat: geo.lat, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, hsys: geo.hsys, zodiacal: geo.zodiacal, tradition: geo.tradition };
+		const mk = async (m) => { if(!m){ return null; } const R = await chartAtMoment(m, fieldsLike); return R ? buildFacts(R) : null; };
+		this.setState({ mundaneLoading: true });
+		try{
+			const lun = await fetchMundaneEvents({ startDate: minus(45), endDate: baseStr, zone: geo.zone, lon: geo.lon, lat: geo.lat, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, kinds: ['lunations'] });
+			const newMoons = (lun.lunations || []).filter((l) => l.phase === 'New Moon');
+			const fullMoons = (lun.lunations || []).filter((l) => l.phase === 'Full Moon');
+			const lastNew = newMoons[newMoons.length - 1];
+			const lastFull = fullMoons[fullMoons.length - 1];
+			const ecl = await fetchMundaneEvents({ startDate: minus(220), endDate: baseStr, zone: geo.zone, lon: geo.lon, lat: geo.lat, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, kinds: ['eclipses'] });
+			const eclList = ecl.eclipses || [];
+			const lastEcl = eclList[eclList.length - 1];
+			const [newMoonF, fullMoonF, eclipseF] = await Promise.all([mk(lastNew && lastNew.localTime), mk(lastFull && lastFull.localTime), mk(lastEcl && lastEcl.localTime)]);
+			let ingressF = null;
+			try{
+				const seed = await fetchPreciseJieqiSeed({ year: String(baseDt.format('YYYY')), ad: baseDt.ad != null ? baseDt.ad : 1, zone: geo.zone, lon: geo.lon, lat: geo.lat, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, timeAlg: 0, jieqis: ['春分'] });
+				const hit = seed && seed['春分'];
+				if(hit && hit.time){ const R = await chartAtMoment(hit.time, fieldsLike); ingressF = R ? buildFacts(R) : null; }
+			}catch(e){ /* noop */ }
+			this.setState({ mundaneSet: { ingress: ingressF, newMoon: newMoonF, fullMoon: fullMoonF, eclipse: eclipseF }, mundaneLoading: false });
+		}catch(e){ this.setState({ mundaneLoading: false }); }
+	}
+
+	clearMundane(){ this.setState({ mundaneSet: null }); }
+
+	async selectNatal(rec){
+		if(!rec || !rec.birth){ return; }
+		const parts = `${rec.birth}`.split(' ');
+		const params = {
+			ad: rec.ad != null ? rec.ad : 1,
+			date: parts[0], time: parts[1] || '12:00:00',
+			zone: rec.zone, lat: rec.lat, lon: rec.lon,
+			gpsLat: rec.gpsLat, gpsLon: rec.gpsLon,
+			hsys: (this._fields && this._fields.hsys ? this._fields.hsys.value : 0),
+			zodiacal: 0, tradition: 1, predictive: 0, pdaspects: [0, 60, 90, 120, 180],
+		};
+		this.setState({ natalLoading: true });
+		try{
+			const rsp = await fetchChart(params, { cache: true });
+			const R = rsp && rsp.Result;
+			const natalFacts = R ? buildFacts(R) : null;
+			this.setState({ natalRec: rec, natalFacts, natalLoading: false });
+		}catch(e){ this.setState({ natalLoading: false }); }
+	}
+
+	clearNatal(){ this.setState({ natalRec: null, natalFacts: null }); }
 
 	runScan(mode){
 		const baseDt = this._fields && this._fields.date && this._fields.date.value;
@@ -92,12 +168,32 @@ class ElectionMain extends Component{
 					<XQButton size="small" iconName="search" onClick={() => this.runScan('hours')}>本日逐时择优</XQButton>
 					<XQButton size="small" onClick={() => this.runScan('days')}>未来14日</XQButton>
 				</div>
+				<div className="horosa-field-label" style={{ marginTop: 12 }}>本命合参（可选）</div>
+				{this.state.natalRec ? (
+					<div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, padding: '6px 9px', borderRadius: 8, background: 'var(--horosa-accent-soft, rgba(184,134,11,0.08))', border: '1px solid var(--horosa-border-soft, rgba(184,134,11,0.18))' }}>
+						<span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{this.state.natalRec.name || '本命'} · {this.state.natalRec.birth}</span>
+						<XQButton size="small" onClick={this.clearNatal}>清除</XQButton>
+					</div>
+				) : (
+					<ChartSearchModal onOk={this.selectNatal}>
+						<XQButton size="small" style={{ width: '100%' }} loading={this.state.natalLoading}>选本命盘合参</XQButton>
+					</ChartSearchModal>
+				)}
+				<div className="horosa-field-label" style={{ marginTop: 12 }}>时势合参（可选）</div>
+				{this.state.mundaneSet ? (
+					<div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, padding: '6px 9px', borderRadius: 8, background: 'var(--horosa-accent-soft, rgba(184,134,11,0.08))', border: '1px solid var(--horosa-border-soft, rgba(184,134,11,0.18))' }}>
+						<span style={{ flex: 1 }}>已拉时势盘（入宫 / 新满月 / 食）</span>
+						<XQButton size="small" onClick={this.clearMundane}>清除</XQButton>
+					</div>
+				) : (
+					<XQButton size="small" style={{ width: '100%' }} loading={this.state.mundaneLoading} onClick={this.fetchMundaneSet}>拉时势盘合参</XQButton>
+				)}
 			</div>
 		);
 	}
 
 	renderRight({ chart, extra }){
-		return <ElectionJudgment chart={chart} topicId={extra.topicId || 'marriage'} />;
+		return <ElectionJudgment chart={chart} topicId={extra.topicId || 'marriage'} natalFacts={this.state.natalFacts} mundaneSet={this.state.mundaneSet} />;
 	}
 
 	renderScanModal(){

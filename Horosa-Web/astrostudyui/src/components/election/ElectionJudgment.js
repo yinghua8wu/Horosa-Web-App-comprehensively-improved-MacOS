@@ -37,9 +37,9 @@ class ElectionJudgment extends Component{
 		try{ const t = buildElectionSnapshot(this._j); if(t && t !== _lastElectionSnap){ _lastElectionSnap = t; saveModuleAISnapshot('election', t, {}); } }catch(e){ /* noop */ }
 	}
 	render(){
-		const { chart, topicId } = this.props;
+		const { chart, topicId, natalFacts, mundaneSet } = this.props;
 		let j = null; let err = null;
-		try{ j = chart ? runElection(chart, topicId) : null; }catch(e){ err = e; console.error('runElection failed', e); }
+		try{ j = chart ? runElection(chart, topicId, natalFacts, mundaneSet) : null; }catch(e){ err = e; console.error('runElection failed', e); }
 		this._j = j;
 		if(!chart) return <div className="horosa-divi-judge"><div className="horosa-divi-note">排盘中…</div></div>;
 		if(err || !j) return <div className="horosa-divi-judge"><div className="horosa-divi-note">判断生成失败：{String((err && err.message) || err || '无结果')}</div></div>;
@@ -140,6 +140,32 @@ class ElectionJudgment extends Component{
 						<div className="horosa-divi-note">把择日盘当事件本命盘：宫内星＝初期，宫主星＝后期；多个相位在同一时段成正相位 → 该期影响显著。</div>
 					</div>
 				</TabPane>
+
+				<TabPane tab="合参" key="heshen">
+						<div className="horosa-divi-judge">
+							<div className="horosa-divi-legend">合参 ＝ 择日盘对本命的「永久过运」＋ 与时势盘（春分入宫 / 前一次新满月 / 前一次日月食）的呼应。事在人为 ＋ 本命盘 ＞ 择日盘。左栏可分别选「本命盘合参」「拉时势盘合参」。</div>
+							<div className="horosa-divi-card">
+								<div className="horosa-divi-card-head">本命合参</div>
+								{j.natal && j.natal.available ? (
+									j.natal.notes.length ? j.natal.notes.map((n, i) => (
+										<div key={'n' + i} className={'horosa-divi-testi ' + (n.pol === 'positive' ? 'is-pos' : (n.pol === 'negative' ? 'is-neg' : ''))}>
+											<span className="dot">{n.pol === 'positive' ? '▲' : (n.pol === 'negative' ? '▼' : '·')}</span><span>{n.text}</span>
+										</div>
+									)) : <div className="horosa-divi-line">未见明显过运合参要点。</div>
+								) : <div className="horosa-divi-line">左栏「选本命盘合参」后，显示择日 × 本命过运。</div>}
+							</div>
+							<div className="horosa-divi-card">
+								<div className="horosa-divi-card-head">时势合参</div>
+								{j.mundane && j.mundane.available ? (
+									j.mundane.notes.length ? j.mundane.notes.map((n, i) => (
+										<div key={'m' + i} className={'horosa-divi-testi ' + (n.pol === 'positive' ? 'is-pos' : (n.pol === 'negative' ? 'is-neg' : ''))}>
+											<span className="dot">{n.pol === 'positive' ? '▲' : (n.pol === 'negative' ? '▼' : '·')}</span><span>{n.text}</span>
+										</div>
+									)) : <div className="horosa-divi-line">未见明显时势合参要点。</div>
+								) : <div className="horosa-divi-line">左栏「拉时势盘合参」后，显示择日命度 × 时势盘。</div>}
+							</div>
+						</div>
+					</TabPane>
 
 				<TabPane tab="建议" key="advice">
 					<div className="horosa-divi-judge">
