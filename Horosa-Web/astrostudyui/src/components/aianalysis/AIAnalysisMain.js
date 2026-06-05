@@ -3130,7 +3130,16 @@ function AIAnalysisMain(props){
 									const source = sourceOptions.find((item)=>item.value === option.value);
 									return source ? source.searchText.indexOf(`${input || ''}`.trim().toLowerCase()) >= 0 : false;
 								}}
-								onChange={(val)=>setSelectedSourceId(val || '')}
+								onChange={(val)=>{
+									const next = val || '';
+									// 选中「起课时间/命盘时间」时刷新为当前时刻(此刻)——修 Win#17:之前默认用 mount(打开软件)时间而非点击时间。
+									if(next === TIMEPOINT_SOURCE_ID){
+										setTimepointDraft((prev)=>({ ...prev, divTime: formatTimepointNow() }));
+									}else if(next === NATAL_SOURCE_ID){
+										setNatalDraft((prev)=>({ ...prev, birth: formatTimepointNow() }));
+									}
+									setSelectedSourceId(next);
+								}}
 							>
 								{sourceOptions.map((item)=>(
 									<Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
