@@ -216,11 +216,16 @@ public class AIAnalysisProxyServiceTest {
 		assertEquals("", AIAnalysisProxyService.readErrorBody("not a stream"));
 		assertEquals("", AIAnalysisProxyService.readErrorBody(null));
 
-		// oversized body is truncated to 1000 chars
-		byte[] big = new byte[2000];
+		// A5(#16):放宽截断到 4000 字符(+省略号),让上游完整错误真因透传 —— 2000 字以内不截断
+		byte[] mid = new byte[2000];
+		java.util.Arrays.fill(mid, (byte) 'x');
+		assertEquals(2000, AIAnalysisProxyService.readErrorBody(new java.io.ByteArrayInputStream(mid)).length());
+		// 超过 4000 字才截断到 4000 + 省略号
+		byte[] big = new byte[5000];
 		java.util.Arrays.fill(big, (byte) 'x');
 		String truncated = AIAnalysisProxyService.readErrorBody(new java.io.ByteArrayInputStream(big));
-		assertEquals(1000, truncated.length());
+		assertEquals(4001, truncated.length());
+		assertTrue(truncated.endsWith("…"));
 	}
 
 	@Test
@@ -238,6 +243,67 @@ public class AIAnalysisProxyServiceTest {
 
 		Map<String, String> ollama = AIAnalysisProxyService.buildAuthHeaders("ollama", "", buildMap());
 		assertFalse(ollama.containsKey("Authorization"));
+	}
+
+	@Test
+	public void extractOpenAIStreamReasoningPicksReasoningContent() {
+		// #16:DeepSeek reasoner 的思维链在 delta.reasoning_content,旧实现会丢弃 → 思考期界面空白被当失败。
+		Map<String, Object> rc = buildMap("choices", Arrays.asList(
+			buildMap("delta", buildMap("reasoning_content", "正在推理…"))));
+		assertEquals("正在推理…", AIAnalysisProxyService.extractOpenAIStreamReasoning(rc));
+		// 部分网关把思考放在 delta.reasoning
+		Map<String, Object> rr = buildMap("choices", Arrays.asList(
+			buildMap("delta", buildMap("reasoning", "思考中"))));
+		assertEquals("思考中", AIAnalysisProxyService.extractOpenAIStreamReasoning(rr));
+		// 纯 content 帧不应被当作 reasoning;content 仍正常解析
+		Map<String, Object> only = buildMap("choices", Arrays.asList(
+			buildMap("delta", buildMap("content", "答案"))));
+		assertEquals("", AIAnalysisProxyService.extractOpenAIStreamReasoning(only));
+		assertEquals("答案", AIAnalysisProxyService.extractOpenAIStreamDelta(only));
+	}
+
+	@Test
+	public void isReasoningModelMatchesReasonerAndR1AndOpenAISeries() {
+		assertTrue(AIAnalysisProxyService.isReasoningModel("deepseek-reasoner"));
+		assertTrue(AIAnalysisProxyService.isReasoningModel("openrouter/deepseek/deepseek-r1"));
+		assertTrue(AIAnalysisProxyService.isReasoningModel("deepseek-r1:7b"));
+		assertTrue(AIAnalysisProxyService.isReasoningModel("o1-mini"));
+		assertTrue(AIAnalysisProxyService.isReasoningModel("gpt-5"));
+		assertFalse(AIAnalysisProxyService.isReasoningModel("deepseek-chat"));
+		assertFalse(AIAnalysisProxyService.isReasoningModel("gpt-4o"));
+		assertFalse(AIAnalysisProxyService.isReasoningModel("qwen2.5"));
+	}
+
+	@Test
+	public void buildOpenAIChatBodyStripsSamplingParamsForReasoner() {
+		// #16:deepseek-reasoner 不下发 temperature/top_p/penalties,且用 max_tokens(非 max_completion_tokens)。
+		Map<String, Object> params = buildMap(
+			"temperature", 0.7,
+			"maxTokens", 1024,
+			"providerOptions", buildMap("top_p", 0.9, "frequency_penalty", 0.5));
+		Map<String, Object> body = AIAnalysisProxyService.buildOpenAIChatBody(
+			"deepseek-reasoner", params, new java.util.ArrayList<Map<String, Object>>(), true);
+		assertFalse("reasoner 不应带 temperature", body.containsKey("temperature"));
+		assertFalse("reasoner 不应带 top_p", body.containsKey("top_p"));
+		assertFalse("reasoner 不应带 frequency_penalty", body.containsKey("frequency_penalty"));
+		assertTrue(body.containsKey("max_tokens"));
+		assertFalse(body.containsKey("max_completion_tokens"));
+
+		// 普通聊天模型 deepseek-chat:照常带 temperature 与 providerOptions 采样参数。
+		Map<String, Object> body2 = AIAnalysisProxyService.buildOpenAIChatBody(
+			"deepseek-chat", params, new java.util.ArrayList<Map<String, Object>>(), true);
+		assertTrue(body2.containsKey("temperature"));
+		assertTrue(body2.containsKey("top_p"));
+	}
+
+	@Test
+	public void buildOpenAIChatBodyUsesMaxCompletionTokensForOpenAIReasoner() {
+		Map<String, Object> params = buildMap("maxTokens", 2048);
+		Map<String, Object> body = AIAnalysisProxyService.buildOpenAIChatBody(
+			"o1-preview", params, new java.util.ArrayList<Map<String, Object>>(), false);
+		assertTrue(body.containsKey("max_completion_tokens"));
+		assertFalse(body.containsKey("max_tokens"));
+		assertFalse(body.containsKey("temperature"));
 	}
 
 	private static Map<String, Object> buildMap(Object... args){

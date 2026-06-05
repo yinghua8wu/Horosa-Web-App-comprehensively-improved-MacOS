@@ -44,6 +44,10 @@ class LRCommChart {
 			AstroConst.NormalFont,
 		];
 		this.timezi = (this.castOverride && this.castOverride.timeZhi) || this.nongli.time.substr(1);
+		// 高亮用「真实月将」「真实时支」:起课法只改 yue(天盘起支 X)/timezi(临位 Y) 来对齐上下盘,
+		// 但高亮恒标真实月将(actualYue)与真实占时(realTimeBranch),不随起课法漂移到 X/Y 的对齐格。
+		this.actualYue = (this.castOverride && this.castOverride.actualYue) || this.yue;
+		this.realTimeBranch = this.nongli && this.nongli.time ? this.nongli.time.substr(1) : this.timezi;
 		this.yueIndexs = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 		this.tianJiangColor = LRConst.LRColor.tianJiangColor;
 		this.houseTianJiang = LRConst.TianJiang.slice(0);

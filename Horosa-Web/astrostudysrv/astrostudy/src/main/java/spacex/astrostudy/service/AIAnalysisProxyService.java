@@ -393,8 +393,7 @@ public class AIAnalysisProxyService {
 			Map<String, Object> body = buildOpenAIChatBody(model, params, messages, true);
 			String url = joinUrl(resolveBaseUrl(normalizedProviderType(params), stringVal(params, "baseUrl")), "/chat/completions");
 			HttpRequest request = buildJsonRequest(url, buildAuthHeaders(normalizedProviderType(params), stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
-			HttpResponse<InputStream> response = streamHttpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-			ensureSuccess(response);
+			HttpResponse<InputStream> response = sendStreamWithRetry(request, params);
 			readSseStream(response.body(), (eventName, dataText)->{
 				if(StringUtility.isNullOrEmpty(dataText)){
 					return;
@@ -403,6 +402,10 @@ public class AIAnalysisProxyService {
 					return;
 				}
 				Map<String, Object> payload = JsonUtility.toDictionary(dataText);
+				String reasoning = extractOpenAIStreamReasoning(payload);
+				if(!StringUtility.isNullOrEmpty(reasoning)) {
+					sendEvent(channel, "reasoning", buildMap("reasoning", reasoning));
+				}
 				String delta = extractOpenAIStreamDelta(payload);
 				if(!StringUtility.isNullOrEmpty(delta)) {
 					sendEvent(channel, "delta", buildMap("delta", delta));
@@ -418,13 +421,17 @@ public class AIAnalysisProxyService {
 			Map<String, Object> body = buildOllamaNativeBody(model, params, messages, true);
 			String url = joinUrl(ollamaNativeBase(params), "/api/chat");
 			HttpRequest request = buildJsonRequest(url, buildAuthHeaders("ollama", stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
-			HttpResponse<InputStream> response = streamHttpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-			ensureSuccess(response);
+			HttpResponse<InputStream> response = sendStreamWithRetry(request, params);
 			readNdjsonStream(response.body(), (dataText) -> {
 				if(StringUtility.isNullOrEmpty(dataText)) { return; }
 				Map<String, Object> payload = JsonUtility.toDictionary(dataText);
 				Object msg = payload.get("message");
 				if(msg instanceof Map) {
+					// Ollama thinking 模型(deepseek-r1 等)把思维链放在 message.thinking,单独透出(与 #16 同口径)。
+					Object think = ((Map) msg).get("thinking");
+					if(think != null && !StringUtility.isNullOrEmpty(think.toString())) {
+						sendEvent(channel, "reasoning", buildMap("reasoning", think.toString()));
+					}
 					Object c = ((Map) msg).get("content");
 					if(c != null && !StringUtility.isNullOrEmpty(c.toString())) {
 						sendEvent(channel, "delta", buildMap("delta", c.toString()));
@@ -523,8 +530,7 @@ public class AIAnalysisProxyService {
 			Map<String, Object> body = buildAnthropicBody(model, params, messages, true);
 			String url = joinUrl(resolveBaseUrl("anthropic", stringVal(params, "baseUrl")), "/v1/messages");
 			HttpRequest request = buildJsonRequest(url, buildAuthHeaders("anthropic", stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
-			HttpResponse<InputStream> response = streamHttpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-			ensureSuccess(response);
+			HttpResponse<InputStream> response = sendStreamWithRetry(request, params);
 			readSseStream(response.body(), (eventName, dataText)->{
 				if(StringUtility.isNullOrEmpty(dataText)){
 					return;
@@ -544,8 +550,7 @@ public class AIAnalysisProxyService {
 			String url = joinUrl(resolveBaseUrl("gemini", stringVal(params, "baseUrl")), String.format("/models/%s:streamGenerateContent?alt=sse&key=%s", urlEncode(model), urlEncode(apiKey)));
 			Map<String, Object> body = buildGeminiBody(params, messages);
 			HttpRequest request = buildJsonRequest(url, buildAuthHeaders("gemini", apiKey, params), JsonUtility.encode(body), params);
-			HttpResponse<InputStream> response = streamHttpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-			ensureSuccess(response);
+			HttpResponse<InputStream> response = sendStreamWithRetry(request, params);
 			readSseStream(response.body(), (eventName, dataText)->{
 				if(StringUtility.isNullOrEmpty(dataText)){
 					return;
@@ -869,6 +874,41 @@ public class AIAnalysisProxyService {
 		return "";
 	}
 
+	// DeepSeek reasoner(R1)等推理模型把思维链放在 delta.reasoning_content(部分网关用 reasoning);旧实现只取
+	// content → 思考阶段(可达 10s+)前端零输出、被当成「卡死/失败」(Windows #16)。这里单独取出思考增量,流持续有数据。
+	static String extractOpenAIStreamReasoning(Map<String, Object> payload){
+		if(payload == null) {
+			return "";
+		}
+		Object choicesObj = payload.get("choices");
+		if(!(choicesObj instanceof List) || ((List)choicesObj).isEmpty()) {
+			return "";
+		}
+		Object first = ((List)choicesObj).get(0);
+		if(!(first instanceof Map)) {
+			return "";
+		}
+		Map choice = (Map)first;
+		Object deltaObj = choice.get("delta");
+		if(deltaObj instanceof Map) {
+			Object r = ((Map)deltaObj).get("reasoning_content");
+			if(!(r instanceof String) || ((String)r).isEmpty()) {
+				r = ((Map)deltaObj).get("reasoning");
+			}
+			if(r instanceof String) {
+				return (String)r;
+			}
+		}
+		Object messageObj = choice.get("message");
+		if(messageObj instanceof Map) {
+			Object r = ((Map)messageObj).get("reasoning_content");
+			if(r instanceof String) {
+				return (String)r;
+			}
+		}
+		return "";
+	}
+
 	static String extractAnthropicStreamDelta(String eventName, Map<String, Object> payload){
 		if(payload == null) {
 			return "";
@@ -953,20 +993,63 @@ public class AIAnalysisProxyService {
 			|| m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4") || m.startsWith("o5");
 	}
 
+	// 广义「推理模型」:除 OpenAI o/gpt-5 系外,还含 DeepSeek reasoner / *-r1 / 通用 reasoning|thinking 命名,
+	// 与前端 aiAnalysisProviders.isReasoningModel 保持一致(原注释声称同步、实则后端漏了 deepseek-reasoner → 误发 temperature)。
+	// 这类模型自带思考、对采样参数「轻则忽略、重则 400」,故统一不下发采样参数(见 stripReasoningUnsupportedParams)。
+	// 注意:它比 isOpenAIReasoningModel 更广;后者仅决定 max_completion_tokens vs max_tokens(DeepSeek reasoner 仍用 max_tokens)。
+	private static final java.util.regex.Pattern REASONING_R1_PATTERN = java.util.regex.Pattern.compile("(^|[^a-z0-9])r1([^a-z0-9]|$)");
+	static boolean isReasoningModel(String model){
+		if(model == null) {
+			return false;
+		}
+		if(isOpenAIReasoningModel(model)) {
+			return true;
+		}
+		String m = model.trim().toLowerCase();
+		int slash = m.lastIndexOf('/');
+		if(slash >= 0) {
+			m = m.substring(slash + 1);
+		}
+		if(m.contains("reasoner") || m.contains("reasoning") || m.contains("thinking")) {
+			return true;
+		}
+		return REASONING_R1_PATTERN.matcher(m).find();
+	}
+
+	// DeepSeek 官方:reasoner 收到 temperature/top_p/presence_penalty/frequency_penalty「不报错但无效」,
+	// 收到 logprobs/top_logprobs「直接 400」;且 R1 多家网关实测对 temperature 也会 400。最稳:推理模型一律剥离这些采样参数。
+	private static final Set<String> REASONING_UNSUPPORTED_PARAMS = new LinkedHashSet<String>(Arrays.asList(
+		"temperature", "top_p", "presence_penalty", "frequency_penalty", "logprobs", "top_logprobs"));
+	static Map<String, Object> stripReasoningUnsupportedParams(Map<String, Object> body){
+		Map<String, Object> out = new LinkedHashMap<String, Object>();
+		for(Map.Entry<String, Object> e : body.entrySet()) {
+			if(REASONING_UNSUPPORTED_PARAMS.contains(e.getKey())) {
+				continue;
+			}
+			out.put(e.getKey(), e.getValue());
+		}
+		return out;
+	}
+
 	static Map<String, Object> buildOpenAIChatBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
 		Map<String, Object> requestBody = new LinkedHashMap<String, Object>();
 		requestBody.put("model", model);
 		requestBody.put("messages", messages);
-		boolean reasoning = isOpenAIReasoningModel(model);
+		boolean openAIReasoning = isOpenAIReasoningModel(model); // 仅 OpenAI o/gpt-5 系:用 max_completion_tokens
+		boolean reasoning = isReasoningModel(model);             // 广义推理模型(含 deepseek-reasoner/*-r1):不下发采样参数
 		if(!reasoning) {
 			requestBody.put("temperature", numVal(params.get("temperature"), 0.7));
 		}
 		requestBody.put("stream", stream);
 		int maxTokens = intVal(params.get("maxTokens"), 0);
 		if(maxTokens > 0) {
-			requestBody.put(reasoning ? "max_completion_tokens" : "max_tokens", maxTokens);
+			requestBody.put(openAIReasoning ? "max_completion_tokens" : "max_tokens", maxTokens);
 		}
-		requestBody.putAll(buildProviderBodyOptions(params));
+		Map<String, Object> prov = buildProviderBodyOptions(params);
+		if(reasoning) {
+			prov = stripReasoningUnsupportedParams(prov); // 防 reasoner 因 top_p/logprobs 等采样参数 400(#16)
+		}
+		requestBody.putAll(prov);
 		return requestBody;
 	}
 
@@ -1096,6 +1179,78 @@ public class AIAnalysisProxyService {
 		return result;
 	}
 
+	// A4(#16 等):流式上游请求的「首字节前」瞬态退避重试。只在拿到响应头之前(连接失败 / 429 / 5xx)重试,
+	// 一旦返回 2xx 就交给调用方读流 → 绝不会在已开始吐 token 之后重试(防重复计费、防重复内容)。尊重 Retry-After。
+	private static final int DEFAULT_STREAM_RETRIES = 2;
+	private HttpResponse<InputStream> sendStreamWithRetry(HttpRequest request, Map<String, Object> params) throws Exception {
+		int extra = intVal(providerOptionsMap(params).get("maxRetries"), DEFAULT_STREAM_RETRIES);
+		if(extra < 0) { extra = 0; }
+		if(extra > 5) { extra = 5; }
+		int maxAttempts = 1 + extra;
+		Exception lastError = null;
+		for(int attempt = 1; attempt <= maxAttempts; attempt++) {
+			try {
+				HttpResponse<InputStream> response = streamHttpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+				int status = response.statusCode();
+				if(status >= 200 && status < 300) {
+					return response; // 已拿到 2xx 响应头 → 交调用方读流,此后不再重试
+				}
+				if(attempt < maxAttempts && isRetriableStatus(status)) {
+					long wait = retryDelayMs(response, attempt);
+					try { InputStream b = response.body(); if(b != null) { b.close(); } } catch(Exception ignore) {}
+					AppLoggers.ErrorLogger.warn("ai.stream.retry status=" + status + " attempt=" + attempt + " waitMs=" + wait);
+					sleepQuietly(wait);
+					continue;
+				}
+				ensureSuccess(response); // 非可重试 / 次数耗尽 → 抛出含上游真因的错误
+				return response;
+			} catch(IOException e) {
+				lastError = e; // 连接/传输层失败发生在首字节前 → 可重试
+				if(attempt < maxAttempts) {
+					long wait = backoffMs(attempt);
+					AppLoggers.ErrorLogger.warn("ai.stream.retry io=" + e.getClass().getSimpleName() + " attempt=" + attempt + " waitMs=" + wait);
+					sleepQuietly(wait);
+					continue;
+				}
+				throw e;
+			}
+		}
+		if(lastError != null) { throw lastError; }
+		throw new ErrorCodeException(580021, "上游 provider 请求失败");
+	}
+
+	private static boolean isRetriableStatus(int status){
+		return status == 429 || status == 500 || status == 502 || status == 503 || status == 504 || status == 529;
+	}
+
+	private long retryDelayMs(HttpResponse<?> response, int attempt){
+		try {
+			java.util.Optional<String> ra = response.headers().firstValue("retry-after");
+			if(ra.isPresent()) {
+				long sec = Long.parseLong(ra.get().trim());
+				if(sec > 0 && sec <= 60) {
+					return sec * 1000L;
+				}
+			}
+		} catch(Exception ignore) {}
+		return backoffMs(attempt);
+	}
+
+	private long backoffMs(int attempt){
+		long base = 600L * (1L << Math.min(attempt - 1, 4)); // 600,1200,2400,4800,9600
+		base = Math.min(base, 8000L);
+		long jitter = java.util.concurrent.ThreadLocalRandom.current().nextLong(0L, 400L);
+		return base + jitter;
+	}
+
+	private static void sleepQuietly(long ms){
+		try {
+			Thread.sleep(ms);
+		} catch(InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
+	}
+
 	private void ensureSuccess(HttpResponse<?> response){
 		int status = response.statusCode();
 		if(status >= 200 && status < 300) {
@@ -1115,10 +1270,10 @@ public class AIAnalysisProxyService {
 			return "";
 		}
 		try(InputStream in = (InputStream) body){
-			byte[] buf = in.readNBytes(4096);
+			byte[] buf = in.readNBytes(16384);
 			String text = new String(buf, StandardCharsets.UTF_8).trim();
-			if(text.length() > 1000) {
-				text = text.substring(0, 1000);
+			if(text.length() > 4000) {
+				text = text.substring(0, 4000) + "…";
 			}
 			return text;
 		}catch(Exception e){

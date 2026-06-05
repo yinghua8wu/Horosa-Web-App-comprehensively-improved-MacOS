@@ -2851,7 +2851,8 @@ function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, c
 	const fourColumns = liureng && liureng.fourColumns ? liureng.fourColumns : {};
 	const yearBranch = extractSingleBranch(fourColumns && fourColumns.year ? (fourColumns.year.ganzi || (fourColumns.year.branch ? fourColumns.year.branch.cell : '')) : '');
 	const timeBranch = extractSingleBranch(fourColumns && fourColumns.time ? (fourColumns.time.ganzi || (fourColumns.time.branch ? fourColumns.time.branch.cell : '')) : '');
-	const yueGeneralBranch = layout ? layout.yue : '';
+	// 月将高亮/盘式以「真实月将」为准(layout.actualYue);layout.yue 是起课法的天盘起支(仅用于上下盘对齐),非起课法下二者相等。
+	const yueGeneralBranch = layout ? (layout.actualYue || layout.yue) : '';
 	const occupyTimeBranch = timeBranch || (layout ? layout.timezi : '');
 	const panStyle = resolveLiuRengTwelvePanStyle(yueGeneralBranch, occupyTimeBranch);
 	const runYearGanZi = runyear && runyear.year ? extractGanZi(runyear.year) : '';
@@ -3743,17 +3744,29 @@ function getChartYue(chartObj){
 	return '';
 }
 
-// 起课法：正时正将 + 八客①–⑧ + 四柱对齐(年日/年时/月日/月时) + 选时 + 演数。
-// 古法：每法＝一对「天盘起支 X 加于 地盘临位 Y」；天干用寄宫(GanJiZi)；对齐法直接取两柱地支。
+// 起课法：正时正将(第一客) + 十二客②–⑫ + 加时四法(太岁/月建/行年/本命加时) + 次客·一/二/三筹 + 四柱对齐 + 选时 + 演数。
+// 古法：每法＝一对「天盘起支 X 加于 地盘临位 Y」；天干用寄宫(GanJiZi)；对齐/本命/行年取对应地支。
+// 次客(cikeN)：自月将本位起，阳支「后三前五」/阴支「前三后五」取「第 N 筹」天盘地支，再以该支「加时」(放占时)重排上下盘——与其它加时法同理(见 liurengChouBranch + computeQiXY)。
 const QI_METHODS = [
 	{ key: 'zheng', name: '正时正将' },
-	{ key: 'bake2', name: '八客·月建加太岁' },
-	{ key: 'bake3', name: '八客·太岁加月建' },
-	{ key: 'bake4', name: '八客·月建加日干' },
-	{ key: 'bake5', name: '八客·岁干加正时' },
-	{ key: 'bake6', name: '八客·月将加日干' },
-	{ key: 'bake7', name: '八客·月将加太岁' },
-	{ key: 'bake8', name: '八客·太岁加月将' },
+	{ key: 'bake2', name: '十二客·月建加太岁' },
+	{ key: 'bake3', name: '十二客·太岁加月建' },
+	{ key: 'bake4', name: '十二客·月建加日干' },
+	{ key: 'bake5', name: '十二客·岁干加正时' },
+	{ key: 'bake6', name: '十二客·月将加日干' },
+	{ key: 'bake7', name: '十二客·月将加太岁' },
+	{ key: 'bake8', name: '十二客·太岁加月将' },
+	{ key: 'bake9', name: '十二客·月将加本命' },
+	{ key: 'bake10', name: '十二客·月将加行年' },
+	{ key: 'bake11', name: '十二客·太岁加本命' },
+	{ key: 'bake12', name: '十二客·太岁加行年' },
+	{ key: 'tsjs', name: '太岁加时' },
+	{ key: 'yjjs', name: '月建加时' },
+	{ key: 'xnjs', name: '行年加时' },
+	{ key: 'bmjs', name: '本命加时' },
+	{ key: 'cike1', name: '次客·一筹' },
+	{ key: 'cike2', name: '次客·二筹' },
+	{ key: 'cike3', name: '次客·三筹' },
 	{ key: 'alnr', name: '年日对齐·陈旧事' },
 	{ key: 'alns', name: '年时对齐·深远事' },
 	{ key: 'alyr', name: '月日对齐·催迫事' },
@@ -3796,6 +3809,26 @@ function computeFenZhouYe(fenZhouYe, chartObj){
 	return set.indexOf(tb) >= 0;
 }
 
+// 次客 第 N 筹的天盘地支:自月将本位起,阳支「后三前五」、阴支「前三后五」。
+//   一筹=月将本位;二筹=阳后三(逆3)/阴前三(顺3);三筹=阳前五(二筹顺5)/阴后五(二筹逆5)。
+//   例:月将申(阳)→申/巳/戌;月将戌(阳)→戌/未/子;月将亥(阴)→亥/寅/酉。取得后用作「该支加时」重排上下盘。
+function liurengChouBranch(yueEff, chou){
+	const i = LRConst.ZiList.indexOf(yueEff);
+	if(i < 0){
+		return '';
+	}
+	const yang = (i % 2 === 0); // 子寅辰午申戌 为阳(偶位索引)
+	if(chou === 1){
+		return LRConst.ZiList[i];
+	}
+	const er = yang ? ((i - 3 + 12) % 12) : ((i + 3) % 12);
+	if(chou === 2){
+		return LRConst.ZiList[er];
+	}
+	const san = yang ? ((er + 5) % 12) : ((er - 5 + 12) % 12);
+	return LRConst.ZiList[san];
+}
+
 // 起课法 → 天盘起支 X 与 地盘临位 Y（yueEff＝换将后月将）。
 function computeQiXY(castMethod, chartObj, yueEff, opts){
 	opts = opts || {};
@@ -3809,6 +3842,9 @@ function computeQiXY(castMethod, chartObj, yueEff, opts){
 	const dayGan = nongli.dayGanZi ? nongli.dayGanZi.substr(0, 1) : '';
 	const jiDayGan = LRConst.GanJiZi[dayGan] || '';
 	const jiYearGan = LRConst.GanJiZi[yearGan] || '';
+	// 本命支(命主出生年支) / 行年支:由调用方(渲染/快照)经 opts 传入;缺省时退回默认起法(零回归)。
+	const benmingBranch = (opts.benmingZhi && LRConst.ZiList.indexOf(opts.benmingZhi) >= 0) ? opts.benmingZhi : '';
+	const xingnianBranch = (opts.xingnianZhi && LRConst.ZiList.indexOf(opts.xingnianZhi) >= 0) ? opts.xingnianZhi : '';
 	let X = yueEff;
 	let Y = timeBranch;
 	switch(castMethod){
@@ -3819,6 +3855,17 @@ function computeQiXY(castMethod, chartObj, yueEff, opts){
 		case 'bake6': X = yueEff; Y = jiDayGan; break;
 		case 'bake7': X = yueEff; Y = yearBranch; break;
 		case 'bake8': X = yearBranch; Y = yueEff; break;
+		case 'bake9': X = yueEff; Y = benmingBranch; break;       // 第九客 月将加本命
+		case 'bake10': X = yueEff; Y = xingnianBranch; break;     // 第十客 月将加行年
+		case 'bake11': X = yearBranch; Y = benmingBranch; break;  // 十一客 太岁加本命
+		case 'bake12': X = yearBranch; Y = xingnianBranch; break; // 十二客 太岁加行年
+		case 'tsjs': X = yearBranch; Y = timeBranch; break;       // 太岁加时
+		case 'yjjs': X = monthBranch; Y = timeBranch; break;      // 月建加时
+		case 'xnjs': X = xingnianBranch; Y = timeBranch; break;   // 行年加时
+		case 'bmjs': X = benmingBranch; Y = timeBranch; break;    // 本命加时
+		case 'cike1': X = liurengChouBranch(yueEff, 1) || yueEff; Y = timeBranch; break; // 次客·一筹(月将本位)加时
+		case 'cike2': X = liurengChouBranch(yueEff, 2) || yueEff; Y = timeBranch; break; // 次客·二筹 加时
+		case 'cike3': X = liurengChouBranch(yueEff, 3) || yueEff; Y = timeBranch; break; // 次客·三筹 加时
 		case 'alnr': X = yearBranch; Y = dayBranch; break;   // 年日对齐
 		case 'alns': X = yearBranch; Y = timeBranch; break;  // 年时对齐
 		case 'alyr': X = monthBranch; Y = dayBranch; break;  // 月日对齐
@@ -3861,7 +3908,8 @@ function buildLiuRengCastOverride(chartObj, opts){
 	if(!X || !Y){
 		return null;
 	}
-	return { yue: X, timeZhi: Y, isDiurnal };
+	// actualYue=真实月将(yueEff):起课法只改 X(天盘起支)用于上下盘对齐;月将/时辰高亮与盘式仍以真实月将+真实占时为准。
+	return { yue: X, timeZhi: Y, isDiurnal, actualYue: yueEff };
 }
 
 function buildLiuRengLayout(chartObj, guirengType, castOverride){
@@ -3921,6 +3969,7 @@ function buildLiuRengLayout(chartObj, guirengType, castOverride){
 		downZi,
 		upZi,
 		houseTianJiang,
+		actualYue: (castOverride && castOverride.actualYue) || yue, // 真实月将(高亮/盘式用);yue 仅作上下盘对齐的天盘起支
 	};
 }
 
@@ -3929,6 +3978,14 @@ function getAppliedBirth(state){
 		return state.calcBirth;
 	}
 	return state ? state.birth : null;
+}
+
+// 六壬 本命支(命主出生年支,按公历年取年支) + 行年支 —— 第九~十二客 / 本命·行年加时 用;缺则空串(computeQiXY 退回默认)。
+function liurengBenmingXingnian(birth, runyear){
+	const by = getSolarYearFromField(birth && birth.date ? birth.date : null);
+	const benmingZhi = Number.isFinite(by) ? (LRConst.ZiList[(((by - 4) % 12) + 12) % 12] || '') : '';
+	const xingnianZhi = extractSingleBranch(runyear && runyear.year ? runyear.year : '');
+	return { benmingZhi, xingnianZhi };
 }
 
 function clonePlain(obj){
@@ -4499,6 +4556,7 @@ class LiuRengMain extends Component{
 				yanShuNum: this.state.yanShuNum,
 				yueJiangMethod: this.state.yueJiangMethod,
 				fenZhouYe: this.state.fenZhouYe,
+				...liurengBenmingXingnian(appliedBirth, runyear),
 			}
 		);
 		if(typeof window !== 'undefined'){
@@ -5326,7 +5384,8 @@ class LiuRengMain extends Component{
 		let chartFields = this.state.calcFields ? this.state.calcFields : this.props.fields;
 		const appliedBirth = getAppliedBirth(this.state);
 		const displayRunYear = resolveDisplayRunYear(this.state.runyear, appliedBirth, chartFields);
-		const castOverride = buildLiuRengCastOverride(chart, this.state);
+		const _lrExtra = liurengBenmingXingnian(appliedBirth, displayRunYear);
+		const castOverride = buildLiuRengCastOverride(chart, { ...this.state, benmingZhi: _lrExtra.benmingZhi, xingnianZhi: _lrExtra.xingnianZhi });
 		const refBundle = buildLiuRengReferenceBundle(this.state.liureng, chart, this.state.guireng, displayRunYear, castOverride);
 		const refContext = refBundle.context || {};
 		const panStyleName = refContext.panStyle && refContext.panStyle.name ? refContext.panStyle.name : '';
@@ -5419,6 +5478,7 @@ export {
 	buildReferenceDocumentText,
 	buildOverviewReferenceText,
 	XIAO_JU_REFERENCE_TAB_KEYS,
+	liurengChouBranch,
 };
 
 export default LiuRengMain;

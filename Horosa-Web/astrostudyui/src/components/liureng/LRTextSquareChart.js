@@ -86,8 +86,8 @@ class LRTextSquareChart extends LRCommChart {
 		const titleY = ord.y + ord.h * 0.23;
 		const upY = ord.y + ord.h * 0.52;
 		const downY = ord.y + ord.h * 0.78;
-		const isTime = downBranch === this.timezi;
-		const isMonth = upBranch === this.yue;
+		const isTime = downBranch === this.realTimeBranch; // 时辰高亮=真实占时(非起课法临位 Y)
+		const isMonth = upBranch === this.actualYue;       // 月将高亮=真实月将(非起课法天盘起支 X)
 		const titleColor = 'var(--horosa-liureng-square-jiang, #d8a451)';
 		const mainColor = isMonth ? 'var(--horosa-liureng-square-accent, #d8a451)' : 'var(--horosa-liureng-square-main, #f1eee7)';
 		const downColor = isTime ? 'var(--horosa-liureng-square-accent, #d8a451)' : 'var(--horosa-liureng-square-muted, #9d968b)';

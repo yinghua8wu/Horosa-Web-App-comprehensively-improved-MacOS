@@ -4,6 +4,7 @@ import {
 	getProviderDisplayName,
 	getProviderPreset,
 	getProviderProtocolFamily,
+	isReasoningModel,
 	splitProviderModels,
 } from '../aiAnalysisProviders';
 
@@ -37,5 +38,15 @@ describe('aiAnalysisProviders', ()=>{
 			chatModels: ['deepseek-chat'],
 			embeddingModels: ['text-embedding-3-small', 'bge-large-zh'],
 		});
+	});
+
+	test('isReasoningModel detects deepseek-reasoner / r1 / openai reasoning series', ()=>{
+		// #16:reasoner 必须被识别为推理模型 → 前端不发 temperature、后端不带采样参数。
+		expect(isReasoningModel('deepseek-reasoner')).toBe(true);
+		expect(isReasoningModel('openrouter/deepseek/deepseek-r1')).toBe(true);
+		expect(isReasoningModel('o1-mini')).toBe(true);
+		expect(isReasoningModel('gpt-5')).toBe(true);
+		expect(isReasoningModel('deepseek-chat')).toBe(false);
+		expect(isReasoningModel('gpt-4o')).toBe(false);
 	});
 });

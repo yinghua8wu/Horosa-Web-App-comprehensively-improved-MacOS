@@ -1352,6 +1352,25 @@ class DunJiaMain extends Component {
 		);
 	}
 
+	// ⑥ 行内悬浮:把与盘面同款的奇门象意 hover 套到 header 行内元素(年月日时天干 / 值符=九星 / 值使=八门),不破坏行内排版。
+	renderQimenHoverInline(type, text, child, key){
+		const tipObj = buildQimenXiangTipObj(type, `${text || ''}`.trim());
+		if(!tipObj){
+			return child;
+		}
+		return (
+			<Popover
+				key={key}
+				trigger="hover"
+				placement="bottom"
+				content={this.renderQimenDocPopover(tipObj)}
+				overlayStyle={{ maxWidth: 600 }}
+			>
+				<span style={{ cursor: 'help' }}>{child}</span>
+			</Popover>
+		);
+	}
+
 	renderCell(cell){
 		const titleColor = cell.hasKongWang
 			? 'var(--horosa-accent, #2f54eb)'
@@ -1671,7 +1690,7 @@ class DunJiaMain extends Component {
 												fontSize: 32,
 											}}
 										>
-											<span style={{ color: p.ganColor }}>{p.gan || ' '}</span>
+											{this.renderQimenHoverInline('stem', p.gan, <span style={{ color: p.ganColor }}>{p.gan || ' '}</span>, `qimen_hd_gan_${p.key}`)}
 											<span style={{ color: p.zhiColor, marginTop: 4 }}>{p.zhi || ' '}</span>
 										</div>
 										<span
@@ -1689,7 +1708,7 @@ class DunJiaMain extends Component {
 								))}
 							</div>
 							<div style={{ marginTop: 6, fontSize: 16, lineHeight: '20px', fontWeight: 700, color: 'var(--horosa-text, #202020)' }}>
-								{pan.juText} 值符:{pan.zhiFu} 值使:{pan.zhiShi}
+								{pan.juText} 值符:{this.renderQimenHoverInline('star', pan.zhiFu, <span>{pan.zhiFu}</span>, 'qimen_hd_zhifu')} 值使:{this.renderQimenHoverInline('door', pan.zhiShi, <span>{pan.zhiShi}</span>, 'qimen_hd_zhishi')}
 							</div>
 							<div style={{ marginTop: 4, fontSize: 14, lineHeight: '18px', color: 'var(--horosa-text-soft, #595959)' }}>
 								{pan.options.kongModeLabel}-{pan.kongWang} 旬首-{pan.xunShou}

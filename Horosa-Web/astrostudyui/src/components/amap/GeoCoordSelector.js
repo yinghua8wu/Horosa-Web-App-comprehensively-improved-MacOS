@@ -8,6 +8,8 @@ import { safeLoadAMapUI } from './amapUIHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
 import { formatLonDms, formatLatDms } from '../astro/AstroHelper';
 import CITIES from '../../data/cities.json';
+import CITY_TRAD_SIMP from '../../data/cityTradSimpMap.json';
+import { enrichCity, toCityItem, searchCities } from './cityMatch';
 import styles from './GeoCoordSelector.less';
 
 const { Option } = Select;
@@ -171,56 +173,18 @@ class GeoCoordSelector extends Component{
 		this.changePos({ lat: e.lnglat.lat, lng: e.lnglat.lng });
 	}
 
-	// 统一城市条目形状(小库 {name,en,region,lat,lng} / 大库 {n,e,r,y,x})→ {name,en,region,lat,lng}。
-	normCity(c){
-		if(c.n !== undefined){
-			return { name: c.n, en: c.e || '', region: c.r || '', lat: c.y, lng: c.x };
-		}
-		return { name: c.name, en: c.en || '', region: c.region || '', lat: c.lat, lng: c.lng };
-	}
-
+	// 城市检索委托给纯函数模块 cityMatch(便于单测):简繁折叠 + 简体名 + 拼音/首字母 + 英文 + 地区,四档评分。
 	filteredCities(){
-		const kw = `${this.state.cityQuery || ''}`.trim().toLowerCase();
+		const raw = `${this.state.cityQuery || ''}`.trim();
 		// 无关键词:仅显示内置小库常用城市(即时,无需等大库)。
-		if(!kw){
-			return CITIES.map((c)=>this.normCity(c));
+		if(!raw){
+			return CITIES.map((c)=>toCityItem(enrichCity(c)));
 		}
-		const RESULT_LIMIT = 80;
-		const starts = [];
-		const contains = [];
-		const seen = new Set();
-		const scan = (list)=>{
-			for(let i = 0; i < list.length; i++){
-				// startsWith 已满 / 两类都已满 → 提前停,避免全表扫。
-				if(starts.length >= RESULT_LIMIT || (starts.length + contains.length) >= RESULT_LIMIT * 2){
-					return;
-				}
-				const c = this.normCity(list[i]);
-				const n = `${c.name}`.toLowerCase();
-				const e = `${c.en}`.toLowerCase();
-				const r = `${c.region}`.toLowerCase();
-				const hit = n.indexOf(kw) >= 0 || e.indexOf(kw) >= 0 || r.indexOf(kw) >= 0;
-				if(!hit){
-					continue;
-				}
-				const key = `${c.name}|${c.lat}|${c.lng}`;
-				if(seen.has(key)){
-					continue;
-				}
-				seen.add(key);
-				if(n.startsWith(kw) || e.startsWith(kw)){
-					starts.push(c);
-				}else if(contains.length < RESULT_LIMIT){
-					contains.push(c);
-				}
-			}
-		};
-		// 先扫小库(常用优先),再扫大库(已懒加载才有)。
-		scan(CITIES);
+		const lists = [CITIES];
 		if(Array.isArray(this.state.fullCities)){
-			scan(this.state.fullCities);
+			lists.push(this.state.fullCities);
 		}
-		return starts.concat(contains).slice(0, RESULT_LIMIT);
+		return searchCities(raw, lists, CITY_TRAD_SIMP, 80);
 	}
 
 	resolveDateStr(){
@@ -300,7 +264,7 @@ class GeoCoordSelector extends Component{
 						<Input
 							allowClear
 							value={this.state.cityKeyword}
-							placeholder="搜城市（中/英文 / 地区）"
+							placeholder="搜城市（简繁 / 拼音 / 首字母 / 英文 / 地区）"
 							onChange={this.onCityKeyword}
 						/>
 						<div className={styles.cityList}>

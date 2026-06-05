@@ -235,19 +235,36 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 			handlers.onEvent(event);
 		}
 	});
+	// B2(#16):流「空闲看门狗」。后端每 15s 发心跳,正常推理/思考期都会持续有数据;只有真正长时间(默认 90s)
+	// 一个 token、一个心跳都没有,才判为上游卡死 → 主动结束等待并给可操作提示。慢而有进展的思考永不误杀。
+	const STALL_MS = Number(handlers.stallMs) > 0 ? Number(handlers.stallMs) : 90000;
+	let stalled = false;
+	let watchdog = null;
+	const armWatchdog = ()=>{
+		if(watchdog){ clearTimeout(watchdog); }
+		watchdog = setTimeout(()=>{ stalled = true; try{ reader.cancel(); }catch(_){} }, STALL_MS);
+	};
+	const clearWatchdog = ()=>{ if(watchdog){ clearTimeout(watchdog); watchdog = null; } };
 	try{
+		armWatchdog();
 		while(true){
 			const chunk = await reader.read();
 			if(chunk.done){
 				break;
 			}
+			armWatchdog();
 			parser.push(decoder.decode(chunk.value, { stream: true }));
+		}
+		clearWatchdog();
+		if(stalled){
+			throw new Error('AI 响应长时间无数据(疑似上游卡住),已停止等待。可点「重新生成」重试。');
 		}
 		parser.end();
 		if(handlers.onDone){
 			handlers.onDone();
 		}
 	}catch(e){
+		clearWatchdog();
 		try{ parser.end(); }catch(_){ /* flush buffered SSE (e.g. a final error event) before propagating */ }
 		if(handlers.onError){
 			handlers.onError(e);

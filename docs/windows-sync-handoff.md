@@ -20,6 +20,27 @@
 
 ---
 
+## v2.5.6（2026-06-04 本地已改·待发）AI 分析 #16 DeepSeek reasoner 多轮 — **Java 改 → Windows 必重编 jar**
+
+> Windows issue **#16**「深度思考思维链与 DeepSeek 兼容性差,多轮后首次请求易失败/空,需重试到缓存命中」。**真因不是超时**:① 后端丢弃 `reasoning_content`(思考期界面零输出被当失败)② deepseek-reasoner 被误发 `temperature`(可 400)。共享代码,Windows 同步即修。
+
+### Windows 必做
+1. **后端(Java,改了 → 必重编 jar)**:同步 `Horosa-Web/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java`(+ 测试 `…/test/…/AIAnalysisProxyServiceTest.java`),然后
+   `mvn -f astrostudy/pom.xml install -DskipTests && mvn -f astrostudyboot/pom.xml clean package -DskipTests`;`javap -p` 验 fat jar 内嵌 `astrostudy-1.0.0.jar` 有 `extractOpenAIStreamReasoning` / `isReasoningModel` / `stripReasoningUnsupportedParams` / `sendStreamWithRetry`,再 stop+start 重启 :9999。
+   - 改了什么:① `extractOpenAIStreamReasoning` 取 `delta.reasoning_content`(回退 `delta.reasoning`),流式发独立 `reasoning` SSE 事件;Ollama 原生口同取 `message.thinking`。② 新 `isReasoningModel`(广义:deepseek-reasoner/*-r1/reasoning|thinking,**与前端 aiAnalysisProviders 一致**),`buildOpenAIChatBody` 对其**不发** temperature/top_p/presence/frequency/logprobs(`stripReasoningUnsupportedParams`);`isOpenAIReasoningModel` 只决定 max_completion_tokens(deepseek 仍 max_tokens)。③ 4 个 stream 站点改走 `sendStreamWithRetry`——**仅首字节前**(连接/429/5xx)指数退避+jitter 重试、尊重 Retry-After,**已出 token 的流绝不重试**(防重复计费)。④ `readErrorBody` 截断 1000→4000 字(透传上游真因)。
+2. **前端**(改完 `npm run build && npm run build:file`,顺序勿并行):
+   - `astrostudyui/src/services/aianalysis.js`:`requestAIAnalysisChatStream` 读流加「空闲看门狗」(有 token/心跳即重置,真静默 ~90s 才判卡死并给可重试提示)。
+   - `astrostudyui/src/components/aianalysis/AIAnalysisMain.js`:onEvent 接 `reasoning` 增量 → 独立 `streamReasoningBufferRef` → 消息加 `reasoning` 字段(sidecar);气泡渲染**「思考过程」可折叠区**;两处 save 带上 reasoning。**reasoning 仅展示/存档,绝不回灌 messages**(DeepSeek 官方:input 含 reasoning_content = 硬 400;`getMessageList` 只取 role+content 已天然剥离)。
+   - `astrostudyui/src/utils/__tests__/aiAnalysisProviders.test.js`:加 `isReasoningModel` 用例。
+
+### 验证
+- 后端:`mvn -f astrostudy/pom.xml test -Dtest=AIAnalysisProxyServiceTest`(20 绿,含 reasoning 解析 / reasoner 不带采样参数 / max_tokens)。
+- 前端:`cd astrostudyui && npm test`(222 绿)+ `npm run build` 绿。
+- **真机**:需 DeepSeek API key 验「deepseek-reasoner 多轮、首次未缓存也能逐字出思考过程+答案、不再失败/空」(本地无 key,Mac 端未活测此项)。
+- **发布**:jar 变而 app 版若不变 → **必 bump runtimeVersion**(updater 按版本串判重下)。
+
+---
+
 ## v2.5.5 / runtime1（2026-06-04）发布汇总 — **Java 0 改动 → Windows 仅同前端 + Python(测试夹具)+ preflight 脚本**
 
 > macOS 端 v2.5.5 已发。本次为体验/流畅度 + 测试夹具修正,**无任何 Java/算法/命盘数值改动**(`astrostudyboot.jar` 维持 v2.5.4 基线,Windows **不需重编 jar**)。`runtimeVersion` 仍 bump 到 `2.5.5-runtime1`(前端打包进 runtime,用户更新即收到新前端)。

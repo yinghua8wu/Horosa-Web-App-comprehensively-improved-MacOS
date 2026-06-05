@@ -105,10 +105,32 @@ const ENABLE_SVG_TEXT_EXPORT = false;
 const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 // v16 — P0 主限法方位+时间补全 (新增 Placidus 方位法 + Cardano/Plantiko/Wollner/SymbolicDegree/SymbolicSolarArc 时间换算)。
 // v17 — 汉堡量化盘 AI 段补全 (germany 预设新增 行星图 A+B−C=D / 映点 Spiegelpunkt / 中点列表)。
+// v18 — 四同步审计补全:migration keys 补齐占星/星运核心 + 卜卦/择日 19 技法(此前漏登记 → 这些技法预设新增分段
+//        升级后并不并入老用户设置;astrochart 的「12分度/主宰链/寿命格局」即曾受此坑)。jieqi 系列走自有 split 迁移,不在此列。
 // 升 SETTINGS_VERSION 触发用户旧 export presets 回收;升 MIGRATION_VERSION 把新段并入既有预设(union,不删用户项)。
-export const AI_EXPORT_SETTINGS_VERSION = 17;
-const AI_EXPORT_SECTION_MIGRATION_VERSION = 17;
+export const AI_EXPORT_SETTINGS_VERSION = 18;
+const AI_EXPORT_SECTION_MIGRATION_VERSION = 18;
 const AI_EXPORT_SECTION_MIGRATION_KEYS = [
+	// v18 补:占星/星运核心 + 卜卦/择日(此前漏登记)。务必与新增「有 preset 的技法」同步(aiExport.test 跨系统自检守)。
+	'astrochart',
+	'astrochart_like',
+	'indiachart',
+	'mundane',
+	'relative',
+	'primarydirect',
+	'primarydirchart',
+	'zodialrelease',
+	'firdaria',
+	'distributions',
+	'agepoint',
+	'profection',
+	'solararc',
+	'solarreturn',
+	'lunarreturn',
+	'givenyear',
+	'decennials',
+	'horary',
+	'election',
 	'bazi',
 	'ziwei',
 	'suzhan',

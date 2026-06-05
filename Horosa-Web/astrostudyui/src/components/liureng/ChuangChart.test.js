@@ -112,3 +112,6 @@ describe('ChuangChart', ()=>{
 		expect(sangCuang.cuang[0]).toBe('戌');
 	});
 });
+
+// 次客已改为「筹支加时」起课法(自月将算筹支→加时重排上下盘),逻辑移到 LiuRengMain.liurengChouBranch;
+// 三传由 ChuangChart 在新天盘上正常发用,不再由 ChuangChart 改写。筹支算法测试见 lrzhan/__tests__/liurengCike.test.js。

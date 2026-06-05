@@ -91,7 +91,7 @@ const DEFAULT_TAIYI_OPTIONS = {
 	rotation: '固定',
 };
 
-const ANALYSIS_TECHNIQUE_LABELS = {
+export const ANALYSIS_TECHNIQUE_LABELS = {
 	astrochart: '星盘',
 	astrochart_like: '十三分盘 / 占星地图',
 	indiachart: '印度占星',

@@ -129,19 +129,30 @@ class RengChart {
 			return null;
 		}
 		let width = svgdom.clientWidth;
-		let height = svgdom.clientHeight;
+		// 读外层 host 的可视高度(而非 svg 自身——svg 可能已被撑高用于滚动),得到真实可用视口高度;
+		// 否则窗口缩小后会读到上次撑高的 svg 高度、无法回缩。
+		const hostEl = svgdom.parentNode;
+		let height = (hostEl && hostEl.clientHeight) ? hostEl.clientHeight : svgdom.clientHeight;
 		if(width === 0 || height === 0){
 			return null;
 		}
 
 		let realW = width;
 		let realH = height;
+		// ② 防裁切可下滑:圆盘含神煞大表(预留最小约 720),方盘较矮(约 440)。窗口短于此则按最小高度绘制,
+		// 并把 svg 自身撑到该高度 → 外层 host(overflow-y:auto)即可纵向滚动看全(compactPreview 预览不强制)。
+		const minChartH = this.compactPreview ? 0 : (this.isCircleChart() ? 720 : 440);
+		if(minChartH > 0 && realH < minChartH){
+			realH = minChartH;
+		}
 
 		this.hasDrawGua = false;
 		let svgid = '#' + this.chartId;
 		this.svg = d3.select(svgid);
 		this.svg.html('');
-		this.svg.attr('stroke', this.color).attr("stroke-width", 1);
+		this.svg.attr('stroke', this.color).attr("stroke-width", 1).attr('width', realW).attr('height', realH);
+		// 强制 svg 渲染高度=realH(flex 容器/百分比 min-height 会把它压到可用高度而裁切内容);用 inline !important 压过样式表。
+		this.svg.node().style.setProperty('height', realH + 'px', 'important');
 	
 		this.svgTopgroup = this.svg.append('g');
 		this.svgTopgroup.append('rect')
@@ -156,8 +167,10 @@ class RengChart {
 		}
 
 		const circleLayout = !this.compactPreview && this.isCircleChart();
-		let titleH = this.compactPreview ? 0 : Math.min(220, Math.max(178, realH * 0.155));
-		let bodyGap = this.compactPreview ? 0 : Math.max(20, Math.min(38, realH * 0.024));
+		// ② 方盘:时间 header 原 178~220px 偏高,挤压下方盘面 → 小窗下端超出。收紧到 108~150px(时间整体上移),
+		// 间距同步调小。圆盘分支(下方 if(circleLayout))单独设值、不受影响。
+		let titleH = this.compactPreview ? 0 : Math.min(150, Math.max(108, realH * 0.105));
+		let bodyGap = this.compactPreview ? 0 : Math.max(12, Math.min(24, realH * 0.016));
 		if(circleLayout){
 			titleH = Math.min(112, Math.max(86, realH * 0.092));
 			bodyGap = Math.max(6, Math.min(12, realH * 0.008));
@@ -584,8 +597,8 @@ class RengChart {
 
 		const group = this.svgTopgroup.append('g').attr('class', 'liureng-simple-body');
 		const padX = Math.max(34, cord.w * 0.055);
-		const padTop = Math.max(48, cord.h * 0.07);
-		const padBottom = Math.max(32, cord.h * 0.035);
+		const padTop = Math.max(28, cord.h * 0.045);    // ② Y 间距收紧(原 48/0.07)
+		const padBottom = Math.max(20, cord.h * 0.028); // ② Y 间距收紧(原 32/0.035)
 		const bodyY = cord.y + padTop;
 		const bodyH = Math.max(0, cord.h - padTop - padBottom);
 		const splitX = cord.x + cord.w * 0.43;
@@ -893,7 +906,9 @@ class RengChart {
 
 	getPanStyleName(){
 		const timeBranch = this.nongli && this.nongli.time ? extractBranch(this.nongli.time) : '';
-		const panStyle = resolveLiuRengTwelvePanStyle(this.yue, timeBranch);
+		// 盘式以真实月将(castOverride.actualYue)为准;this.yue 是起课法天盘起支(仅上下盘对齐),非起课法下二者相等。
+		const yueRef = (this.castOverride && this.castOverride.actualYue) || this.yue;
+		const panStyle = resolveLiuRengTwelvePanStyle(yueRef, timeBranch);
 		return panStyle && panStyle.name ? panStyle.name : '';
 	}
 

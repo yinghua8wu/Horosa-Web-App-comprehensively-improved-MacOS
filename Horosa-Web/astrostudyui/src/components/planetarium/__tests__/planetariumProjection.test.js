@@ -99,3 +99,28 @@ describe('planetariumProjection — projectedEquatorialItem', ()=>{
 		expect(above.horizonState).toBe('可见');
 	});
 });
+
+describe('planetariumProjection — ① 天球外观去折射开关(applyRefraction)', ()=>{
+	const obs = { lat: 40, lon: 116 };
+	const jd = 2461041.5;
+
+	test('地表观测(默认 applyRefraction=true):altitudeAppa ≥ altitudeTrue(带折射)', ()=>{
+		const g = equatorialToHorizontal(80, 20, jd, obs);
+		expect(g.altitudeAppa).toBeGreaterThanOrEqual(g.altitudeTrue);
+	});
+	test('天球外观(applyRefraction=false):altitudeAppa === altitudeTrue(几何原貌、过地平线不偏转)', ()=>{
+		const o = equatorialToHorizontal(80, 20, jd, obs, false);
+		expect(o.altitudeAppa).toBeCloseTo(o.altitudeTrue, 10);
+	});
+	test('折射量:贴地平线>0、天顶≈0(关闭后归零)', ()=>{
+		expect(atmosphericRefractionDeg(0)).toBeGreaterThan(0.3);
+		expect(atmosphericRefractionDeg(89)).toBeCloseTo(0, 2);
+	});
+	test('projectedEquatorialItem 透传 applyRefraction', ()=>{
+		const item = { ra: 80, decl: 20 };
+		const ground = projectedEquatorialItem(item, jd, obs, true);
+		const orbit = projectedEquatorialItem(item, jd, obs, false);
+		expect(orbit.altitudeAppa).toBeCloseTo(orbit.altitudeTrue, 10);
+		expect(ground.altitudeAppa).toBeGreaterThanOrEqual(ground.altitudeTrue);
+	});
+});

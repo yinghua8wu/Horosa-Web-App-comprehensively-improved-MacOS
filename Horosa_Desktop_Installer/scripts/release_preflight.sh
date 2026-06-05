@@ -430,6 +430,21 @@ if grep -q "isDiurnalOverride" "${LR_CONST}" 2>/dev/null; then ok "[21] LRConst.
 if grep -q "castMethod: this.state.castMethod" "${LR_MAIN}" 2>/dev/null && grep -q "fenZhouYe: this.state.fenZhouYe" "${LR_MAIN}" 2>/dev/null; then ok "[21] 占案 payload 含起课法/换将/分昼夜(储存可复现)"; else bad "[21] 占案 payload 缺起课法字段 —— 存档不可复现"; fi
 if grep -q "yueJiangMethod: payload.yueJiangMethod" "${LR_AICTX}" 2>/dev/null; then ok "[21] AI挂载 事盘重建透传 castOpts(挂载与显示一致)"; else bad "[21] AI挂载 六壬事盘未透传 castOpts —— 八客/选时案例会挂成默认正时正将"; fi
 if grep -q "'xuanshi'" "${LR_MAIN}" 2>/dev/null && grep -q "'yanshu'" "${LR_MAIN}" 2>/dev/null && grep -q "'alnr'" "${LR_MAIN}" 2>/dev/null; then ok "[21] 起课法含 选时/演数/四柱对齐"; else bad "[21] 起课法缺 选时/演数/对齐 选项"; fi
+# 次客=筹支加时(重排天地盘),勿退回只改三传;月将高亮认真实月将 actualYue;ChuangChart 必无 applyCiChou。
+LR_CHUANG="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/liureng/ChuangChart.js"
+if grep -q "function liurengChouBranch" "${LR_MAIN}" 2>/dev/null && grep -q "case 'cike3':" "${LR_MAIN}" 2>/dev/null; then ok "[21] 次客=筹支加时(liurengChouBranch + computeQiXY cike 分支,重排天地盘)"; else bad "[21] 次客缺筹支加时引擎 —— 退回了「只改三传」的错误实现"; fi
+if grep -q "actualYue" "${LR_MAIN}" 2>/dev/null; then ok "[21] 月将/盘式高亮认真实月将 actualYue(非起课法天盘起支 X)"; else bad "[21] 缺 actualYue —— 加时/次客法的月将高亮会错显为起课法 X"; fi
+if grep -q "applyCiChou" "${LR_CHUANG}" 2>/dev/null; then bad "[21] ChuangChart 残留 applyCiChou —— 次客退回「只改三传」错误实现,必删"; else ok "[21] ChuangChart 无 applyCiChou(次客在新天盘正常发用三传)"; fi
+# 天地盘月将/时辰可视高亮:必须认 actualYue/realTimeBranch,不能用起课法的 X(this.yue)/Y(this.timezi) 对齐支。
+LR_COMM2="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/liureng/LRCommChart.js"
+LR_CIRCLE="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/liureng/LRCircleChart.js"
+LR_SQUARE="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/liureng/LRTextSquareChart.js"
+if grep -q "this.actualYue" "${LR_COMM2}" 2>/dev/null && grep -q "this.realTimeBranch" "${LR_COMM2}" 2>/dev/null; then ok "[21] LRCommChart 暴露 actualYue/realTimeBranch(高亮真源)"; else bad "[21] LRCommChart 缺 actualYue/realTimeBranch —— 月将/时辰高亮会落到起课法对齐支"; fi
+if grep -q "highLightData: \[this.actualYue\]" "${LR_CIRCLE}" 2>/dev/null && grep -q "highLightData: \[this.realTimeBranch\]" "${LR_CIRCLE}" 2>/dev/null; then ok "[21] 圆盘高亮=真实月将(天盘)+真实时支(地盘)"; else bad "[21] 圆盘高亮仍用 this.yue(X) —— 会高亮起课法对齐的两格而非月将/时辰"; fi
+{ grep -q "upBranch === this.actualYue" "${LR_SQUARE}" 2>/dev/null && grep -q "downBranch === this.realTimeBranch" "${LR_SQUARE}" 2>/dev/null; } || { bad "[21] 方盘 drawHouse 高亮仍用 this.yue/this.timezi —— 应改 actualYue/realTimeBranch"; }
+# 中间盘小屏可下滑:RengChart.draw 设模式最小高度 + inline !important 撑高 svg + 读 host 视口高度。
+LR_RENG="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/lrzhan/RengChart.js"
+if grep -q "minChartH" "${LR_RENG}" 2>/dev/null && grep -q "setProperty('height'" "${LR_RENG}" 2>/dev/null; then ok "[21] 中间盘按模式最小高度绘制 + 撑高 svg(小屏 overflow-y 可下滑)"; else bad "[21] RengChart 缺 minChartH/撑高 svg —— 小屏方盘会裁切且无法下滑"; fi
 
 # 24. AI 分析页 v2.5.1 复审整改不变量（起课兜底 / 卜卦择日挂载 / 六爻护栏 / 数算流年 / 导出注册 + 自检 / 城市库）
 echo "[24] AI 分析页 v2.5.1 复审整改哨兵"
@@ -460,6 +475,16 @@ for k in $(grep -oE '<TabPane tab="[^"]*" key="[^"]*"' "${ASTRODIR_JS}" 2>/dev/n
   grep -q "'${k}'" "${PDSYNC_JS}" 2>/dev/null || dir_tab_miss="${dir_tab_miss} ${k}"
 done
 [ -z "${dir_tab_miss}" ] && ok "[24] 星运页所有 TabPane key 均在 VALID_DIRECTION_SUB_TABS(点 tab 不会先跳主限法)" || bad "[24] 星运 tab 不在白名单、点击会先跳主限法,补入 primaryDirectionSync VALID 表:${dir_tab_miss}"
+# AI 四同步(导出/设置/挂载/储存)完备性:migration 必须覆盖占星/星运核心,否则预设新段升级后不入老用户设置(astrochart 的 12分度/主宰链/寿命格局曾受此坑)。
+if awk '/AI_EXPORT_SECTION_MIGRATION_KEYS = \[/,/\];/' "${AIEXPORT_JS}" 2>/dev/null | grep -q "'astrochart'" \
+  && awk '/AI_EXPORT_SECTION_MIGRATION_KEYS = \[/,/\];/' "${AIEXPORT_JS}" 2>/dev/null | grep -q "'primarydirect'" \
+  && awk '/AI_EXPORT_SECTION_MIGRATION_KEYS = \[/,/\];/' "${AIEXPORT_JS}" 2>/dev/null | grep -q "'firdaria'"; then
+  ok "[24] AI导出 migration 覆盖占星/星运核心(astrochart/primarydirect/firdaria)"
+else
+  bad "[24] AI导出 migration 漏占星/星运核心 → 预设新段升级不入老用户设置(补进 AI_EXPORT_SECTION_MIGRATION_KEYS)"
+fi
+# 四同步跨系统自检断言须在(任何技法漏接 导出/设置/挂载/储存 其一即在 jest 红)
+if grep -q "四同步跨系统一致性" "${AIEXPORT_TEST_JS}" 2>/dev/null; then ok "[24] AI 四同步跨系统自检断言在(导出/设置/挂载/储存)"; else bad "[24] 缺 AI 四同步跨系统自检断言"; fi
 
 # 25. 经纬度/时区 全半球转换 + 真太阳时/直接时间(用户验收追加)
 echo "[25] 经纬度/时区转换 + timeAlg 哨兵"
@@ -808,6 +833,30 @@ ST_WINDOC="${REPO_ROOT}/docs/windows-启动稳健化-镜像清单.md"
 { [ -f "${ST_START}" ] && grep -q "server.address=127.0.0.1" "${ST_START}"; } || { bad "[35] start_horosa_local.sh 缺 --server.address=127.0.0.1(根治防火墙弹窗)"; ST35_BAD=1; }
 [ -f "${ST_WINDOC}" ] || { bad "[35] 缺 docs/windows-启动稳健化-镜像清单.md(Windows 镜像 spec)"; ST35_BAD=1; }
 [ "${ST35_BAD}" = "0" ] && ok "[35] StartupGate 挂载 + /healthz + HOROSA_READY + 127.0.0.1 绑定 + Windows 镜像清单 均在"
+
+
+echo "[36] 城市搜索专业化(简体显示 + 拼音/首字母 + 繁简折叠;全技法经纬度共用 GeoCoordSelector)"
+CITY_BAD=0
+CM_JS="${UISRC}/components/amap/cityMatch.js"
+CM_TEST="${UISRC}/components/amap/__tests__/cityMatch.test.js"
+CITY_FULL="${UISRC}/data/citiesFull.json"
+CITY_MAP="${UISRC}/data/cityTradSimpMap.json"
+CITY_SEL="${UISRC}/components/amap/GeoCoordSelector.js"
+[ -f "${CM_JS}" ] || { bad "[36] 缺 cityMatch.js(城市检索纯函数,简繁/拼音核心)"; CITY_BAD=1; }
+[ -f "${CM_TEST}" ] || { bad "[36] 缺 cityMatch.test.js(城市检索自检)"; CITY_BAD=1; }
+[ -f "${CITY_MAP}" ] || { bad "[36] 缺 cityTradSimpMap.json(繁→简折叠表;繁体查询会失效)"; CITY_BAD=1; }
+{ [ -f "${CITY_SEL}" ] && grep -q "from './cityMatch'" "${CITY_SEL}"; } || { bad "[36] GeoCoordSelector 未委托 cityMatch(搜索退回旧逻辑)"; CITY_BAD=1; }
+# citiesFull 必须带拼音字段 p(中国城市可拼音搜)且已转简体;抽查北京市 + 全表无残留繁体字。
+if [ -f "${CITY_FULL}" ]; then
+  node -e 'const a=require(process.argv[1]);const bj=a.find(c=>c.n==="北京市");if(!bj||!bj.p||bj.p.indexOf("bei jing")<0){console.error("NO_PINYIN");process.exit(2);}const trad=a.find(c=>/[門臺廣烏齊]/.test(c.n));if(trad){console.error("STILL_TRAD:"+trad.n);process.exit(3);}' "${CITY_FULL}" 2>/dev/null \
+    || { bad "[36] citiesFull.json 缺拼音字段 p 或仍含繁体名(须 npm run build:cities 重建)"; CITY_BAD=1; }
+else
+  bad "[36] 缺 citiesFull.json"; CITY_BAD=1
+fi
+# 构建依赖只能在 devDependencies(不得进运行时 bundle)。
+node -e 'const p=require(process.argv[1]);if((p.dependencies||{})["pinyin-pro"]||(p.dependencies||{})["opencc-js"]){console.error("IN_DEPS");process.exit(2);}if(!(p.devDependencies||{})["pinyin-pro"]||!(p.devDependencies||{})["opencc-js"]){console.error("MISSING_DEV");process.exit(3);}' "${UISRC}/../package.json" 2>/dev/null \
+  || { bad "[36] pinyin-pro/opencc-js 必须在 devDependencies(build-only),不得进 dependencies/运行时"; CITY_BAD=1; }
+[ "${CITY_BAD}" = "0" ] && ok "[36] cityMatch + 折叠表 + citiesFull(简体+拼音) + GeoCoordSelector 委托 + 构建依赖隔离 均在"
 
 
 echo "== 结果 =="

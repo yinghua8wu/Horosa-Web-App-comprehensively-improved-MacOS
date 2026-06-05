@@ -8,6 +8,12 @@ import {
 	resolveAIExportContextForTest,
 } from '../aiExport';
 import { saveModuleAISnapshot } from '../moduleAiSnapshot';
+import {
+	ANALYSIS_CHART_TECHNIQUES,
+	ANALYSIS_CASE_TECHNIQUES,
+	ANALYSIS_TECHNIQUE_LABELS,
+} from '../aiAnalysisContext';
+import { CASE_TYPE_OPTIONS } from '../localcases';
 
 const SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 
@@ -231,5 +237,51 @@ describe('aiExport settings', ()=>{
 		expect(settings.sections.qizhengkin).toEqual(expect.arrayContaining(['星曜', '张果断语', '命宫解读']));
 		expect(settings.sections.tieban).toEqual(expect.arrayContaining(['十二宫', '十二宫条文', '紫微安星']));
 		expect(settings.sections.cetian).toEqual(expect.arrayContaining(['命宮', '父母宮', '星曜属性', '飞化规则']));
+	});
+});
+
+describe('AI 四同步跨系统一致性(导出 / 导出设置 / AI挂载 / 命盘事盘储存)', ()=>{
+	// 把四套注册表交叉钉死:任何新增技法漏接其中一套都在此红。详见 docs/西占新功能-AI导出与储存接入清单.md。
+	// 六爻在「储存」里叫 liuyao、在「导出/挂载」里叫 sixyao,以此别名打通。
+	const CASE_TO_EXPORT_ALIAS = { liuyao: 'sixyao' };
+
+	it('有预设分段的技法都登记进 migration(jieqi 走自有 split 迁移除外)——防「升级后新段不入老用户设置」', ()=>{
+		const missing = getAIExportAuditMatrix()
+			.filter((item)=>item.presetSections.length > 0)
+			.filter((item)=>item.key !== 'generic' && item.key !== 'jieqi' && !item.isJieQiSplit)
+			.filter((item)=>!item.migrationEnabled)
+			.map((item)=>item.key);
+		expect(missing).toEqual([]);
+	});
+
+	it('所有可挂载技法(命盘类 + 事盘类)都在 AI导出技法表、且有中文标签', ()=>{
+		const exportKeys = new Set(getAIExportAuditMatrix().map((item)=>item.key));
+		const mountable = [...ANALYSIS_CHART_TECHNIQUES, ...ANALYSIS_CASE_TECHNIQUES];
+		expect(mountable.filter((key)=>!exportKeys.has(key))).toEqual([]);
+		expect(mountable.filter((key)=>!ANALYSIS_TECHNIQUE_LABELS[key])).toEqual([]);
+	});
+
+	it('事盘类可挂载技法都能落到「命盘事盘储存」CASE_TYPE_OPTIONS(含 sixyao↔liuyao 别名)', ()=>{
+		const missing = ANALYSIS_CASE_TECHNIQUES.filter((key)=>{
+			const stored = key === 'sixyao' ? 'liuyao' : key;
+			return !CASE_TYPE_OPTIONS.some((o)=>o.value === stored);
+		});
+		expect(missing).toEqual([]);
+	});
+
+	it('每个事盘储存技法别名解析后都能被 AI导出(⊆ 导出技法表)', ()=>{
+		const exportKeys = new Set(getAIExportAuditMatrix().map((item)=>item.key));
+		const notExportable = CASE_TYPE_OPTIONS
+			.map((o)=>CASE_TO_EXPORT_ALIAS[o.value] || o.value)
+			.filter((key)=>!exportKeys.has(key));
+		expect(notExportable).toEqual([]);
+	});
+
+	it('事盘可挂载技法都有 snapshotModuleKey(挂载读得到模块快照)', ()=>{
+		const byKey = getAIExportAuditMatrix().reduce((acc, item)=>{ acc[item.key] = item; return acc; }, {});
+		ANALYSIS_CASE_TECHNIQUES.forEach((key)=>{
+			expect(byKey[key]).toBeTruthy();
+			expect(`${byKey[key].snapshotModuleKey || ''}`.length).toBeGreaterThan(0);
+		});
 	});
 });

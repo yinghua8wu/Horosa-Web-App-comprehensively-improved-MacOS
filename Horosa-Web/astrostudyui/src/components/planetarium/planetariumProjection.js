@@ -119,7 +119,7 @@ function eclipticToEquatorial(lon, lat = 0, jd) {
 // matching swisseph; `altitudeTrue` is the geometric altitude. Azimuth keeps the
 // existing convention (south-referenced; PlanetariumBabylon adds +180 in
 // normalizeAzimuth/toSkyVector — do NOT change here).
-function equatorialToHorizontal(ra, decl, jd, observer) {
+function equatorialToHorizontal(ra, decl, jd, observer, applyRefraction = true) {
 	if (!Number.isFinite(Number(ra)) || !Number.isFinite(Number(decl)) || !Number.isFinite(Number(jd))) {
 		return null;
 	}
@@ -136,7 +136,8 @@ function equatorialToHorizontal(ra, decl, jd, observer) {
 	);
 	const standardAz = normalizeDegrees(radToDeg(az));
 	const trueAltDeg = radToDeg(alt);
-	const apparentAltDeg = trueAltDeg + atmosphericRefractionDeg(trueAltDeg);
+	// 天球外观(orbit)展示几何原貌 → 不加大气折射;只有地表观测(ground)才折射(贴地平线处最大,正是用户看到的「线/星过地平线偏转」)。
+	const apparentAltDeg = applyRefraction ? (trueAltDeg + atmosphericRefractionDeg(trueAltDeg)) : trueAltDeg;
 	return {
 		altitudeTrue: trueAltDeg,
 		altitudeAppa: apparentAltDeg,
@@ -146,7 +147,7 @@ function equatorialToHorizontal(ra, decl, jd, observer) {
 
 // Project a catalog/overlay item to horizontal coords at `jd`. Prefers an
 // explicit ra/decl; otherwise derives them from ecliptic lon/lat (date obliquity).
-function projectedEquatorialItem(item, jd, observer) {
+function projectedEquatorialItem(item, jd, observer, applyRefraction = true) {
 	let ra = item && item.ra;
 	let decl = item && item.decl;
 	if ((!Number.isFinite(Number(ra)) || !Number.isFinite(Number(decl))) && item && item.lon !== undefined) {
@@ -156,7 +157,7 @@ function projectedEquatorialItem(item, jd, observer) {
 			decl = eq.decl;
 		}
 	}
-	const pos = equatorialToHorizontal(ra, decl, jd, observer);
+	const pos = equatorialToHorizontal(ra, decl, jd, observer, applyRefraction);
 	if (!pos) {
 		return item;
 	}

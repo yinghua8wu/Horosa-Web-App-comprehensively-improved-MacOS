@@ -96,3 +96,33 @@
 3. 若新增**chart-calc 参数**(如 orbs)：四点存/取（user.js fields+498、localcharts record、astro.js 重建 fields），并验存盘往返。
 4. 若是 **DivinationChartShell 事盘**：`localcases.CASE_TYPE_OPTIONS` 注册 module；extra 已通用存取(本轮改)，无需逐个动。
 5. 希腊点/阿拉伯点加进 `AstroConst.LOTS` 即自动进 AI导出「希腊点」段。
+
+---
+
+## v18 四同步审计补全(2026-06-04)— 全技法交叉一致 + 自检上锁
+
+> 用户要求「全面检查所有技法的 AI导出 / 导出设置 / AI分析挂载 / 命盘事盘储存,确认完备且正确」。本轮以脚本交叉 4 套注册表审计 58 个导出技法,只发现一处真缺口并修复,其余交叉一致;并把 4 套一致性钉进 jest 自检 + preflight。
+
+### 四套注册表(源头,新增技法必逐一核对)
+| 系统 | 注册表(file) | 说明 |
+|---|---|---|
+| AI导出 | `aiExport.js` `AI_EXPORT_TECHNIQUES` + `AI_EXPORT_PRESET_SECTIONS` | 技法清单 + 每技法分段;`getAIExportPresetKeys()` / `getAIExportAuditMatrix()` 自检 |
+| AI导出设置 | `aiExport.js` `AI_EXPORT_SECTION_MIGRATION_KEYS` + `AI_EXPORT_SETTINGS_VERSION`/`_MIGRATION_VERSION` | 升级时把新段并入老用户设置(union,不删用户项) |
+| AI分析挂载 | `aiAnalysisContext.js` `ANALYSIS_CHART_TECHNIQUES`(命盘类)+ `ANALYSIS_CASE_TECHNIQUES`(事盘类)+ `ANALYSIS_TECHNIQUE_LABELS` + `regenerateChartTechniqueSnapshot` switch;`moduleAiSnapshot` 模块快照 | 命盘类走 regenerate builder、事盘类走 module 快照 |
+| 命盘事盘储存 | 命盘=`localcharts.buildLocalChartRecord`;事盘=`localcases.CASE_TYPE_OPTIONS` + `divinationCaseSave`;数算=`kentangCaseSave`(按 module) | 三条储存路径 |
+
+### 真缺口(已修)— AI导出设置 migration 不完备
+- **症**:`AI_EXPORT_SECTION_MIGRATION_KEYS` 原仅 37 项,**漏占星/星运核心 19 个**(astrochart / astrochart_like / indiachart / mundane / relative + 主限法 / 法达 / 界推运 / 年龄点 / 小限 / 太阳弧 / 日月返照 / 流年 / 十年大运 / 黄道星释 + 卜卦 / 择日)。后果:这些技法**预设新增分段后,老用户(已存 export 设置)升级时不会并入新段** → 在「AI导出设置」里勾不到。astrochart 的 `12分度/主宰链/寿命格局`(v11 加)即曾受此坑。**本清单旧版「astrochart 已在 migration keys」陈述有误**(实则不在),已纠正。
+- **修**:补齐 19 个(jieqi 系列走 `getJieQiWantedSections` 自有 split 迁移,不在此列);`SETTINGS_VERSION` / `MIGRATION_VERSION` 17→**18**(触发一次性并段)。现 migration 56 项 = 除 jieqi/generic 外所有有 preset 的技法。
+- **🔒 规则**:**新增任何「有 preset 段」的技法,必同时进 `AI_EXPORT_SECTION_MIGRATION_KEYS`**(jieqi 类除外)。
+
+### 跨系统自检(已上锁)— `aiExport.test.js`「AI 四同步跨系统一致性」5 断言
+1. 有 preset 的技法都进 migration(除 jieqi/generic)。
+2. 所有可挂载技法(命盘+事盘)都在 AI导出技法表、且有中文标签。
+3. 事盘类可挂载技法都在 `CASE_TYPE_OPTIONS`(含 `sixyao↔liuyao` 别名)。
+4. 每个事盘储存技法别名解析后 ⊆ 导出技法表。
+5. 事盘可挂载技法都有 `snapshotModuleKey`。
++ preflight `[24]` 静态门禁:migration 覆盖 astrochart/primarydirect/firdaria + 跨系统断言存在。
+
+### 已知「按设计」非缺口
+- **数算 6 法(邵子/铁板/鬼谷分定/北极/南极/蠢子)**:可导出 + 有 module 快照 + kentang 储存,但**不在 AI分析挂载下拉**(`ANALYSIS_CHART_TECHNIQUES` 仅收 canping/heluo/xianqin/cetian)。属既有产品取舍(数术查类,非本盘结构化分析)。如需补挂载:加进 `ANALYSIS_CHART_TECHNIQUES` 并验 module 快照能被 AI分析读出(勿造空壳挂载——挂载列表此前正是刻意剔除空壳)。

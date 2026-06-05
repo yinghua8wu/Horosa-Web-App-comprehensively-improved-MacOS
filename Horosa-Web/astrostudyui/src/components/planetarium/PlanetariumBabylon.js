@@ -1775,33 +1775,35 @@ class PlanetariumRenderer {
 		return Math.round(nowMs() - started);
 	}
 
-	updateProjectedTime(time, fields){
+	updateProjectedTime(time, fields, applyRefractionOverride){
 		if(!time || !this.lastData){
 			return 0;
 		}
 		const started = nowMs();
 		const jd = time.jdn || time.calcJdn();
 		const observer = observerFromFields(fields, this.lastData);
+		// ① 天文馆:仅地表观测(ground)加大气折射;天球外观(orbit)展示几何原貌。切模式时 React 侧传 override 立即生效(不等相机动画)。
+		const applyRefraction = (typeof applyRefractionOverride === 'boolean') ? applyRefractionOverride : (this.viewMode === 'ground');
 		if(this.starPcs && this.starPcs.particles && this.starCatalog && this.starCatalog.length === this.starPcs.particles.length){
 			this.starCatalog.forEach((star, idx)=>{
 				const particle = this.starPcs.particles[idx];
 				if(!particle){
 					return;
 				}
-				const projected = projectedEquatorialItem(star, jd, observer);
+				const projected = projectedEquatorialItem(star, jd, observer, applyRefraction);
 				particle.position = toSkyVector(projected, STAR_RADIUS);
 			});
 			this.starPcs.setParticles();
 		}
 		this.projectableMeshes.forEach((item)=>{
-			const projected = projectedEquatorialItem(item.source, jd, observer);
+			const projected = projectedEquatorialItem(item.source, jd, observer, applyRefraction);
 			if(!projected || !item.mesh){
 				return;
 			}
 			item.lastProjectedSource = projected;
 			item.mesh.position = toSkyVector(projected, item.radius);
 			if(item.visibilityMode === 'allAbove' && item.visibilitySources && item.visibilitySources.length){
-				const projectedVisibility = item.visibilitySources.map((source)=>projectedEquatorialItem(source, jd, observer));
+				const projectedVisibility = item.visibilitySources.map((source)=>projectedEquatorialItem(source, jd, observer, applyRefraction));
 				item.lastProjectedSources = projectedVisibility;
 				item.mesh.setEnabled(this.layerAllowsMesh(item.mesh) && shouldShowModeBoundItem(item, this.viewMode));
 			}else if(item.visibilityMode === 'sourceAbove'){
@@ -1823,13 +1825,13 @@ class PlanetariumRenderer {
 			}
 			let vectors = null;
 			if(item.innerRadius !== undefined && item.sources.length === 1){
-				const projected = projectedEquatorialItem(item.sources[0], jd, observer);
+				const projected = projectedEquatorialItem(item.sources[0], jd, observer, applyRefraction);
 				vectors = [
 					toSkyVector(projected, item.radius),
 					toSkyVector(projected, item.innerRadius),
 				];
 			}else{
-				const projectedSources = item.sources.map((source)=>projectedEquatorialItem(source, jd, observer));
+				const projectedSources = item.sources.map((source)=>projectedEquatorialItem(source, jd, observer, applyRefraction));
 				if(item.visibilityMode === 'allAbove'){
 					item.lastProjectedSources = projectedSources;
 					item.mesh.setEnabled(this.layerAllowsMesh(item.mesh) && shouldShowModeBoundItem(item, this.viewMode));
@@ -2762,6 +2764,8 @@ class PlanetariumBabylon extends Component{
 		}
 		if(prevState.viewMode !== this.state.viewMode && this.renderer){
 			this.renderer.setViewMode(this.state.viewMode);
+			// ① 切换地表观测/天球外观后立即重投影:天球外观去大气折射(几何原貌),地表观测带折射。显式传 override,不等相机动画。
+			this.renderer.updateProjectedTime(this.state.time, this.getEffectiveFields(), this.state.viewMode === 'ground');
 		}
 		if(prevProps.fields !== this.props.fields){
 			const time = buildObservationTime(this.props.fields);

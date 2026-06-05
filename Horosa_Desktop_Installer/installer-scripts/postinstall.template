@@ -41,34 +41,36 @@ clear_pending() {
 }
 
 current_app_version() {
+  # 注意:plutil 对缺失/损坏的 plist 会把错误文本打到 stdout(不是 stderr),
+  # 若直接取用会把多行错误塞进 JSON。这里先判存在,再取值。
+  if [ ! -f "${APP_PATH}/Contents/Info.plist" ]; then
+    return 0
+  fi
   /usr/bin/plutil -extract CFBundleShortVersionString raw -o - "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
 }
 
 write_install_source() {
   local source="$1"
   local runtime_version="$2"
-  local app_version
+  local app_version now
   app_version="$(current_app_version)"
+  # 兜底:把版本号收紧到安全字符集,杜绝任何异常输出(含换行/引号)破坏 JSON。
+  app_version="$(printf '%s' "${app_version}" | tr -cd '0-9A-Za-z._-')"
+  now="$(/bin/date +%s 2>/dev/null || printf '0')"
   mkdir -p "$(dirname "${INSTALL_SOURCE_PATH}")"
-  INSTALL_SOURCE_PATH_ENV="${INSTALL_SOURCE_PATH}" \
-  INSTALL_SOURCE_ENV="${source}" \
-  RUNTIME_VERSION_ENV="${runtime_version}" \
-  APP_VERSION_ENV="${app_version}" \
-  /usr/bin/python3 - <<'PY'
-import json
-import os
-import time
-from pathlib import Path
-
-payload = {
-    'source': os.environ.get('INSTALL_SOURCE_ENV', 'unknown'),
-    'installedAt': int(time.time()),
-    'runtimeVersion': os.environ.get('RUNTIME_VERSION_ENV', '').strip(),
-    'appVersion': os.environ.get('APP_VERSION_ENV', '').strip(),
-}
-path = Path(os.environ['INSTALL_SOURCE_PATH_ENV'])
-path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
-PY
+  # 根治「全新 M 芯片 Mac 装不上」之一:旧实现用 /usr/bin/python3 写 JSON,
+  # 但全新 Mac 若未装 Xcode/命令行工具,/usr/bin/python3 只是个会弹「安装开发者工具」
+  # 并返回非零的桩 → 在 set -euo pipefail 下让整个 postinstall exit 1 →
+  # 安装器只甩通用「安装失败」。这里改成纯 shell 写 JSON(值均为版本号/来源等
+  # 安全字符,无需转义),不再依赖任何外部解释器。
+  {
+    printf '{\n'
+    printf '  "source": "%s",\n' "${source}"
+    printf '  "installedAt": %s,\n' "${now}"
+    printf '  "runtimeVersion": "%s",\n' "${runtime_version}"
+    printf '  "appVersion": "%s"\n' "${app_version}"
+    printf '}\n'
+  } > "${INSTALL_SOURCE_PATH}" 2>/dev/null || true
   /bin/chmod a+r "${INSTALL_SOURCE_PATH}" >/dev/null 2>&1 || true
 }
 
@@ -134,13 +136,34 @@ defer_runtime_install() {
   exit 0
 }
 
-fail_offline_install() {
+# 「装不上」根治之二:离线运行环境 bootstrap 失败时,绝不再 exit 1 把通用
+# 「安装失败」甩给用户(那是无任何可操作信息的死局)。改为「优雅降级到首启」——
+# 安装本身判定成功(exit 0),写入来源标记(pkg_offline)+ pending 原因,并尽量
+# 保留已缓存的归档;App 首启会复用既有的离线自愈逻辑:有可用缓存归档→自动补齐
+# 本机组件到当前用户目录;无→在 App 内给出明确可操作指引(释放磁盘/重新下载离线包
+# + 一键重装),而不是让人对着安装器干瞪眼、误以为「不支持 M1」。
+degrade_to_first_launch() {
   local reason="$1"
-  log_line "offline runtime bootstrap failed: ${reason}"
-  cleanup_install_state
-  echo "${reason}" >&2
-  exit 1
+  trap - ERR
+  set +e
+  log_line "offline runtime bootstrap degraded to first launch: ${reason}"
+  mark_pending "${reason}"
+  write_install_source "pkg_offline" "${EXPECTED_VERSION}"
+  cleanup_work_dir
+  /usr/bin/xattr -dr com.apple.quarantine "${APP_PATH}" >/dev/null 2>&1 || true
+  /bin/chmod -R a+rX "${SHARED_ROOT}" >/dev/null 2>&1 || true
+  exit 0
 }
+
+# 兼容旧调用名:原所有 fail_offline_install 调用点统一走优雅降级,不再硬失败。
+fail_offline_install() {
+  degrade_to_first_launch "$1"
+}
+
+# 兜底网:主流程里任何未预期的非零退出(cp/mv/tar/解压/磁盘写满/外部命令缺失等)
+# 都被这个 ERR trap 捕获,一律转为「优雅降级到首启」,绝不让安装器弹通用「安装失败」。
+# 逻辑判断(sha/清单/版本/可用性)仍各自显式调用 degrade,带更精确的中文原因。
+trap 'degrade_to_first_launch "安装脚本遇到未预期错误（多为磁盘空间不足或离线包下载不完整）"' ERR
 
 cleanup_work_dir
 
@@ -168,22 +191,34 @@ fi
 
 mkdir -p "${WORK_DIR}"
 
-if [ -f "${LOCAL_ARCHIVE_PATH}" ]; then
-  log_line "using bundled runtime archive ${LOCAL_ARCHIVE_PATH}"
-  cp -f "${LOCAL_ARCHIVE_PATH}" "${ARCHIVE_PATH}"
-else
-  fail_offline_install "离线安装包缺少内置运行环境归档，请重新下载离线安装包。"
+if [ ! -f "${LOCAL_ARCHIVE_PATH}" ]; then
+  degrade_to_first_launch "离线安装包缺少内置运行环境归档，请重新完整下载离线安装包后重试。"
+fi
+log_line "using bundled runtime archive ${LOCAL_ARCHIVE_PATH}"
+# 先把内置归档缓存到共享 downloads(供 App 首启离线自愈复用)。缓存失败基本只可能是磁盘空间不足。
+if ! cp -f "${LOCAL_ARCHIVE_PATH}" "${ARCHIVE_PATH}"; then
+  rm -f "${ARCHIVE_PATH}" >/dev/null 2>&1 || true
+  degrade_to_first_launch "磁盘空间不足，无法准备本机组件。请在「访达」清理到至少 4 GB 可用空间后，重新运行离线安装包。"
 fi
 
 if [ -n "${EXPECTED_SHA256}" ]; then
-  ACTUAL_SHA256="$(/usr/bin/shasum -a 256 "${ARCHIVE_PATH}" | awk '{print $1}')"
+  ACTUAL_SHA256="$(/usr/bin/shasum -a 256 "${ARCHIVE_PATH}" 2>/dev/null | awk '{print $1}')"
   if [ "${ACTUAL_SHA256}" != "${EXPECTED_SHA256}" ]; then
-    fail_offline_install "离线安装包内置运行环境校验失败，请重新下载离线安装包。"
+    # 校验不符 = 下载被截断/损坏。删掉坏缓存,让 App 明确引导「重新下载离线包」,而不是去解压一堆垃圾。
+    rm -f "${ARCHIVE_PATH}" >/dev/null 2>&1 || true
+    degrade_to_first_launch "离线安装包内置运行环境校验失败（下载可能不完整），请重新完整下载离线安装包后重试。"
   fi
 fi
 
-if ! COPYFILE_DISABLE=1 COPY_EXTENDED_ATTRIBUTES_DISABLE=1 /usr/bin/tar -xzf "${ARCHIVE_PATH}" -C "${WORK_DIR}"; then
-  fail_offline_install "离线安装包内置运行环境解压失败，请重新下载离线安装包。"
+# 解压前磁盘空间预检:解压后的本机组件约 2 GB,这里要求运行环境卷至少有 ~3 GB 可用,
+# 否则直接给「磁盘不足」的明确原因(此时缓存归档已就位,清理空间后重开 星阙 即自动补齐)。
+RUNTIME_AVAIL_KIB="$(/bin/df -k "${RUNTIME_ROOT}" 2>/dev/null | awk 'NR==2 {print $4}')"
+if [ -n "${RUNTIME_AVAIL_KIB}" ] && [ "${RUNTIME_AVAIL_KIB}" -lt 3145728 ] 2>/dev/null; then
+  degrade_to_first_launch "磁盘空间不足（准备本机组件约需 3 GB 可用空间）。请清理磁盘后重新打开 星阙，将自动完成本机组件准备。"
+fi
+
+if ! COPYFILE_DISABLE=1 COPY_EXTENDED_ATTRIBUTES_DISABLE=1 /usr/bin/tar -xzf "${ARCHIVE_PATH}" -C "${WORK_DIR}" 2>/dev/null; then
+  degrade_to_first_launch "本机组件解压失败（多为磁盘空间不足）。请清理磁盘后重新打开 星阙，将自动完成本机组件准备。"
 fi
 
 if [ ! -f "${WORK_DIR}/runtime-payload/runtime-manifest.json" ]; then

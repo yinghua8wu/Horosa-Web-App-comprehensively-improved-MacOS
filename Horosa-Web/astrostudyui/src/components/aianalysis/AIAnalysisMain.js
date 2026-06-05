@@ -796,6 +796,7 @@ function AIAnalysisMain(props){
 	const [providerForm] = Form.useForm();
 	const abortRef = React.useRef(null);
 	const streamBufferRef = React.useRef('');
+	const streamReasoningBufferRef = React.useRef(''); // #16:DeepSeek reasoner 思考过程(独立于答案,仅展示/存档,绝不回灌 messages)
 	const chatLogRef = React.useRef(null);
 	const backupRestoreInputRef = React.useRef(null);
 	const desktopFileInputRef = React.useRef(null);
@@ -1563,6 +1564,7 @@ function AIAnalysisMain(props){
 			updatedAt: new Date().toISOString(),
 		});
 		streamBufferRef.current = '';
+		streamReasoningBufferRef.current = '';
 		if(appendAssistant){
 			setMessages((prev)=>{
 				const exists = prev.some((item)=>item.id === assistantMessage.id);
@@ -1604,6 +1606,22 @@ function AIAnalysisMain(props){
 							streamStatus: 'streaming',
 							updatedAt: new Date().toISOString(),
 						} : item));
+					}else if(event.type === 'reasoning'){
+						// #16:DeepSeek reasoner 等的思维链增量。单独累计并渲染「思考过程」,让长思考期可见、不再像「卡死/空」。
+						if(abortController.signal.aborted){
+							return;
+						}
+						const r = event.json && event.json.reasoning ? `${event.json.reasoning}` : '';
+						if(!r){
+							return;
+						}
+						streamReasoningBufferRef.current += r;
+						setMessages((prev)=>prev.map((item)=>item.id === assistantMessage.id ? {
+							...item,
+							reasoning: streamReasoningBufferRef.current,
+							streamStatus: 'streaming',
+							updatedAt: new Date().toISOString(),
+						} : item));
 					}else if(event.type === 'error'){
 						streamError = (event.json && event.json.message) ? `${event.json.message}` : (event.data || '上游服务返回错误');
 					}
@@ -1614,6 +1632,7 @@ function AIAnalysisMain(props){
 			const saved = await saveConversationMessage({
 				...assistantMessage,
 				content: resolvedContent,
+				reasoning: `${streamReasoningBufferRef.current || ''}`.trim() || undefined,
 				streamStatus: (!finalContent && streamError) ? 'error' : 'done',
 				updatedAt: new Date().toISOString(),
 			});
@@ -1628,6 +1647,7 @@ function AIAnalysisMain(props){
 			const saved = await saveConversationMessage({
 				...assistantMessage,
 				content: streamBufferRef.current || (aborted ? '已停止生成。' : `⚠️ ${failMessage}`),
+				reasoning: `${streamReasoningBufferRef.current || ''}`.trim() || undefined,
 				streamStatus: aborted ? 'aborted' : 'error',
 				updatedAt: new Date().toISOString(),
 			});
@@ -3178,6 +3198,13 @@ function AIAnalysisMain(props){
 														</Tooltip>
 													</Space>
 												</div>
+												{item.role === 'assistant' && item.reasoning ? (
+													<Collapse ghost className={styles.reasoningCollapse} defaultActiveKey={(item.streamStatus === 'streaming' && !item.content) ? ['r'] : []}>
+														<Collapse.Panel key="r" header={(item.streamStatus === 'streaming' && !item.content) ? '思考中…' : '思考过程'}>
+															<div style={{ whiteSpace: 'pre-wrap', color: 'var(--horosa-text-soft, #8a8f99)', fontSize: 12, lineHeight: 1.7 }}>{item.reasoning}</div>
+														</Collapse.Panel>
+													</Collapse>
+												) : null}
 												{item.role === 'user'
 													? <div className={styles.messageText}>{item.content}</div>
 													: <div className={styles.markdownBody} dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(item.content) }} />}

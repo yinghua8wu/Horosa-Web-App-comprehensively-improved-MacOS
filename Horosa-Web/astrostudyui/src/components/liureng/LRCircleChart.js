@@ -52,7 +52,7 @@ class LRCircleChart extends LRCommChart {
 			color: this.color,
 			bgColor: AstroConst.AstroColor.NoColor,
 			data: this.downZi,
-			highLightData: [this.nongli.time.substr(1)],
+			highLightData: [this.realTimeBranch], // 地盘高亮=真实时支(占时),恒定不随起课法
 			highLightColor: LRConst.LRColor.time.color,
 			highLightBgColor: LRConst.LRColor.time.bg,
 			onSegment: (group, idx)=>{
@@ -75,7 +75,7 @@ class LRCircleChart extends LRCommChart {
 			color: this.color,
 			bgColor: this.bgColor,
 			data: this.upZi,
-			highLightData: [this.yue],
+			highLightData: [this.actualYue], // 天盘高亮=真实月将(非起课法天盘起支 X);二者非起课法下相等
 			highLightColor: LRConst.LRColor.time.color,
 			highLightBgColor: LRConst.LRColor.time.bg,
 			onSegment: (group, idx)=>{

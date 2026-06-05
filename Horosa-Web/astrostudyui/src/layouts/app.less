@@ -9110,21 +9110,23 @@
 
     .horosa-workspace-shell .horosa-liureng-chart-host {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: center;
         width: 100%;
         height: 100%;
         min-width: 0;
         min-height: 0;
-        overflow: hidden;
+        /* ② 方盘内容若仍超出小窗,顶端对齐 + 纵向可下滑看全(圆盘自适应不会触发);横向不滚。 */
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 
     .horosa-workspace-shell .horosa-liureng-chart-host > svg {
         display: block;
         width: 100% !important;
-        height: 100% !important;
         max-width: 100%;
-        max-height: 100%;
+        /* ② 小屏可下滑:不再用 height:100%/min-height:100% 把 svg 锁死或压到 host 高度(flex 容器会裁切)。
+           高度完全由 RengChart.draw 设 inline !important(=max(host视口, 模式最小高度));内容高于 host 时 host(overflow-y:auto)纵向滚动。 */
         min-height: 0;
     }
 
