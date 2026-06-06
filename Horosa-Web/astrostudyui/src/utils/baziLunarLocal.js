@@ -571,6 +571,75 @@ function flowMonthFromSolar(year, term, solar, dayGan){
 	};
 }
 
+// 流日（批A）：枚举某公历 year-month 的全部日，逐日干支用 lunar.js 原生 getDayInGanZhi，
+// 十神/纳音/空亡复用 pillarFromGanzi（与四柱同口径）。坏月/越界静默跳过，绝不抛。
+function buildFlowDays(year, month, dayGan){
+	if(!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12){
+		return [];
+	}
+	// lunar.js Solar.fromYmd 不校验越界日（31 号也照存），故用公历 JS Date 取该月实际天数。
+	const daysInMonth = new Date(year, month, 0).getDate();
+	if(!Number.isFinite(daysInMonth) || daysInMonth < 1){
+		return [];
+	}
+	const out = [];
+	for(let d = 1; d <= daysInMonth; d++){
+		let solar = null;
+		try{
+			solar = Solar.fromYmd(year, month, d);
+		}catch(e){
+			continue;
+		}
+		if(!solar){
+			continue;
+		}
+		const ganzi = solar.getLunar().getDayInGanZhi();
+		out.push({
+			year,
+			month,
+			day: d,
+			date: solar.toYmd(),
+			ganzi,
+			ganzhi: ganzi,
+			...pillarFromGanzi('日', ganzi, dayGan),
+		});
+	}
+	return out;
+}
+
+// 流时（批A）：枚举某公历 year-month-day 的 12 时辰（子起，0–11），时干支用 lunar.js 原生 getTimeInGanZhi。
+// 每个时辰取该时辰中点小时（子=0,丑=2,…亥=22）；十神/纳音/空亡复用 pillarFromGanzi。
+function buildFlowHours(year, month, day, dayGan){
+	if(!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)){
+		return [];
+	}
+	const out = [];
+	for(let h = 0; h < 12; h++){
+		const hour = (h * 2) % 24; // 子=0,丑=2,…,亥=22
+		let solar = null;
+		try{
+			solar = Solar.fromYmdHms(year, month, day, hour, 0, 0);
+		}catch(e){
+			break;
+		}
+		if(!solar){
+			break;
+		}
+		const ganzi = solar.getLunar().getTimeInGanZhi();
+		out.push({
+			year,
+			month,
+			day,
+			hourIdx: h,
+			hour,
+			ganzi,
+			ganzhi: ganzi,
+			...pillarFromGanzi('时', ganzi, dayGan),
+		});
+	}
+	return out;
+}
+
 function buildFlowMonths(liuNian, birthSolar, dayGan){
 	const year = liuNian.getYear();
 	let months = liuNian.getLiuYue();
@@ -734,5 +803,8 @@ export function buildLocalBaziResult(params){
 		local: true,
 	};
 }
+
+// 批A：供 AI 挂载多运限按所选流日/流时无头复算（与四柱同口径，纯 lunar.js）。
+export { buildFlowDays, buildFlowHours };
 
 export default buildLocalBaziResult;

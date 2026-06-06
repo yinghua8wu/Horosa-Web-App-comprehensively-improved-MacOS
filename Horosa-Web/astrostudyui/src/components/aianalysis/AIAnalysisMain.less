@@ -881,6 +881,79 @@
 	color: var(--horosa-muted);
 }
 
+/* ===== AI 挂载「每技法设置」抽屉 ===== */
+.contextGearBtn {
+	font-size: 12px;
+	color: var(--horosa-muted) !important;
+	padding: 0 6px !important;
+	height: 22px;
+}
+.contextGearBtn:hover {
+	color: var(--horosa-accent-strong) !important;
+}
+
+.techSettingsBody {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.techSettingsReadonly {
+	margin: 4px 0 14px;
+	padding: 10px 12px;
+	border: 1px dashed var(--horosa-border);
+	border-radius: 8px;
+	background: var(--horosa-panel-soft);
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--horosa-muted);
+}
+.techSettingsFields {
+	margin-bottom: 12px;
+}
+.techSettingGroup {
+	margin-bottom: 12px;
+	padding: 10px 12px;
+	border: 1px solid var(--horosa-border);
+	border-radius: 8px;
+	background: var(--horosa-panel-soft);
+}
+.techSettingGroupTitle {
+	margin: 6px 0 8px;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--horosa-text-soft);
+}
+.techSettingRow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 8px;
+}
+.techSettingRow:last-child {
+	margin-bottom: 0;
+}
+.techSettingLabel {
+	font-size: 12px;
+	color: var(--horosa-text-soft);
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.techSettingsActions {
+	margin: 8px 0 6px;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.techSettingsHint {
+	margin: 6px 0 12px;
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--horosa-muted);
+}
+.techSectionChecks {
+	margin-bottom: 8px;
+}
+
 .emptyPane {
 	height: 100%;
 	display: flex;

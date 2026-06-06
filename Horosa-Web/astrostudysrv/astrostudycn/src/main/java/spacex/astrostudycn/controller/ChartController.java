@@ -241,6 +241,22 @@ public class ChartController {
 			if(args.containsKey("pdTimeKey")) {
 				reqparams.put("pdTimeKey", args.get("pdTimeKey"));
 			}
+			// 回显主限进阶参数,便于前端 needsPdRecompute 比对已落库值(否则 pdYears 改后会被判为"需重算"反复 fetch)。
+			if(args.containsKey("pdYears")) {
+				reqparams.put("pdYears", args.get("pdYears"));
+			}
+			if(args.containsKey("pdDirect")) {
+				reqparams.put("pdDirect", args.get("pdDirect"));
+			}
+			if(args.containsKey("pdConverse")) {
+				reqparams.put("pdConverse", args.get("pdConverse"));
+			}
+			if(args.containsKey("pdAntiscia")) {
+				reqparams.put("pdAntiscia", args.get("pdAntiscia"));
+			}
+			if(args.containsKey("pdTerms")) {
+				reqparams.put("pdTerms", args.get("pdTerms"));
+			}
 		}
 
 		if(!ConvertUtility.getValueAsBool(args.get("predictive"), false)) {
@@ -299,7 +315,7 @@ public class ChartController {
 		params.put("lat", TransData.get("lat"));
 		params.put("lon", TransData.get("lon"));
 		// Bust legacy local/runtime cache entries after PD method/time-key response wiring changes.
-		params.put("_wireRev", "pd_method_sync_v8");
+		params.put("_wireRev", "pd_method_sync_v9");
 		if(TransData.containsParam("_su28Rev")) {
 			params.put("_su28Rev", TransData.get("_su28Rev"));
 		}
@@ -337,6 +353,25 @@ public class ChartController {
 		}
 		if(TransData.containsParam("pdTimeKey")) {
 			params.put("pdTimeKey", TransData.get("pdTimeKey"));
+		}
+		// 主限法进阶参数:推算年数 + 顺逆/映点/界。/chart(含 includePrimaryDirection)内部走
+		// getPrimaryDirection(args) 复算主限,这些键必须透传给 Python compute(perchart.py 读 pdYears/
+		// pdDirect/pdConverse/pdAntiscia/pdTerms),否则 AI 挂载侧「每技法设置」改了年数/方向不生效
+		// (选项与快照对不上)。与 PredictiveController(/predict/pd)的透传口径保持一致。
+		if(TransData.containsParam("pdYears")) {
+			params.put("pdYears", TransData.get("pdYears"));
+		}
+		if(TransData.containsParam("pdDirect")) {
+			params.put("pdDirect", TransData.get("pdDirect"));
+		}
+		if(TransData.containsParam("pdConverse")) {
+			params.put("pdConverse", TransData.get("pdConverse"));
+		}
+		if(TransData.containsParam("pdAntiscia")) {
+			params.put("pdAntiscia", TransData.get("pdAntiscia"));
+		}
+		if(TransData.containsParam("pdTerms")) {
+			params.put("pdTerms", TransData.get("pdTerms"));
 		}
 		if(TransData.containsParam("zodiacal")) {
 			params.put("zodiacal", TransData.get("zodiacal"));

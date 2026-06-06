@@ -1348,13 +1348,17 @@ export function buildJinKouData(liureng, options){
 
 	const dayGan = getDayGan(liureng);
 	const monthZi = getMonthZi(liureng);
-	const timeZi = getTimeZi(liureng);
+	// 占时（zhanShi）：默认取八字时支；AI 挂载/主页面可指定具体地支（非 'auto' 且为合法支时覆盖）。
+	const autoTimeZi = getTimeZi(liureng);
+	const timeZi = (opt.zhanShi && opt.zhanShi !== 'auto' && containsVal(LRConst.ZiList, opt.zhanShi)) ? opt.zhanShi : autoTimeZi;
 	const diFen = normalizeDiFen(opt.diFen, timeZi);
 	const renYuanGan = getStemByWuZiDun(dayGan, diFen);
 	const guiShen = getGuiShenAtDiFen(dayGan, timeZi, diFen, opt.guirengType, opt.isDiurnal);
 	const guiZi = guiShen.zi;
 	const guiGan = getStemByWuZiDun(dayGan, guiZi);
-	const yuejiang = getYueJiang(liureng, monthZi);
+	// 月将（yueJiang）：默认按节气取；AI 挂载/主页面可指定具体地支（非 'auto' 且为合法支时覆盖）。
+	const autoYueJiang = getYueJiang(liureng, monthZi);
+	const yuejiang = (opt.yueJiang && opt.yueJiang !== 'auto' && containsVal(LRConst.ZiList, opt.yueJiang)) ? opt.yueJiang : autoYueJiang;
 	const jiang = getJiangZiAtDiFen(yuejiang, timeZi, diFen);
 	const jiangZi = jiang.zi;
 	const jiangGan = getStemByWuZiDun(dayGan, jiangZi);

@@ -66,6 +66,9 @@ function birthYearOf(chart) {
 }
 
 // ——— 各层 item 构造 ———
+// 说明:以下 build*Items 为纯函数(只读 chart + 选定层 item,无副作用/无后端调用),
+// 既供 ZWLuckPanel 交互渲染,也供 AI 挂载快照(buildZiweiSnapshotForParams)按所选运限复算同一层数据,
+// 确保「挂载设置·运限」改动后快照逐字对齐盘面交互(round-trip 通)。导出供复用,杜绝两份口径漂移。
 function buildDaxianItems(chart) {
 	if (!chart || !chart.houses) return [];
 	const arr = [];
@@ -200,6 +203,19 @@ function buildLiushiItems(chart, liuri) {
 	}
 	return out;
 }
+
+// 导出纯构造器 + 宫位定位工具,供 AI 挂载快照按所选运限层复用同一口径(见 ZiWeiMain.buildZiWeiSnapshotText)。
+export {
+	buildDaxianItems,
+	buildLiunianItems,
+	buildXiaoxianItems,
+	buildLiuyueItems,
+	buildLiuriItems,
+	buildLiushiItems,
+	houseName,
+	houseIdxByBranch,
+	LEVEL_LABEL,
+};
 
 class ZWLuckPanel extends Component {
 	constructor(props) {

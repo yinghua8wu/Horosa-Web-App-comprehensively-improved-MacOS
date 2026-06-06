@@ -248,7 +248,9 @@ class DivinationChartShell extends Component{
 	}
 
 	changeChartStyle(val){
-		this.setState({ chartStyle: val });
+		// XQSegmented 的 onChange 传的是事件 e（非裸值），须取 e.target.value，否则 chartStyle 变成事件对象、normalize 永远兜回 current → 样式无效。
+		const chartStyle = val && val.target ? val.target.value : val;
+		this.setState({ chartStyle });
 	}
 
 	setExtra(patch, cb){

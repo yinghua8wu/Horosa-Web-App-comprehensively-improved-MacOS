@@ -16,12 +16,16 @@ function today(){
 function typeLabel(t){ return t === 'contraparallel' ? '反平行' : '平行'; }
 
 // Jayne 赤纬推运 AI 快照（无头）：内部 fetch /astroextra/jaynesprog。无数据返回 ''。
-export async function buildJaynesProgSnapshotText(chartObj){
+// opts（AI 挂载「每技法设置」）：targetDate + targetTime（目标时刻）。缺省 → today()/12:00:00（=现状）。
+export async function buildJaynesProgSnapshotText(chartObj, opts){
 	if(!chartObj){ return ''; }
+	const o = opts && typeof opts === 'object' ? opts : {};
+	const targetDate = `${o.targetDate || ''}`.trim() || today();
+	const targetTime = `${o.targetTime || ''}`.trim() || '12:00:00';
 	let result = null;
 	try{
 		const data = await request(`${Constants.ServerRoot}/astroextra/jaynesprog`, {
-			body: JSON.stringify({ ...chartParams(chartObj), targetDate: today(), targetTime: '12:00:00', orb: 1.0 }),
+			body: JSON.stringify({ ...chartParams(chartObj), targetDate, targetTime, orb: 1.0 }),
 			timeoutMs: 45000,
 		});
 		result = unwrapResult(data) || {};

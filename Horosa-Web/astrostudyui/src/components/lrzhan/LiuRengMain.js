@@ -3817,7 +3817,8 @@ function getChartYue(chartObj){
 // 起课法：正时正将(第一客) + 十二客②–⑫ + 加时四法(太岁/月建/行年/本命加时) + 次客·一/二/三筹 + 四柱对齐 + 选时 + 演数。
 // 古法：每法＝一对「天盘起支 X 加于 地盘临位 Y」；天干用寄宫(GanJiZi)；对齐/本命/行年取对应地支。
 // 次客(cikeN)：自月将本位起，阳支「后三前五」/阴支「前三后五」取「第 N 筹」天盘地支，再以该支「加时」(放占时)重排上下盘——与其它加时法同理(见 liurengChouBranch + computeQiXY)。
-const QI_METHODS = [
+// 起课法 25 法（AI 挂载齿轮 schema 复用此常量映射，杜绝手写错值/漂移——见 techniqueMountSettings.LIURENG_FIELDS）。
+export const QI_METHODS = [
 	{ key: 'zheng', name: '正时正将' },
 	{ key: 'bake2', name: '十二客·月建加太岁' },
 	{ key: 'bake3', name: '十二客·太岁加月建' },

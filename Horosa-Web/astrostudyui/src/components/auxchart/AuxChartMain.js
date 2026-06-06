@@ -180,6 +180,7 @@ class AuxChartMain extends Component{
 								fields={this.props.fields}
 								fieldsAry={this.props.fieldsAry}
 								height={childHeight}
+								chartStyle={this.props.chartStyle}
 								chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}

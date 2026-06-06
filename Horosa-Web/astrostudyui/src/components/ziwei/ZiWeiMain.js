@@ -8,7 +8,15 @@ import {randomStr,} from '../../utils/helper';
 import ZiWeiInput from './ZiWeiInput';
 import ZiWeiChart from './ZiWeiChart';
 import ZWRuleMain from '../ruleziwei/ZWRuleMain';
-import ZWLuckPanel from './ZWLuckPanel';
+import ZWLuckPanel, {
+	buildDaxianItems,
+	buildLiunianItems,
+	buildLiuyueItems,
+	buildLiuriItems,
+	buildLiushiItems,
+	houseName as luckHouseName,
+	houseIdxByBranch as luckHouseIdxByBranch,
+} from './ZWLuckPanel';
 import ZWPatternPanel from './ZWPatternPanel';
 import TipsBoard from '../comp/TipsBoard';
 import * as ZiWeiHelper from './ZiWeiHelper';
@@ -108,6 +116,172 @@ function getLifeHouse(chart, houses){
 	return houses.find((house)=>`${house.name || ''}`.includes('命')) || null;
 }
 
+const ZW_PERIOD_LEVEL_LABEL = { daxian: '大限', liunian: '流年', liuyue: '流月', liuri: '流日', liushi: '流时' };
+
+// 单层运限 → 文本块（四化落宫 + 流曜，复用 ZiWeiHelper.getLayerSihua/getFlowStars，与盘面交互卡同口径）。
+function formatLuckLayerLines(chart, layer, levelLabel, subText){
+	const lines = [];
+	const mingIdx = layer.mingIndex;
+	const oppIdx = ((mingIdx % 12) + 6) % 12;
+	const head = `${levelLabel}：${layer.ganzi || ''}${subText ? `（${subText}）` : ''}`
+		+ `，命宫【${luckHouseName(chart, mingIdx, true)}】·对宫【${luckHouseName(chart, oppIdx, true)}】`;
+	lines.push(head);
+	const sihua = ZiWeiHelper.getLayerSihua(chart, layer.gan) || [];
+	if(sihua.length > 0){
+		const parts = sihua.map((h)=>`${h.star}化${h.hua}（${luckHouseName(chart, h.houseIndex, true)}）`);
+		lines.push(`四化：${parts.join('、')}`);
+	}
+	const flowStars = ZiWeiHelper.getFlowStars(layer.gan, layer.zhi) || [];
+	if(flowStars.length > 0){
+		const parts = flowStars.map((s)=>`${s.name}（${luckHouseName(chart, luckHouseIdxByBranch(chart, s.zhi), true)}）`);
+		lines.push(`流曜：${parts.join('、')}`);
+	}
+	return lines;
+}
+
+// 多选运限上限：所有层级合计段数封顶，防快照爆（超限截断 + 追加提示行）。
+const ZW_PERIOD_MAX_SEGMENTS = 50;
+
+// 找某公历年所属的大限：逐大限构造 10 流年，命中该年即返回（复用 buildLiunianItems，零新算法）。
+function findDaxianForYear(chart, daxianItems, year){
+	for(let i = 0; i < daxianItems.length; i++){
+		const items = buildLiunianItems(chart, daxianItems[i]);
+		if(items.some((x)=>x.year === year)){
+			return { daxian: daxianItems[i], liunianItems: items, liunian: items.find((x)=>x.year === year) || null };
+		}
+	}
+	return null;
+}
+
+// 按挂载所选运限层（多选）产出 [运限] 段。
+// period={daxian:[mingIndex...], liunian:[year...], liuyue:[month...], liuri:[day...], liushi:[hourIdx...]}。
+// 语义（用户拍板）：大限/流年/流月对所选每项各产一段（流年×流月笛卡尔）；流日/流时锚定到所选的第一个上层。
+// 总段数封顶 ZW_PERIOD_MAX_SEGMENTS，超限截断并追加提示行。全空 → 不产段（上游已用 null 守现状）。
+function buildZiweiPeriodLines(chart, period){
+	if(!chart || !chart.houses || !period){
+		return [];
+	}
+	const daxianItems = buildDaxianItems(chart);
+	if(daxianItems.length === 0){
+		return [];
+	}
+	const arr = (v)=>(Array.isArray(v) ? v : []);
+	const daxianSel = arr(period.daxian);
+	const liunianSel = arr(period.liunian);
+	const liuyueSel = arr(period.liuyue);
+	const liuriSel = arr(period.liuri);
+	const liushiSel = arr(period.liushi);
+
+	const body = [];
+	let truncated = false;
+	// 推入一段（已含层文本）；到达上限即停止后续推入并标记截断。
+	const pushSeg = (segLines)=>{
+		if(truncated){ return; }
+		if(body.length >= ZW_PERIOD_MAX_SEGMENTS){
+			truncated = true;
+			return;
+		}
+		body.push(segLines);
+	};
+
+	// 1) 大限：每个所选宫位序各一段。
+	daxianSel.forEach((mingIndex)=>{
+		const dx = daxianItems.find((d)=>d.mingIndex === mingIndex);
+		if(dx){
+			pushSeg(formatLuckLayerLines(chart, dx, ZW_PERIOD_LEVEL_LABEL.daxian, `${dx.start}~${dx.end}岁`));
+		}
+	});
+
+	// 2) 流年：每个所选公历年各一段（解析其所属大限）。
+	// 坑修：所选流年超出全部大限范围 → 补提示行而非静默跳过（与八字「超出大运范围」口径对齐）。
+	const inRangeYears = [];
+	liunianSel.forEach((year)=>{
+		const ctx = findDaxianForYear(chart, daxianItems, year);
+		if(ctx && ctx.liunian){
+			inRangeYears.push(year);
+			pushSeg(formatLuckLayerLines(chart, ctx.liunian, ZW_PERIOD_LEVEL_LABEL.liunian, `${ctx.liunian.year}年`));
+		}else{
+			pushSeg([`流年：${year}年（超出大限范围，未列流年）`]);
+		}
+	});
+
+	// 流月/流日/流时所需的基准年集合：所选流年中「在大限范围内」的年（避免流年不列、流月却列的语义错位）；
+	// 若未选流年，则用首个大限的首年兜底（绝不抛）。
+	const baseYears = liunianSel.length
+		? inRangeYears
+		: [(buildLiunianItems(chart, daxianItems[0])[0] || {}).year].filter((y)=>Number.isFinite(y));
+
+	// 3) 流月：流年 × 流月 笛卡尔——每个 (year, month) 各一段。
+	if(liuyueSel.length){
+		baseYears.forEach((year)=>{
+			const liuyueItems = buildLiuyueItems(chart, year);
+			liuyueSel.forEach((month)=>{
+				const ly = liuyueItems.find((x)=>x.month === month);
+				if(ly){
+					pushSeg(formatLuckLayerLines(chart, ly, ZW_PERIOD_LEVEL_LABEL.liuyue, `${year}年${ly.month}月`));
+				}
+			});
+		});
+	}
+
+	// 锚定上层：流日 → 第一个 (year, month)；流时 → 第一个 (year, month, day)。
+	const anchorYear = Number.isFinite(baseYears[0]) ? baseYears[0] : null;
+	const anchorMonth = liuyueSel.length ? liuyueSel[0] : null;
+
+	// 4) 流日：锚定 (anchorYear, anchorMonth)；anchorMonth 缺省取该年首月（正月）。
+	if(liuriSel.length && anchorYear !== null){
+		const liuyueItems = buildLiuyueItems(chart, anchorYear);
+		const anchorLiuyue = anchorMonth !== null
+			? (liuyueItems.find((x)=>x.month === anchorMonth) || liuyueItems[0])
+			: liuyueItems[0];
+		if(anchorLiuyue){
+			const liuriItems = buildLiuriItems(chart, anchorYear, anchorLiuyue);
+			liuriSel.forEach((day)=>{
+				const lr = liuriItems.find((x)=>x.day === day);
+				if(lr){
+					pushSeg(formatLuckLayerLines(chart, lr, ZW_PERIOD_LEVEL_LABEL.liuri, `${anchorYear}年${anchorLiuyue.month}月${lr.day}日`));
+				}
+			});
+		}
+	}
+
+	// 5) 流时：锚定 (anchorYear, anchorMonth, 首个所选流日/否则初一)。
+	if(liushiSel.length && anchorYear !== null){
+		const liuyueItems = buildLiuyueItems(chart, anchorYear);
+		const anchorLiuyue = anchorMonth !== null
+			? (liuyueItems.find((x)=>x.month === anchorMonth) || liuyueItems[0])
+			: liuyueItems[0];
+		if(anchorLiuyue){
+			const liuriItems = buildLiuriItems(chart, anchorYear, anchorLiuyue);
+			const anchorDay = liuriSel.length ? liuriSel[0] : null;
+			const anchorLiuri = anchorDay !== null
+				? (liuriItems.find((x)=>x.day === anchorDay) || liuriItems[0])
+				: liuriItems[0];
+			if(anchorLiuri){
+				const liushiItems = buildLiushiItems(chart, anchorLiuri);
+				liushiSel.forEach((hourIdx)=>{
+					const ls = liushiItems[hourIdx];
+					if(ls){
+						pushSeg(formatLuckLayerLines(chart, ls, ZW_PERIOD_LEVEL_LABEL.liushi,
+							`${anchorYear}年${anchorLiuyue.month}月${anchorLiuri.day}日`));
+					}
+				});
+			}
+		}
+	}
+
+	if(body.length === 0){
+		return [];
+	}
+	const lines = ['[运限]'];
+	body.forEach((segLines)=>{ lines.push(...segLines); });
+	if(truncated){
+		lines.push(`（运限段已达上限 ${ZW_PERIOD_MAX_SEGMENTS} 段，余下所选组合已省略）`);
+	}
+	lines.push('');
+	return lines;
+}
+
 function buildZiWeiSnapshotText(params, result){
 	const chart = result && result.chart ? result.chart : {};
 	const houses = chart.houses || [];
@@ -169,6 +343,14 @@ function buildZiWeiSnapshotText(params, result){
 		lines.push('');
 	}
 
+	// 运限层（仅挂载「每技法设置」显式选了运限时追加；缺省不追加 → 快照与现状逐字一致）。
+	if(params && params.period){
+		const periodLines = buildZiweiPeriodLines(chart, params.period);
+		if(periodLines.length > 0){
+			lines.push(...periodLines);
+		}
+	}
+
 	return lines.join('\n');
 }
 
@@ -177,20 +359,38 @@ export async function buildZiweiSnapshotForParams(params){
 	if(!params){
 		return '';
 	}
-	const p = { ...params };
-	const school = ZWConst.ZWSchool.school;
-	if(school && school !== 'beipai'){
-		p.sihua = ZWConst.getActiveSiHuaGan();
+	// 挂载「每技法设置」可指定四化流派(params.sihuaSchool)。流派由可变单例 ZWSchool.school + getActiveSiHuaGan
+	// 驱动(snapshot/格局判定都读它),故须临时切换 + 用毕还原,避免污染全局现状(与 ZiWeiInput 切流派同口径)。
+	const overrideSchool = params.sihuaSchool && `${params.sihuaSchool}` !== '' ? `${params.sihuaSchool}` : null;
+	const prevSchool = ZWConst.ZWSchool.school;
+	if(overrideSchool && overrideSchool !== prevSchool){
+		ZWConst.ZWSchool.school = overrideSchool;
+		ZWConst.refreshActiveSiHua();
 	}
-	const data = await request(`${Constants.ServerRoot}/ziwei/birth`, {
-		body: JSON.stringify(p),
-		silent: true,
-	});
-	const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
-	if(!result || !result.chart){
-		return '';
+	try{
+		const p = { ...params };
+		// 这两键只供前端本地消费,不发后端(后端按白名单忽略,但避免无谓体积/缓存键扰动一并删掉)。
+		delete p.sihuaSchool;
+		delete p.period;
+		const school = ZWConst.ZWSchool.school;
+		if(school && school !== 'beipai'){
+			p.sihua = ZWConst.getActiveSiHuaGan();
+		}
+		const data = await request(`${Constants.ServerRoot}/ziwei/birth`, {
+			body: JSON.stringify(p),
+			silent: true,
+		});
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+		if(!result || !result.chart){
+			return '';
+		}
+		return buildZiWeiSnapshotText(params, result);
+	}finally{
+		if(overrideSchool && overrideSchool !== prevSchool){
+			ZWConst.ZWSchool.school = prevSchool;
+			ZWConst.refreshActiveSiHua();
+		}
 	}
-	return buildZiWeiSnapshotText(params, result);
 }
 
 function getFieldValue(fields, key, fallback = ''){

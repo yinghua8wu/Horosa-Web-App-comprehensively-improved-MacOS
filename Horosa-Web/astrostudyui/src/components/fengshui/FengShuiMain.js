@@ -1,11 +1,17 @@
 import { Component, createRef } from 'react';
-import { Row, Col, Slider, InputNumber, Empty } from 'antd';
+import { Row, Col, Slider, InputNumber, Empty, Collapse, Tooltip } from 'antd';
 import { XQButton, XQToggle, XQSegmented, XQSelect, XQTabs } from '../xq-ui';
-import FengShuiEngine, { MARKER_TYPES } from './fengshuiEngine';
+import FengShuiEngine, { MARKER_TYPES, BAGUA_MARKER_TYPES, DISK_SKINS } from './fengshuiEngine';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 
 const { TabPane } = XQTabs;
 const { Option } = XQSelect;
+const { Panel } = Collapse;
+
+const MODE_OPTIONS = [
+	{ value: 'naqi', label: '纳气盘法' },
+	{ value: 'bagua', label: '八卦阳宅法' },
+];
 
 const FILTERS = [
 	{ key: 'all', label: '全部' },
@@ -22,6 +28,31 @@ const TIPS = [
 	'盘心放在太极点，八方颜色与数字即可判断气位与水位。',
 ];
 
+const BAGUA_TIPS = [
+	'先框选房屋（盘心＝整层正中／太极点），再填一个「正北方向」度数即可起盘。',
+	'点左栏角色或格局，再到户型图上点对应位置，自动判卦，无需填表。',
+	'成員以「在家中的名分」为准：有子女＝父/母，未婚长子女＝长子/长女，依兄姐婚况顺延。',
+	'卦象、应期、升降、四类象吉凶都会自动在右侧「卦象」面板生成。',
+];
+
+const MEMBER_RULE = '成員以在家中的「名分」定卦（倪海厦阳宅法）：① 有子女→父(乾)/母(坤)（含已婚之夫/妻、未婚生子、离婚有子）；② 未婚第一子/女→长子(震)/长女(巽)；③ 自己未婚、上有 1 个未婚兄/姐→次子(坎)/次女(离)；④ 上有 2 个未婚兄/姐→三子(艮)/三女(兑)；⑤ 兄姐婚嫁后排序顺延（如姐出嫁，次女升长女）；⑥ 子女多于三者「三个一组」循环对应 1·4 / 2·5 / 3·6（即第 4 子当长子、第 4 女当长女）。';
+
+// 倪海厦阳宅·判定方法与特例（忠实概括，非照抄原文）。
+const BAGUA_METHODS = [
+	'取卦法：名在上（人在家名分之本命卦）× 位在下（卧房在整层正中·太极点所看的方位卦）→ 得一 64 卦，依此卦之卦象读断其人事吉凶。',
+	'成員定義：有子女＝父(乾)/母(坤)；未婚第一子女＝长子(震)/长女(巽)；自己未婚、上有 1 未婚兄/姐＝次子(坎)/次女(离)，上有 2 个＝三子(艮)/三女(兑)；兄姐婚嫁后顺延。',
+	'三个一组：子女多于三者按 1·4 / 2·5 / 3·6 循环对应——第 4 子当长子、第 4 女当长女，以此类推。',
+	'四个儿子之源：夫命有二子、妻命有二子，合为四子，故子或貌似父、或貌似母（命理统计之经验）。',
+	'成格逢三：3 天~3 月起效、3 月~3 年、最慢 6 年成格；凶宅多在第三年应灾（皆“三”字出头）。',
+	'形神论：名＝位（同卦）主家和万事兴；居父母位者心态早熟（男居西北乾多晚婚）。',
+	'排位升降：父1 母2 长子3 长女4 次子5 次女6 三子7 三女8——居较长位则升官发财/婚期提前，居较幼位则延后。',
+	'四类象：厨房＝刀象（此卦家人易血光，宜调灶口避正向）；厕所＝浊气（此卦家人易气病/破财/口舌）；客厅＝客象（聚少离多）；卧房＝即宫位（在此排 64 卦）。',
+	'缺角断法：缺角超过三分之一，则该卦位对应之家人待不住此宅（如西南缺→母待不住）；宜先补全为方正再从中心测向。',
+	'一层一论断：只计睡人之层；一层有厨房、另层睡人无厨房，则只算睡人那层。',
+	'方位特法：东南角(巽)宜嫁女、代表无婚之女将很快出嫁；西北角(乾)为夫妻一世之位，缺则难得丈夫助力；求子东往北主生男、东往南主生女；床位脚朝吉（延年）方利健康。',
+	'三代同堂：长子娶媳后父母退位、住三子之位（天山遁/屯，退隐之象），以子女之耐心奉养父母即为孝。',
+];
+
 const CENTER_OPTIONS = [
 	{ value: 'house', label: '房屋中心' },
 	{ value: 'door', label: '入户门' },
@@ -34,14 +65,12 @@ const PERIOD_OPTIONS = [
 	{ value: 'reversed', label: '2044-2124' },
 ];
 
+const TAG_LABEL = { auspicious: '吉', mild: '小吉', neutral: '中性', caution: '宜慎' };
+
 class FengShuiMain extends Component {
 	constructor(props) {
 		super(props);
-		this.state = {
-			vm: null,
-			controlTab: 'base',
-			workspaceTab: 'canvas',
-		};
+		this.state = { vm: null, controlTab: 'base', workspaceTab: 'canvas' };
 		this.canvasRef = createRef();
 		this.fileInputRef = createRef();
 		this.engine = null;
@@ -85,9 +114,7 @@ class FengShuiMain extends Component {
 		}
 	}
 
-	handleKeyDown(e) {
-		if (this.engine) this.engine.handleKey(e);
-	}
+	handleKeyDown(e) { if (this.engine) this.engine.handleKey(e); }
 
 	handleSnapshotRefreshRequest(evt) {
 		if (!evt || !evt.detail || evt.detail.module !== 'fengshui') return;
@@ -108,21 +135,55 @@ class FengShuiMain extends Component {
 	renderQuickbar(vm) {
 		const e = this.engine;
 		const dis = !vm.imgLoaded;
+		const isNaqi = vm.techMode !== 'bagua';
 		return (
 			<div className="horosa-fengshui-quickbar">
 				<XQButton type="primary" size="small" onClick={() => this.fileInputRef.current && this.fileInputRef.current.click()}>上传户型图</XQButton>
 				<XQButton size="small" disabled={dis} onClick={() => e.startDrawRect()}>框选房屋</XQButton>
-				<XQButton size="small" disabled={dis} onClick={() => e.startDrawDoor()}>画入户门</XQButton>
+				{isNaqi
+					? <XQButton size="small" disabled={dis} onClick={() => e.startDrawDoor()}>画入户门</XQButton>
+					: <XQButton size="small" disabled={dis} onClick={() => e.startBaguaNorth()}>画正北</XQButton>}
 				<XQButton size="small" disabled={dis} onClick={() => e.startPlaceMarker()}>放置标记</XQButton>
 				<XQButton size="small" variant="ghost" disabled={!vm.canUndo} onClick={() => e.undo()}>撤销</XQButton>
 				<XQButton size="small" variant="ghost" disabled={!vm.canRedo} onClick={() => e.redo()}>重做</XQButton>
 				<XQButton size="small" variant="ghost" disabled={dis} onClick={() => e.exportPng()}>导出 PNG</XQButton>
+				<div className="horosa-fengshui-quickbar-center">
+					<XQSegmented value={vm.techMode} options={MODE_OPTIONS} onChange={(ev) => e.setTechMode(ev.target.value)} />
+				</div>
 				<span className="horosa-fengshui-status">{vm.status}</span>
 			</div>
 		);
 	}
 
-	renderBasePanel(vm) {
+	renderSkinField(vm) {
+		const e = this.engine;
+		return (
+			<div className="horosa-fengshui-field">
+				<label>盘面样式</label>
+				<XQSelect size="small" style={{ width: '100%' }} value={vm.diskSkin} onChange={(v) => e.setDiskSkin(v)}>
+					{DISK_SKINS.map((s) => <Option key={s.key} value={s.key}>{s.label}</Option>)}
+				</XQSelect>
+			</div>
+		);
+	}
+
+	renderExportSection(vm) {
+		const e = this.engine;
+		const dis = !vm.imgLoaded;
+		return (
+			<>
+				<div className="horosa-fengshui-card-title" style={{ marginTop: 12 }}>导出</div>
+				<div className="horosa-fengshui-btn-row">
+					<XQButton size="small" disabled={dis} onClick={() => e.exportPng()}>视图 PNG</XQButton>
+					<XQButton size="small" variant="ghost" disabled={dis} onClick={() => e.exportReportPng()}>报告 PNG</XQButton>
+					<XQButton size="small" variant="ghost" disabled={dis} onClick={() => e.exportReportPdf()}>报告 PDF</XQButton>
+				</div>
+			</>
+		);
+	}
+
+	// ── 纳气盘法 · 基础（图片/房屋/角度/门向/盘面/家具标注 + 导出）──
+	renderNaqiBasePanel(vm) {
 		const e = this.engine;
 		const dis = !vm.imgLoaded;
 		return (
@@ -130,8 +191,8 @@ class FengShuiMain extends Component {
 				<div className="horosa-fengshui-card-title">图片与房屋</div>
 				<div className="horosa-fengshui-btn-row">
 					<XQButton onClick={() => this.fileInputRef.current && this.fileInputRef.current.click()}>上传户型图</XQButton>
-					<XQButton variant="ghost" disabled={dis} onClick={() => e.startDrawRect()}>手动框选房屋</XQButton>
-					<XQButton variant="ghost" disabled={dis} onClick={() => e.resetRect()}>重置房屋框</XQButton>
+					<XQButton variant="ghost" disabled={dis} onClick={() => e.startDrawRect()}>框选房屋</XQButton>
+					<XQButton variant="ghost" disabled={dis} onClick={() => e.resetRect()}>重置</XQButton>
 				</div>
 				<div className="horosa-fengshui-field">
 					<label>矩形旋转角度</label>
@@ -155,6 +216,23 @@ class FengShuiMain extends Component {
 					<span>入户门 <strong>{vm.doorAngleText}</strong></span>
 					<span>盘旋转 <strong>{vm.diskRotationText}</strong></span>
 				</div>
+				{this.renderSkinField(vm)}
+				<div className="horosa-fengshui-card-title" style={{ marginTop: 12 }}>家具与设施标注</div>
+				<div className="horosa-fengshui-field">
+					<label>选择标记类型</label>
+					<XQSelect size="small" style={{ width: '100%' }} value={vm.markerType} onChange={(v) => e.setMarkerType(v)}>
+						{MARKER_TYPES.map((t) => {
+							const tag = t.category === 'wind' ? '气' : t.category === 'water' ? '水' : '观';
+							return <Option key={t.id} value={t.id}>{`${t.label}（${tag}）`}</Option>;
+						})}
+					</XQSelect>
+				</div>
+				<div className="horosa-fengshui-btn-row">
+					<XQButton disabled={dis} onClick={() => e.startPlaceMarker()}>放置标记</XQButton>
+					<XQButton variant="ghost" disabled={dis} onClick={() => e.clearMarkers()}>清空标记</XQButton>
+				</div>
+				<div className="horosa-fengshui-helper">点击画布放置，拖动可调整位置。</div>
+				{this.renderExportSection(vm)}
 			</div>
 		);
 	}
@@ -186,49 +264,101 @@ class FengShuiMain extends Component {
 		);
 	}
 
-	renderMarkerPanel(vm) {
+	// ── 八卦阳宅法 · 基础（极简：上传/朝向一度数/盘面/成員·格局调色板 + 导出）──
+	renderBaguaBasePanel(vm) {
 		const e = this.engine;
 		const dis = !vm.imgLoaded;
+		const members = BAGUA_MARKER_TYPES.filter((t) => t.kind === 'member');
+		const features = BAGUA_MARKER_TYPES.filter((t) => t.kind === 'feature');
+		const chip = (t) => (
+			<button
+				key={t.id}
+				type="button"
+				className={`horosa-fengshui-chip${vm.markerType === t.id ? ' active' : ''}`}
+				style={{ '--chip': t.color }}
+				disabled={dis}
+				onClick={() => { e.setMarkerType(t.id); e.startPlaceMarker(); }}
+			>{t.label}</button>
+		);
 		return (
 			<div className="horosa-fengshui-card">
-				<div className="horosa-fengshui-card-title">家具与设施标注</div>
-				<div className="horosa-fengshui-field">
-					<label>选择标记类型</label>
-					<XQSelect size="small" style={{ width: '100%' }} value={vm.markerType} onChange={(v) => e.setMarkerType(v)}>
-						{MARKER_TYPES.map((t) => {
-							const tag = t.category === 'wind' ? '气' : t.category === 'water' ? '水' : '观';
-							return <Option key={t.id} value={t.id}>{`${t.label}（${tag}）`}</Option>;
-						})}
-					</XQSelect>
-				</div>
+				<div className="horosa-fengshui-card-title">户型图</div>
 				<div className="horosa-fengshui-btn-row">
-					<XQButton disabled={dis} onClick={() => e.startPlaceMarker()}>放置标记</XQButton>
-					<XQButton variant="ghost" disabled={dis} onClick={() => e.clearMarkers()}>清空标记</XQButton>
+					<XQButton onClick={() => this.fileInputRef.current && this.fileInputRef.current.click()}>上传户型图</XQButton>
+					<XQButton variant="ghost" disabled={dis} onClick={() => e.startDrawRect()}>框选房屋</XQButton>
+					<XQButton variant="ghost" disabled={dis} onClick={() => e.resetRect()}>重置</XQButton>
 				</div>
-				<div className="horosa-fengshui-helper">点击画布放置，拖动可调整位置。</div>
+				<div className="horosa-fengshui-field">
+					<label>正北方向 (0-360°)</label>
+					<div className="horosa-fengshui-dual">
+						<InputNumber size="small" style={{ flex: 1 }} placeholder="例如 0 / 90" step={1} value={vm.baguaOrient} onChange={(v) => e.setBaguaOrient(v)} />
+						<XQButton size="small" variant="ghost" disabled={dis} onClick={() => e.startBaguaNorth()}>图上画</XQButton>
+					</div>
+					<div className="horosa-fengshui-helper">盘旋转 <strong>{vm.diskRotationText}</strong>，盘心＝房屋正中（太极点）。盘面样式与透明度见「罗盘」页。</div>
+				</div>
+				<div className="horosa-fengshui-card-title" style={{ marginTop: 12 }}>
+					成員
+					<Tooltip title={MEMBER_RULE} overlayStyle={{ maxWidth: 320 }}>
+						<span className="horosa-fengshui-help">?</span>
+					</Tooltip>
+				</div>
+				<div className="horosa-fengshui-palette">{members.map(chip)}</div>
+				<div className="horosa-fengshui-card-title" style={{ marginTop: 10 }}>四类象格局</div>
+				<div className="horosa-fengshui-palette">{features.map(chip)}</div>
+				<div className="horosa-fengshui-helper">点角色/格局，再到户型图上点对应位置即自动判卦。</div>
+				<div className="horosa-fengshui-btn-row" style={{ marginTop: 6 }}>
+					<XQButton variant="ghost" disabled={dis} onClick={() => e.clearMarkers()}>清空本盘标记</XQButton>
+				</div>
+				{this.renderExportSection(vm)}
 			</div>
 		);
 	}
 
-	renderExportPanel(vm) {
+	// ── 八卦阳宅法 · 罗盘（盘面样式 + 透明度 + 大小）──
+	renderBaguaDiskPanel(vm) {
 		const e = this.engine;
-		const dis = !vm.imgLoaded;
 		return (
 			<div className="horosa-fengshui-card">
-				<div className="horosa-fengshui-card-title">导出</div>
-				<XQButton disabled={dis} onClick={() => e.exportPng()}>导出当前视图 PNG</XQButton>
-				<div className="horosa-fengshui-btn-row" style={{ marginTop: 10 }}>
-					<XQButton variant="ghost" disabled={dis} onClick={() => e.exportReportPng()}>导出判定报告 PNG</XQButton>
-					<XQButton variant="ghost" disabled={dis} onClick={() => e.exportReportPdf()}>导出判定报告 PDF</XQButton>
+				<div className="horosa-fengshui-card-title">罗盘</div>
+				{this.renderSkinField(vm)}
+				<div className="horosa-fengshui-helper" style={{ marginTop: 0, marginBottom: 12 }}>绘制盘＝引擎绘制；纳气罗盘 / 二十四山阳宅图＝透明底图叠加，可作底盘对位。</div>
+				<div className="horosa-fengshui-field">
+					<label>透明度 <span className="horosa-fengshui-inline-val">{Math.round(vm.globalAlpha * 100)}%</span></label>
+					<Slider min={0.2} max={0.95} step={0.05} value={vm.globalAlpha} onChange={(v) => e.setOpacity(v)} />
 				</div>
-				<div className="horosa-fengshui-helper">导出会包含底图、房屋框、纳气盘与标记。</div>
+				<div className="horosa-fengshui-field">
+					<label>盘大小 <span className="horosa-fengshui-inline-val">{Math.round(vm.diskScale * 100)}%</span></label>
+					<Slider min={1} max={1.6} step={0.05} value={vm.diskScale} onChange={(v) => e.setDiskScale(v)} />
+				</div>
 			</div>
 		);
 	}
 
+	renderTips(tips, title) {
+		return (
+			<Collapse ghost size="small" className="horosa-fengshui-tips-collapse">
+				<Panel header={title} key="tips">
+					<ul className="horosa-fengshui-tips">{tips.map((t, i) => <li key={i}>{t}</li>)}</ul>
+				</Panel>
+			</Collapse>
+		);
+	}
+
+	renderScoreRing(score, grade) {
+		const deg = Math.max(0, Math.min(360, Math.round(score * 3.6)));
+		return (
+			<div className={`horosa-fengshui-score-ring grade-${grade}`} style={{ background: `conic-gradient(var(--fs-ring) ${deg}deg, var(--fs-ring-track) 0deg)` }}>
+				<div className="ring-inner"><span className="num">{score}</span><span className="lbl">{grade}</span></div>
+			</div>
+		);
+	}
+
+	// ── 纳气盘法 · 判定（评分环 + 龙虎 + 标记表 + 危害 + 移动盘 + 缓解 + 要点）──
 	renderJudgePanel(vm) {
 		const e = this.engine;
-		const filtered = (vm.markers || []).filter((m) => {
+		const na = vm.naqi;
+		if (!na) return <div className="horosa-fengshui-empty-hint">起盘后查看判定。</div>;
+		const filtered = (na.markers || []).filter((m) => {
 			if (vm.currentFilter === 'all') return true;
 			if (vm.currentFilter === 'unknown') return !m.sector;
 			if (vm.currentFilter === 'ok') return m.ok;
@@ -238,39 +368,143 @@ class FengShuiMain extends Component {
 		});
 		return (
 			<div className="horosa-fengshui-judge">
-				<div className="horosa-fengshui-card-title">标记判定</div>
+				<div className="horosa-fengshui-score-row">
+					{this.renderScoreRing(na.score, na.grade)}
+					{na.dragonTiger ? (
+						<div className="horosa-fengshui-dragon-card"><div className="dt-head">龙虎灶台 · {na.dragonTiger.pattern}</div><div className="dt-text">{na.dragonTiger.text}</div></div>
+					) : na.dragonTigerHint ? (
+						<div className="horosa-fengshui-dragon-card hint"><div className="dt-head">龙虎灶台</div><div className="dt-text">{na.dragonTigerHint}</div></div>
+					) : (
+						<div className="horosa-fengshui-dragon-card hint"><div className="dt-head">综合判定</div><div className="dt-text">{vm.summary || '放置门窗灶水等标记后自动评分。'}</div></div>
+					)}
+				</div>
 				<div className="horosa-fengshui-filterbar">
 					{FILTERS.map((f) => (
 						<XQToggle key={f.key} size="small" active={vm.currentFilter === f.key} onClick={() => e.setFilter(f.key)}>{f.label}</XQToggle>
 					))}
 				</div>
 				<div className="horosa-fengshui-marker-list">
-					{(vm.markers || []).length === 0 ? (
+					{(na.markers || []).length === 0 ? (
 						<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无标记，请先放置。" />
 					) : filtered.length === 0 ? (
-						<div className="horosa-fengshui-helper">当前筛选无结果</div>
+						<div className="horosa-fengshui-empty-hint">当前筛选无结果</div>
 					) : filtered.map((m) => (
-						<div
-							key={m.id}
-							className={`horosa-fengshui-marker-row${m.id === vm.selectedMarkerId ? ' active' : ''}`}
-							onClick={() => e.selectMarker(m.id)}
-						>
-							<div className="horosa-fengshui-marker-chip">
+						<div key={m.id} className={`horosa-fengshui-marker-row${m.id === vm.selectedMarkerId ? ' active' : ''}`} onClick={() => e.selectMarker(m.id)}>
+							<div className="horosa-fengshui-marker-main">
 								<span className="horosa-fengshui-chip-dot" style={{ background: m.color }} />
-								<span>{m.label}</span>
+								<span className="horosa-fengshui-marker-name">{m.label}{m.kitchen ? '（厨房·龙虎）' : ''}</span>
+								<span className="horosa-fengshui-marker-meta">{m.sector ? `${m.sector.name} · ${m.actual === 'wind' ? '气位' : '水位'}` : '未定位'}</span>
+								<span className={`horosa-fengshui-pill ${m.ok || m.kitchen || m.category === 'neutral' ? 'ok' : 'warn'}`}>{m.category === 'neutral' ? '观察' : m.kitchen ? '厨房' : m.ok ? '合适' : '冲突'}</span>
 							</div>
-							<div className="horosa-fengshui-marker-meta">
-								{m.sector ? `${m.sector.num} · ${m.sector.name} · ${m.actual === 'wind' ? '气位' : '水位'}` : '未定位'}
+							{m.harm ? <div className="horosa-fengshui-harm-line">危害：{m.harm.affect}</div> : null}
+							<div className="horosa-fengshui-marker-actions">
+								{m.type === 'stove' ? <XQButton size="small" variant="ghost" onClick={(ev) => { ev.stopPropagation(); e.startStoveFacing(m.id); }}>画灶口朝向{m.facingAngle != null ? ' ✓' : ''}</XQButton> : null}
+								{['bed', 'desk', 'sofa'].includes(m.type) ? <XQButton size="small" variant="ghost" onClick={(ev) => { ev.stopPropagation(); e.setDiskCenterMode('marker'); e.selectMarker(m.id); }}>以此为盘心</XQButton> : null}
+								<XQButton size="small" variant="ghost" danger onClick={(ev) => { ev.stopPropagation(); e.deleteMarker(m.id); }}>删除</XQButton>
 							</div>
-							<div className={`horosa-fengshui-marker-status ${m.ok ? 'ok' : 'warn'}`}>
-								{m.category === 'neutral' ? '观察' : m.ok ? '位置合适' : '位置冲突'}
-							</div>
-							<XQButton size="small" variant="ghost" danger onClick={(ev) => { ev.stopPropagation(); e.deleteMarker(m.id); }}>删除</XQButton>
 						</div>
 					))}
 				</div>
-				{vm.summary ? <div className="horosa-fengshui-summary">{vm.summary}</div> : null}
-				<div className="horosa-fengshui-helper">气位建议放置：门、窗、灶台、沙发、床、书桌、神龛、宠物床等。水位建议放置：水槽、洗手池、马桶、下水管、洗衣机、厕所等。</div>
+				{na.houseHarms && na.houseHarms.length ? (
+					<div className="horosa-fengshui-summary">
+						<div className="horosa-fengshui-card-title">破局危害</div>
+						{na.houseHarms.map((h, i) => <div key={`hh${i}`} className="horosa-fengshui-harm-line">{h.label}：{h.affect}</div>)}
+					</div>
+				) : null}
+				{na.probe ? (
+					<div className="horosa-fengshui-probe-list">
+						<div className="horosa-fengshui-card-title">移动盘 · {na.probe.centerLabel}为太极</div>
+						{na.probe.items.map((it, i) => <div key={i} className="horosa-fengshui-probe-item">{it.label} 在 {it.sectorName}{it.windOrWater ? (it.windOrWater === 'wind' ? ' · 气位' : ' · 水位') : ''}</div>)}
+					</div>
+				) : null}
+				{na.remedies && na.remedies.length ? (
+					<Collapse ghost size="small" className="horosa-fengshui-tips-collapse">
+						<Panel header="缓解建议" key="remedy">
+							<ul className="horosa-fengshui-tips">{na.remedies.flatMap((r) => r.items).map((t, i) => <li key={i}>{t}</li>)}</ul>
+						</Panel>
+					</Collapse>
+				) : null}
+				{this.renderTips(TIPS, '使用要点')}
+			</div>
+		);
+	}
+
+	// ── 八卦阳宅法 · 卦象（成員卦象卡 + 四类象格局列表）──
+	renderBaguaPanel(vm) {
+		const e = this.engine;
+		const bg = vm.bagua || { members: [], features: [] };
+		const hasAny = (bg.members && bg.members.length) || (bg.features && bg.features.length);
+		if (!hasAny) {
+			return (
+				<div className="horosa-fengshui-bagua-wrap">
+					{this.renderTips(BAGUA_TIPS, '怎么用（傻瓜式三步）')}
+					<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传户型图 → 设正北 → 点左栏角色/格局并在图上标注" />
+				</div>
+			);
+		}
+		return (
+			<div className="horosa-fengshui-bagua-wrap">
+				{this.renderTips(BAGUA_TIPS, '怎么用（傻瓜式三步）')}
+				{bg.members && bg.members.length ? <div className="horosa-fengshui-section-title">成員卦象</div> : null}
+				<div className="horosa-fengshui-bagua-list">
+					{(bg.members || []).map((m) => {
+						if (!m.roomGua || !m.hex) {
+							return (
+								<div className="horosa-fengshui-bagua-card cat-caution" key={m.id}>
+									<div className="bg-head"><strong>{m.role}</strong>（{m.benmingGua}）<span className="bg-tag">待定位</span></div>
+									<div className="bg-row">该标记未落在盘内，请拖动到房间位置。</div>
+									<div className="bg-foot-row"><span className="bg-footer" />
+										<XQButton size="small" variant="ghost" danger onClick={() => e.deleteMarker(m.id)}>删除</XQButton>
+									</div>
+								</div>
+							);
+						}
+						const t = m.text || {};
+						const tag = (m.meta && m.meta.tag) || 'neutral';
+						return (
+							<div className={`horosa-fengshui-bagua-card cat-${tag}`} key={m.id}>
+								<div className="bg-head"><strong>{m.role}</strong> · 居{m.roomDir} · {m.hex.name} <span className="bg-tag">{TAG_LABEL[tag]}</span></div>
+								<div className="horosa-fengshui-hex-stack">
+									<div className="hx-line"><span className="hx-key">名（形）</span><span className="hx-gua">{m.benmingGua}</span><span className="hx-sub">{m.role}</span></div>
+									<div className="hx-line"><span className="hx-key">位（神）</span><span className="hx-gua">{m.roomGua}</span><span className="hx-sub">{m.roomDir}</span></div>
+								</div>
+								<div className="bg-badges">
+									{m.timing ? <span className="bg-badge time">应期 {m.timing.window}</span> : null}
+									{m.rankShift && m.rankShift.dir !== '平' ? <span className={`bg-badge ${m.rankShift.dir === '提前' ? 'up' : 'down'}`}>{m.rankShift.dir} {m.rankShift.years} 年</span> : null}
+									{m.shenxing && m.shenxing.same ? <span className="bg-badge same">名位相同·家和</span> : null}
+								</div>
+								{t.xiang ? <div className="bg-row"><b>象意</b>{t.xiang}</div> : null}
+								{t.marriage ? <div className="bg-row"><b>婚姻</b>{t.marriage}</div> : null}
+								{t.career ? <div className="bg-row"><b>事业</b>{t.career}</div> : null}
+								{t.health ? <div className="bg-row"><b>健康</b>{t.health}</div> : null}
+								{t.advice ? <div className="bg-row"><b>改运</b>{t.advice}</div> : null}
+								<div className="bg-foot-row">
+									<span className="bg-footer">{t.footer || '需合命盘综合参看。'}</span>
+									<XQButton size="small" variant="ghost" danger onClick={() => e.deleteMarker(m.id)}>删除</XQButton>
+								</div>
+							</div>
+						);
+					})}
+				</div>
+				{bg.features && bg.features.length ? <div className="horosa-fengshui-section-title">四类象格局</div> : null}
+				<div className="horosa-fengshui-feature-list">
+					{(bg.features || []).map((f) => (
+						<div key={f.id} className={`horosa-fengshui-feature-row${f.judge ? ` cat-${f.judge.tag}` : ' cat-neutral'}`}>
+							<div className="ft-main">
+								<span className="horosa-fengshui-chip-dot" style={{ background: f.color }} />
+								<span className="ft-name">{f.label}</span>
+								<span className="ft-meta">{f.gua ? `${f.roomDir}（${f.gua}）· ${f.family}` : '未定位'}</span>
+								<XQButton size="small" variant="ghost" danger onClick={() => e.deleteMarker(f.id)}>删除</XQButton>
+							</div>
+							<div className="ft-text">{f.judge ? f.judge.text : '该标记未落在盘内，请拖动到对应位置。'}</div>
+						</div>
+					))}
+				</div>
+				<Collapse ghost size="small" className="horosa-fengshui-tips-collapse">
+					<Panel header="判定方法与特例（倪海厦阳宅法）" key="methods">
+						<ul className="horosa-fengshui-tips">{BAGUA_METHODS.map((t, i) => <li key={i}>{t}</li>)}</ul>
+					</Panel>
+				</Collapse>
 			</div>
 		);
 	}
@@ -282,8 +516,10 @@ class FengShuiMain extends Component {
 			globalAlpha: 0.3, diskScale: 1, diskCenterMode: 'house', periodMode: 'current',
 			snapEnabled: true, panMode: false, zoomPct: 100, markerType: MARKER_TYPES[0].id,
 			currentFilter: 'all', selectedMarkerId: null, markers: [], summary: '', canUndo: false, canRedo: false,
+			techMode: 'naqi', diskSkin: 'draw', baguaOrient: null, naqi: null, bagua: null,
 		};
 		const e = this.engine;
+		const isNaqi = vm.techMode !== 'bagua';
 		let height = this.props.height ? this.props.height : '100%';
 		if (typeof height === 'number') height = `${height}px`;
 		return (
@@ -292,12 +528,17 @@ class FengShuiMain extends Component {
 				{this.renderQuickbar(vm)}
 				<Row gutter={8} className="horosa-fengshui-layout">
 					<Col span={6} className="horosa-fengshui-side">
-						<XQTabs size="small" activeKey={this.state.controlTab} onChange={(k) => this.setState({ controlTab: k })}>
-							<TabPane tab="基础" key="base">{this.renderBasePanel(vm)}</TabPane>
-							<TabPane tab="纳气盘" key="disk">{this.renderDiskPanel(vm)}</TabPane>
-							<TabPane tab="标注" key="markers">{this.renderMarkerPanel(vm)}</TabPane>
-							<TabPane tab="导出" key="export">{this.renderExportPanel(vm)}</TabPane>
-						</XQTabs>
+						{isNaqi ? (
+							<XQTabs size="small" activeKey={this.state.controlTab} onChange={(k) => this.setState({ controlTab: k })}>
+								<TabPane tab="基础" key="base">{this.renderNaqiBasePanel(vm)}</TabPane>
+								<TabPane tab="纳气盘" key="disk">{this.renderDiskPanel(vm)}</TabPane>
+							</XQTabs>
+						) : (
+							<XQTabs size="small" activeKey={this.state.controlTab} onChange={(k) => this.setState({ controlTab: k })}>
+								<TabPane tab="基础" key="base">{this.renderBaguaBasePanel(vm)}</TabPane>
+								<TabPane tab="罗盘" key="disk">{this.renderBaguaDiskPanel(vm)}</TabPane>
+							</XQTabs>
+						)}
 					</Col>
 					<Col span={18} className="horosa-fengshui-workspace">
 						<XQTabs size="small" className="horosa-fengshui-workspace-tabs" activeKey={this.state.workspaceTab} onChange={(k) => this.setState({ workspaceTab: k })}>
@@ -305,8 +546,7 @@ class FengShuiMain extends Component {
 								<div className="horosa-fengshui-canvas-wrap">
 									<div className="horosa-fengshui-canvas-toolbar">
 										<div className="horosa-fengshui-legend">
-											<span><i className="dot wind" />气位（红）</span>
-											<span><i className="dot water" />水位（蓝）</span>
+											{isNaqi ? <><span><i className="dot wind" />气位（红）</span><span><i className="dot water" />水位（蓝）</span></> : <span>八卦阳宅 · 8 卦方位盘（盘心＝太极点）</span>}
 										</div>
 										<div className="horosa-fengshui-canvas-actions">
 											<XQToggle size="small" active={vm.panMode} disabled={!vm.imgLoaded} onClick={() => e.togglePan()}>拖拽</XQToggle>
@@ -323,13 +563,7 @@ class FengShuiMain extends Component {
 									</div>
 								</div>
 							</TabPane>
-							<TabPane tab="判定" key="analysis">{this.renderJudgePanel(vm)}</TabPane>
-							<TabPane tab="要点" key="tips">
-								<div className="horosa-fengshui-card">
-									<div className="horosa-fengshui-card-title">使用要点</div>
-									<ul className="horosa-fengshui-tips">{TIPS.map((t, i) => <li key={i}>{t}</li>)}</ul>
-								</div>
-							</TabPane>
+							<TabPane tab={isNaqi ? '判定' : '卦象'} key="analysis">{isNaqi ? this.renderJudgePanel(vm) : this.renderBaguaPanel(vm)}</TabPane>
 						</XQTabs>
 					</Col>
 				</Row>

@@ -79,6 +79,8 @@ class HellenAstroMain extends Component{
 					onChange={this.onFieldsChange}
 					fields={fields}
 					height={height}
+					chartStyle={this.props.chartStyle}
+					dispatch={this.props.dispatch}
 					chartDisplay={this.props.chartDisplay}
 					planetDisplay={this.props.planetDisplay}
 					lotsDisplay={this.props.lotsDisplay}

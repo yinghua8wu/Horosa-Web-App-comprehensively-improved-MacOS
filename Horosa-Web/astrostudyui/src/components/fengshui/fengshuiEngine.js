@@ -3,6 +3,10 @@
 // 所有画布绘制/几何/判定/历史/导出/快照逻辑在此，React 只渲染 Antd 控件并调用本类方法。
 // 注意：画布按工作区尺寸铺满、户型图居中绘制，纳气盘可延伸到图外空白区而不被裁切。
 
+import { rotatePoint, angleInSector, formatAngle } from './fengshuiGeom';
+import { harmForMarker, HARM_MAP, evalDragonTiger, scoreNaqi, gradeOf, REMEDY_LIB } from './naqiRules';
+import { GUA_8, composeHexagram, computeTiming, HEXAGRAM_TEXTS, HEXAGRAM_META, guaBySectorNum, computeRankShift, namePositionRelation, featureJudgment, GUA_TO_ROLE } from './baguaCore';
+
 export const SECTORS = [
 	{ num: 1, name: '北(坎)', start: 337.5, end: 22.5 },
 	{ num: 8, name: '东北(艮)', start: 22.5, end: 67.5 },
@@ -33,6 +37,23 @@ export const MARKER_TYPES = [
 	{ id: 'custom', label: '自定义', short: '标', category: 'neutral', color: '#6b655a' },
 ];
 
+// 八卦阳宅标记调色板：成員（8 角色直选，角色→本命卦）+ 四类象格局（灶/厕/厅/门）。
+// 落点后由 getSectorForPoint 取扇区→卦自动判读，无需任何表单。
+export const BAGUA_MARKER_TYPES = [
+	{ id: 'm-fu', label: '父', short: '父', kind: 'member', role: '父', benmingGua: '乾', color: '#b5793a' },
+	{ id: 'm-mu', label: '母', short: '母', kind: 'member', role: '母', benmingGua: '坤', color: '#c06aa0' },
+	{ id: 'm-zhangzi', label: '长子', short: '长子', kind: 'member', role: '长子', benmingGua: '震', color: '#3f8a6a' },
+	{ id: 'm-cizi', label: '次子', short: '次子', kind: 'member', role: '次子', benmingGua: '坎', color: '#3a6e9c' },
+	{ id: 'm-sanzi', label: '三子', short: '三子', kind: 'member', role: '三子', benmingGua: '艮', color: '#6b8a3f' },
+	{ id: 'm-zhangnv', label: '长女', short: '长女', kind: 'member', role: '长女', benmingGua: '巽', color: '#1497a8' },
+	{ id: 'm-cinv', label: '次女', short: '次女', kind: 'member', role: '次女', benmingGua: '离', color: '#c0603a' },
+	{ id: 'm-sannv', label: '三女', short: '三女', kind: 'member', role: '三女', benmingGua: '兑', color: '#9a5aa0' },
+	{ id: 'f-kitchen', label: '厨房灶', short: '灶', kind: 'feature', feature: 'kitchen', color: '#cf1322' },
+	{ id: 'f-toilet', label: '厕所', short: '厕', kind: 'feature', feature: 'toilet', color: '#8b5e3c' },
+	{ id: 'f-living', label: '客厅', short: '厅', kind: 'feature', feature: 'living', color: '#6b8aa0' },
+	{ id: 'f-door', label: '大门', short: '门', kind: 'feature', feature: 'door', color: '#c0883a' },
+];
+
 const WIND_NUMS = new Set([6, 7, 8, 9]);
 const WATER_NUMS = new Set([1, 2, 3, 4]);
 const WIND_COLOR = 'rgb(180, 30, 30)';
@@ -48,24 +69,22 @@ const TIPS = [
 ];
 const ADVICE = '气位建议放置：门、窗、灶台、沙发、床、书桌、神龛、宠物床等。水位建议放置：水槽、洗手池、马桶、下水管、洗衣机、厕所等。';
 
-function rotatePoint(point, origin, angleDeg) {
-	const rad = (angleDeg * Math.PI) / 180;
-	const dx = point.x - origin.x;
-	const dy = point.y - origin.y;
-	return {
-		x: origin.x + dx * Math.cos(rad) - dy * Math.sin(rad),
-		y: origin.y + dx * Math.sin(rad) + dy * Math.cos(rad),
-	};
-}
+// 罗盘盘面皮肤（纯视觉层；判读始终用 SECTORS 数学）。northOffset 为南上图相对北上盘的旋转校准（预览微调）。
+export const DISK_SKINS = [
+	{ key: 'draw', label: '绘制盘', src: null, northOffset: 0, scale: 1 },
+	{ key: 'naqi-luopan', label: '纳气罗盘', src: '/fengshui/skins/naqi-luopan.png', northOffset: 180, scale: 1 },
+	{ key: 'bagua-24', label: '二十四山阳宅图', src: '/fengshui/skins/bagua-24.png', northOffset: 180, scale: 1 },
+];
 
-function angleInSector(angle, start, end) {
-	if (start < end) return angle >= start && angle < end;
-	return angle >= start || angle < end;
-}
-
-function formatAngle(value) {
-	if (value === null || value === undefined || Number.isNaN(value)) return '--';
-	return `${Math.round(value * 10) / 10}°`;
+const SECTOR_INDEX = {};
+SECTORS.forEach((s, i) => { SECTOR_INDEX[s.num] = i; });
+// 扇区物理相邻（数组循环，相差 ≤1）——用于厨房洗菜池归类（与灶台同/邻扇区）。
+function sectorAdjacent(a, b) {
+	const ia = SECTOR_INDEX[a];
+	const ib = SECTOR_INDEX[b];
+	if (ia === undefined || ib === undefined) return false;
+	const d = Math.abs(ia - ib);
+	return d === 0 || d === 1 || d === SECTORS.length - 1;
 }
 
 export default class FengShuiEngine {
@@ -104,6 +123,13 @@ export default class FengShuiEngine {
 		this.markerIdSeed = 1;
 		this.currentFilter = 'all';
 		this.markerType = MARKER_TYPES[0].id;
+
+		// 模式 / 八卦朝向 / 罗盘皮肤（默认 naqi + draw = 现状零回归）
+		this.techMode = 'naqi'; // 'naqi' | 'bagua'
+		this.baguaOrient = null; // 八卦阳宅：单一「正北方向(度)」，驱动盘旋转
+		this.diskSkin = 'draw';
+		this.skinImages = {}; // src -> HTMLImageElement 缓存
+		this.facingMarkerId = null; // 正在标灶口朝向的灶台标记
 
 		this.status = '请上传户型图开始。';
 
@@ -180,6 +206,11 @@ export default class FengShuiEngine {
 			markerType: this.markerType,
 			currentFilter: this.currentFilter,
 			selectedMarkerId: this.selectedMarkerId,
+			techMode: this.techMode,
+			diskSkin: this.diskSkin,
+			baguaOrient: this.baguaOrient,
+			naqi: this.techMode === 'naqi' ? this.buildNaqiAnalysis() : null,
+			bagua: this.techMode === 'bagua' ? this.buildBaguaAnalysis() : null,
 			markers,
 			summary,
 			canUndo: this.historyStack.length >= 2,
@@ -206,6 +237,9 @@ export default class FengShuiEngine {
 			periodMode: this.periodMode,
 			selectedMarkerId: this.selectedMarkerId,
 			markerIdSeed: this.markerIdSeed,
+			techMode: this.techMode,
+			baguaOrient: this.baguaOrient,
+			diskSkin: this.diskSkin,
 		};
 	}
 
@@ -223,6 +257,9 @@ export default class FengShuiEngine {
 		this.periodMode = s.periodMode;
 		this.selectedMarkerId = s.selectedMarkerId ?? null;
 		this.markerIdSeed = s.markerIdSeed ?? this.markers.reduce((mx, m) => Math.max(mx, m.id), 0) + 1;
+		this.techMode = s.techMode || 'naqi';
+		this.baguaOrient = s.baguaOrient ?? null;
+		this.diskSkin = s.diskSkin || 'draw';
 		this.drawAll();
 		this.historyLocked = false;
 	}
@@ -283,6 +320,10 @@ export default class FengShuiEngine {
 	}
 
 	getDiskRotation() {
+		if (this.techMode === 'bagua') {
+			if (this.baguaOrient === null || Number.isNaN(this.baguaOrient)) return 0;
+			return this.baguaOrient;
+		}
 		if (this.unitAzimuth === null || this.doorImageAngle === null) return 0;
 		if (Number.isNaN(this.unitAzimuth) || Number.isNaN(this.doorImageAngle)) return 0;
 		return this.doorImageAngle - this.unitAzimuth;
@@ -413,8 +454,115 @@ export default class FengShuiEngine {
 		const c = this.getCombinedScale();
 		ctx.drawImage(this.img, this.viewOffset.x, this.viewOffset.y, this.img.width * c, this.img.height * c);
 		if (this.rect.w !== 0 && this.rect.h !== 0) this.drawRotatedRect(ctx, c, this.viewOffset);
-		if (this.rect.active) this.drawNaQiDisk(ctx, c, this.viewOffset);
+		if (this.rect.active) this.drawDisk(ctx, c, this.viewOffset);
 		this.drawMarkers(ctx, c, this.viewOffset);
+	}
+
+	// 按模式 + 皮肤选择盘面绘制。
+	drawDisk(ctx, sf, off) {
+		const skin = this.getSkinImage();
+		if (this.techMode === 'bagua') {
+			if (skin) this.drawDiskSkin(ctx, sf, off, skin);
+			this.drawBaguaDisk(ctx, sf, off, !!skin);
+			return;
+		}
+		if (skin) { this.drawDiskSkin(ctx, sf, off, skin); this.drawDoorLines(ctx, sf, off); return; }
+		this.drawNaQiDisk(ctx, sf, off);
+	}
+
+	getDiskGeom(sf, off) {
+		const center = this.getDiskCenter();
+		if (!center) return null;
+		const cx = center.x * sf + off.x;
+		const cy = center.y * sf + off.y;
+		const radius = this.getMaxDiskRadius(center) * this.diskScale * sf;
+		if (radius <= 0) return null;
+		return { cx, cy, radius, diskRotation: this.getDiskRotation() };
+	}
+
+	// 透明罗盘皮肤：旋转贴图（南上图 + northOffset 校准）。
+	drawDiskSkin(ctx, sf, off, { img, skin }) {
+		const g = this.getDiskGeom(sf, off);
+		if (!g) return;
+		const r = g.radius * (skin.scale || 1);
+		ctx.save();
+		ctx.translate(g.cx, g.cy);
+		ctx.rotate(((g.diskRotation + (skin.northOffset || 0)) * Math.PI) / 180);
+		ctx.globalAlpha = Math.min(1, this.globalAlpha + 0.5);
+		ctx.drawImage(img, -r, -r, r * 2, r * 2);
+		ctx.restore();
+		ctx.globalAlpha = 1;
+	}
+
+	// 单元门线（绿）+ 入户门线（红虚），供皮肤/八卦模式叠加对位。
+	drawDoorLines(ctx, sf, off) {
+		const g = this.getDiskGeom(sf, off);
+		if (!g) return;
+		if (this.unitAzimuth !== null && !Number.isNaN(this.unitAzimuth)) {
+			const ur = ((this.unitAzimuth - 90) * Math.PI) / 180;
+			ctx.save(); ctx.translate(g.cx, g.cy);
+			ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(ur) * g.radius * 1.1, Math.sin(ur) * g.radius * 1.1);
+			ctx.strokeStyle = '#1f7a67'; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+		}
+		if (this.doorImageAngle !== null && !Number.isNaN(this.doorImageAngle)) {
+			const dr = ((this.doorImageAngle - 90) * Math.PI) / 180;
+			ctx.save(); ctx.translate(g.cx, g.cy);
+			ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(dr) * g.radius, Math.sin(dr) * g.radius);
+			ctx.strokeStyle = 'rgba(216,79,79,0.7)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+		}
+	}
+
+	// 八卦阳宅盘：8 卦各 45° 铺满 + 成員房间高亮 + 卦名。skinMode=true 时只画高亮（皮肤已是底图）。
+	drawBaguaDisk(ctx, sf, off, skinMode = false) {
+		const g = this.getDiskGeom(sf, off);
+		if (!g) return;
+		const { cx, cy, radius, diskRotation } = g;
+		const roomRoles = {};
+		this.buildBaguaAnalysis().members.forEach((r) => { if (r.roomGua) { (roomRoles[r.roomGua] = roomRoles[r.roomGua] || []).push(r.role); } });
+		const guaOf = (sector) => { const m = sector.name.match(/\((.)\)/); return m ? GUA_8.find((x) => x.gua === m[1]) : null; };
+		ctx.save();
+		ctx.translate(cx, cy);
+		ctx.rotate((diskRotation * Math.PI) / 180);
+		SECTORS.forEach((sector) => {
+			const gua = guaOf(sector);
+			const sr = ((sector.start - 90) * Math.PI) / 180;
+			const er = ((sector.end - 90) * Math.PI) / 180;
+			if (!skinMode) {
+				ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, sr, er);
+				ctx.globalAlpha = Math.max(0.04, Math.min(0.4, this.globalAlpha * 0.4));
+				ctx.fillStyle = gua && gua.sex === 'M' ? 'rgb(180,140,70)' : 'rgb(50,120,140)';
+				ctx.fill();
+				ctx.globalAlpha = 1;
+				ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(sr) * radius, Math.sin(sr) * radius);
+				ctx.strokeStyle = 'rgba(120,120,120,0.5)'; ctx.lineWidth = 1; ctx.stroke();
+			}
+			if (gua && roomRoles[gua.gua]) {
+				ctx.beginPath(); ctx.arc(0, 0, radius, sr, er); ctx.strokeStyle = '#c0883a'; ctx.lineWidth = 3; ctx.stroke();
+			}
+		});
+		ctx.globalAlpha = 1;
+		SECTORS.forEach((sector) => {
+			const gua = guaOf(sector);
+			if (!gua) return;
+			let mid = (sector.start + sector.end) / 2;
+			if (sector.start > sector.end) mid = (sector.start + sector.end + 360) / 2;
+			if (mid >= 360) mid -= 360;
+			const mr = ((mid - 90) * Math.PI) / 180;
+			const tr = radius * 0.66;
+			ctx.save();
+			ctx.translate(Math.cos(mr) * tr, Math.sin(mr) * tr);
+			ctx.rotate((-diskRotation * Math.PI) / 180);
+			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			if (!skinMode) {
+				ctx.fillStyle = 'rgba(40,40,40,0.92)'; ctx.font = `bold ${radius * 0.08}px "PingFang SC"`;
+				ctx.fillText(`${gua.gua}·${gua.family}`, 0, -radius * 0.04);
+			}
+			const roles = roomRoles[gua.gua];
+			if (roles && roles.length) { ctx.fillStyle = '#c0883a'; ctx.font = `bold ${radius * 0.075}px "PingFang SC"`; ctx.fillText(roles.join('·'), 0, radius * 0.07); }
+			ctx.restore();
+		});
+		ctx.restore();
+		this.drawDoorLines(ctx, sf, off);
 	}
 
 	drawRotatedRect(ctx, sf, off) {
@@ -557,23 +705,34 @@ export default class FengShuiEngine {
 	}
 
 	drawMarkers(ctx, sf, off) {
-		this.markers.forEach((marker) => {
-			const ev = this.evaluateMarker(marker);
+		this.currentModeMarkers().forEach((marker) => {
 			const x = marker.x * sf + off.x;
 			const y = marker.y * sf + off.y;
-			const radius = marker.id === this.selectedMarkerId ? 9 : 7;
+			const selected = marker.id === this.selectedMarkerId;
+			const radius = selected ? 9 : 7;
 			ctx.beginPath();
 			ctx.arc(x, y, radius, 0, Math.PI * 2);
 			ctx.fillStyle = marker.color;
 			ctx.fill();
-			ctx.strokeStyle = !ev.ok && ev.expected !== 'neutral' ? '#b14032' : '#fff';
-			ctx.lineWidth = 2;
-			ctx.stroke();
-			ctx.fillStyle = '#fff';
-			ctx.font = 'bold 11px sans-serif';
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.fillText(marker.short, x, y + 0.5);
+			if ((marker.mode || 'naqi') === 'bagua') {
+				ctx.strokeStyle = selected ? '#c0883a' : '#fff';
+				ctx.lineWidth = 2; ctx.stroke();
+				// 圈下方写角色/格局名（白描边 + 深字，覆于户型图上始终清晰）
+				const cap = marker.kind === 'member' ? marker.role : marker.label;
+				ctx.font = 'bold 11px "PingFang SC"';
+				ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+				ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+				ctx.strokeText(cap, x, y + radius + 2);
+				ctx.fillStyle = '#2a2018'; ctx.fillText(cap, x, y + radius + 2);
+			} else {
+				const ev = this.evaluateMarker(marker);
+				ctx.strokeStyle = !ev.ok && ev.expected !== 'neutral' ? '#b14032' : '#fff';
+				ctx.lineWidth = 2; ctx.stroke();
+				ctx.fillStyle = '#fff';
+				ctx.font = 'bold 11px sans-serif';
+				ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+				ctx.fillText(marker.short, x, y + 0.5);
+			}
 		});
 	}
 
@@ -605,6 +764,11 @@ export default class FengShuiEngine {
 
 	// ── 快照（AI 分析挂载文本）──────────────────────────────────
 	buildAiSnapshotText() {
+		if (this.techMode === 'bagua') return this.buildBaguaSnapshotText();
+		return this.buildNaqiSnapshotText();
+	}
+
+	buildNaqiSnapshotText() {
 		const periodLabel = this.periodMode === 'current' ? '1964-2044' : '2044-2124';
 		const headerLines = [
 			`生成时间：${new Date().toLocaleString()}`,
@@ -645,9 +809,49 @@ export default class FengShuiEngine {
 		push('标记判定', [statsLine, ...markerLines]);
 		push('冲突清单', conflictLines.length ? conflictLines : ['暂无冲突标记']);
 		if (unknownLines.length) push('未定位标注', unknownLines);
+		const na = this.buildNaqiAnalysis();
+		const harmRows = na.markers.filter((x) => x.harm).map((x) => `${x.label}（${x.sector ? x.sector.name : ''}·${x.harm.label}）：${x.harm.affect}`);
+		na.houseHarms.forEach((h) => harmRows.push(`${h.label}：${h.affect}`));
+		if (harmRows.length) push('破局危害', harmRows);
+		if (na.dragonTiger) push('龙虎灶台', [`${na.dragonTiger.pattern}·${na.dragonTiger.text}`]);
+		else if (na.dragonTigerHint) push('龙虎灶台', [na.dragonTigerHint]);
+		if (na.probe) push('移动盘', [`${na.probe.centerLabel}为太极：${na.probe.items.map((i) => `${i.label}在${i.sectorName}${i.windOrWater ? (i.windOrWater === 'wind' ? '·气位' : '·水位') : ''}`).join('；')}`]);
+		push('吉凶评分', [`综合 ${na.score} 分（${na.grade}）`]);
+		if (na.remedies.length) push('缓解建议', na.remedies.flatMap((r) => r.items));
 		push('使用要点', TIPS);
 		push('建议汇总', suggestionLines);
 		push('纳气建议', [ADVICE]);
+		while (out.length && !out[out.length - 1]) out.pop();
+		return out.join('\n');
+	}
+
+	buildBaguaSnapshotText() {
+		const skinLabel = (DISK_SKINS.find((s) => s.key === this.diskSkin) || {}).label || '绘制盘';
+		const out = [];
+		const push = (title, rows) => { out.push(`[${title}]`); (rows || []).forEach((l) => out.push(`${l}`)); out.push(''); };
+		push('起盘信息', [
+			`生成时间：${new Date().toLocaleString()}`,
+			`单元门角度：${formatAngle(this.unitAzimuth)}   入户门角度：${formatAngle(this.doorImageAngle)}   盘旋转：${formatAngle(this.getDiskRotation())}   盘面样式：${skinLabel}`,
+		]);
+		push('八卦定位', [`正北角度：${formatAngle(this.baguaOrient)}`, ...GUA_8.map((g) => `${g.dir}${g.gua}（${g.family}）`)]);
+		const an = this.buildBaguaAnalysis();
+		const memberRows = an.members.length ? an.members.map((m) => {
+			if (!m.roomGua) return `${m.role}（${m.benmingGua}）：标记未落在盘内`;
+			if (!m.hex) return `${m.role}（${m.benmingGua}）·居${m.roomDir}：方位有误`;
+			const sx = m.shenxing && m.shenxing.same ? '（名位相同·家和万事兴）' : '';
+			return `${m.role}·居${m.roomDir}·${m.hex.name}${sx}：${m.text ? m.text.xiang : ''}`;
+		}) : ['暂无成員，请在户型图上放置成員标记'];
+		push('成員卦象', memberRows);
+		const featureRows = an.features.map((f) => (f.judge ? f.judge.text : `${f.label}：标记未落在盘内`));
+		if (featureRows.length) push('四类象格局', featureRows);
+		const timingRows = an.members.filter((m) => m.hex && m.timing).map((m) => {
+			const base = `${m.timing.window}${m.timing.accelerated ? '·偏快' : m.timing.slowed ? '·偏缓' : ''}`;
+			const rk = m.rankShift && m.rankShift.dir !== '平' ? `，排位${m.rankShift.dir}约 ${m.rankShift.years} 年` : '';
+			return `${m.role}·${m.hex.name}：${base}${rk}`;
+		});
+		if (timingRows.length) push('应期成格', timingRows);
+		const adviceRows = an.members.filter((m) => m.text).map((m) => `${m.role}·${m.hex.name}：${m.text.advice}`);
+		if (adviceRows.length) push('改运建议', adviceRows);
 		while (out.length && !out[out.length - 1]) out.pop();
 		return out.join('\n');
 	}
@@ -661,132 +865,172 @@ export default class FengShuiEngine {
 		const ectx = ex.getContext('2d');
 		ectx.drawImage(this.img, 0, 0);
 		if (this.rect.w !== 0 && this.rect.h !== 0) this.drawRotatedRect(ectx, 1, { x: 0, y: 0 });
-		if (this.rect.active) this.drawNaQiDisk(ectx, 1, { x: 0, y: 0 });
+		if (this.rect.active) this.drawDisk(ectx, 1, { x: 0, y: 0 });
 		this.drawMarkers(ectx, 1, { x: 0, y: 0 });
 		return ex;
+	}
+
+	// 稳健下载：anchor 必须挂到 DOM 才能在 webview/壳内可靠触发（脱离 DOM 的 click 常被拦）。
+	downloadDataUrl(filename, dataUrl) {
+		const link = document.createElement('a');
+		link.download = filename;
+		link.href = dataUrl;
+		link.rel = 'noopener';
+		document.body.appendChild(link);
+		link.click();
+		setTimeout(() => { try { document.body.removeChild(link); } catch (e) { /* noop */ } }, 0);
 	}
 
 	exportPng() {
 		const ex = this.renderCompositeCanvas();
 		if (!ex) return;
-		const link = document.createElement('a');
-		link.download = 'naqi-output.png';
-		link.href = ex.toDataURL('image/png');
-		link.click();
+		const name = this.techMode === 'bagua' ? '八卦阳宅-盘面.png' : '纳气盘-盘面.png';
+		this.downloadDataUrl(name, ex.toDataURL('image/png'));
+	}
+
+	// 报告分区（按模式产出 {title, accent, lines:[{text,tone}]}）。tone: normal/good/bad/muted。
+	reportSections() {
+		const L = (arr) => arr.map((x) => (typeof x === 'string' ? { text: x, tone: 'normal' } : x));
+		if (this.techMode === 'bagua') {
+			const an = this.buildBaguaAnalysis();
+			const secs = [];
+			secs.push({ title: '起盘信息', accent: '#b88a3e', lines: L([`正北方向 ${formatAngle(this.baguaOrient)}　盘旋转 ${formatAngle(this.getDiskRotation())}　盘心＝房屋正中（太极点）`]) });
+			const ml = [];
+			if (!an.members.length) ml.push({ text: '暂无成員，请在户型图上放置成員标记。', tone: 'muted' });
+			an.members.forEach((m) => {
+				if (!m.roomGua || !m.hex) { ml.push({ text: `${m.role}（${m.benmingGua}）：标记未落在盘内`, tone: 'muted' }); return; }
+				const tag = (m.meta && m.meta.tag) || 'neutral';
+				const tone = tag === 'caution' ? 'bad' : tag === 'auspicious' ? 'good' : 'normal';
+				const rk = m.rankShift && m.rankShift.dir !== '平' ? `　${m.rankShift.dir} ${m.rankShift.years} 年` : '';
+				const sx = m.shenxing && m.shenxing.same ? '　名位相同·家和' : '';
+				ml.push({ text: `${m.role} · 居${m.roomDir} · ${m.hex.name}（应期 ${m.timing ? m.timing.window : ''}${rk}${sx}）`, tone });
+				if (m.text && m.text.xiang) ml.push({ text: `　${m.text.xiang}`, tone: 'muted' });
+			});
+			secs.push({ title: '成員卦象', accent: '#1497a8', lines: ml });
+			if (an.features.length) {
+				secs.push({ title: '四类象格局', accent: '#cf1322', lines: an.features.map((f) => ({
+					text: f.judge ? f.judge.text : `${f.label}：标记未落在盘内`,
+					tone: f.judge && f.judge.tag === 'caution' ? 'bad' : f.judge && f.judge.tag === 'auspicious' ? 'good' : 'normal',
+				})) });
+			}
+			const adv = an.members.filter((m) => m.text).map((m) => `${m.role} · ${m.hex ? m.hex.name : ''}：${m.text.advice}`);
+			if (adv.length) secs.push({ title: '改运建议', accent: '#b88a3e', lines: L(adv) });
+			return { title: '八卦阳宅判定报告', sections: secs };
+		}
+		const na = this.buildNaqiAnalysis();
+		const period = this.periodMode === 'current' ? '1964-2044' : '2044-2124';
+		const gradeColor = na.grade === '吉' ? '#b88a3e' : na.grade === '平' ? '#1497a8' : '#cf1322';
+		const w = na.markers.filter((m) => m.category === 'wind');
+		const wa = na.markers.filter((m) => m.category === 'water' && !m.kitchen);
+		const summary = `气位 ${w.filter((m) => m.ok && m.sector).length}/${w.length} 合适，水位 ${wa.filter((m) => m.ok && m.sector).length}/${wa.length} 合适。`;
+		const secs = [];
+		secs.push({ title: '起盘信息', accent: '#b88a3e', lines: L([`单元门 ${formatAngle(this.unitAzimuth)}　入户门 ${formatAngle(this.doorImageAngle)}　盘旋转 ${formatAngle(this.getDiskRotation())}　运期 ${period}`]) });
+		secs.push({ title: `吉凶评分 ${na.score} 分（${na.grade}）`, accent: gradeColor, lines: L([summary]) });
+		const mkLines = na.markers.length ? na.markers.map((m) => ({
+			text: `${m.label}：${m.sector ? `${m.sector.name} · ${m.actual === 'wind' ? '气位' : '水位'}` : '未定位'}（${m.category === 'neutral' ? '观察' : m.kitchen ? '厨房' : m.ok ? '位置合适' : '位置冲突'}）`,
+			tone: m.category === 'neutral' ? 'muted' : (m.ok || m.kitchen) ? 'good' : m.sector ? 'bad' : 'muted',
+		})) : [{ text: '暂无标记', tone: 'muted' }];
+		secs.push({ title: '标记判定', accent: '#1497a8', lines: mkLines });
+		const harmL = na.markers.filter((m) => m.harm).map((m) => ({ text: `${m.label}：${m.harm.affect}`, tone: 'bad' }));
+		(na.houseHarms || []).forEach((h) => harmL.push({ text: `${h.label}：${h.affect}`, tone: 'bad' }));
+		if (harmL.length) secs.push({ title: '破局危害', accent: '#cf1322', lines: harmL });
+		if (na.dragonTiger) secs.push({ title: '龙虎灶台', accent: '#b88a3e', lines: L([`${na.dragonTiger.pattern}：${na.dragonTiger.text}`]) });
+		const rem = (na.remedies || []).flatMap((r) => r.items);
+		if (rem.length) secs.push({ title: '缓解建议', accent: '#1497a8', lines: L(rem) });
+		return { title: '纳气盘判定报告', sections: secs };
 	}
 
 	buildReportCanvas() {
 		const composite = this.renderCompositeCanvas();
 		if (!composite) return null;
-		const wrapLines = (ctx, text, maxWidth) => {
-			const chars = `${text}`.split('');
-			const lines = [];
-			let line = '';
-			chars.forEach((ch) => {
-				const test = line + ch;
-				if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = ch; }
-				else line = test;
-			});
-			if (line) lines.push(line);
-			return lines;
-		};
-		const scaleImg = Math.min(1, 1500 / composite.width);
+		const { title, sections } = this.reportSections();
+		const W = 1080;
+		const PAD = 40;
+		const GAP = 12;
+		const LH = 23;
+		const HEADER = 78;
+		const FOOTER = 46;
+		const contentW = W - PAD * 2;
+		const innerW = contentW - 36;
+		const scaleImg = Math.min(1, contentW / composite.width);
 		const imgW = Math.round(composite.width * scaleImg);
 		const imgH = Math.round(composite.height * scaleImg);
-		const padding = 36;
-		const reportWidth = Math.max(imgW + padding * 2, 1000);
-		const imageX = Math.round((reportWidth - imgW) / 2);
-		const periodLabel = this.periodMode === 'current' ? '1964-2044' : '2044-2124';
-		const headerLines = [
-			`生成时间：${new Date().toLocaleString()}`,
-			`单元门角度：${formatAngle(this.unitAzimuth)}   入户门角度：${formatAngle(this.doorImageAngle)}   盘旋转：${formatAngle(this.getDiskRotation())}   运期：${periodLabel}`,
-		];
-		const details = this.markers.map((m) => {
-			const ev = this.evaluateMarker(m);
-			const position = ev.sector ? `${ev.sector.num}·${ev.sector.name}·${ev.actual === 'wind' ? '气位' : '水位'}` : '未定位';
-			return { marker: m, ev, position };
-		});
-		const markerLines = this.markers.length
-			? details.map((d, i) => `${i + 1}. ${d.marker.label}：${d.position}（${d.marker.category === 'neutral' ? '观察' : d.ev.ok ? '位置合适' : '位置冲突'}）`)
-			: ['暂无标记'];
-		const conflictLines = details.filter((d) => d.marker.category !== 'neutral' && d.ev.sector && !d.ev.ok)
-			.map((d) => `${d.marker.label}：${d.position}（期望 ${d.ev.expected === 'wind' ? '气位' : '水位'}）`);
-		const unknownLines = details.filter((d) => !d.ev.sector).map((d) => `${d.marker.label}：未定位`);
-		const stats = { windOk: 0, waterOk: 0, windBad: 0, waterBad: 0, unknown: 0 };
-		details.forEach((d) => {
-			if (!d.ev.sector) stats.unknown += 1;
-			else if (d.marker.category === 'wind') d.ev.ok ? (stats.windOk += 1) : (stats.windBad += 1);
-			else if (d.marker.category === 'water') d.ev.ok ? (stats.waterOk += 1) : (stats.waterBad += 1);
-		});
-		const statsLine = `气位正确 ${stats.windOk} 项，气位冲突 ${stats.windBad} 项；水位正确 ${stats.waterOk} 项，水位冲突 ${stats.waterBad} 项；未定位 ${stats.unknown} 项。`;
-		const suggestionLines = [];
-		if (!this.markers.length) suggestionLines.push('当前没有标注，可先放置门、窗、床、灶、沙发等关键点。');
-		else {
-			if (stats.windBad > 0) suggestionLines.push('存在气位冲突，建议将气位类标注调整到气位扇区。');
-			if (stats.waterBad > 0) suggestionLines.push('存在水位冲突，建议将水位类标注调整到水位扇区。');
-			if (stats.unknown > 0) suggestionLines.push('有未定位标注，请确认盘心、房屋框或角度输入。');
-			if (stats.windBad === 0 && stats.waterBad === 0 && stats.unknown === 0) suggestionLines.push('当前标注均在合适位置，可继续完善细节。');
-		}
-		const sections = [
-			['基础信息', headerLines],
-			['标记判定', [statsLine, ...markerLines]],
-			['冲突清单', conflictLines.length ? conflictLines : ['暂无冲突标记']],
-		];
-		if (unknownLines.length) sections.push(['未定位标注', unknownLines]);
-		sections.push(['使用要点', TIPS]);
-		sections.push(['建议汇总', suggestionLines]);
-		sections.push(['纳气建议', [ADVICE]]);
+		const imgX = Math.round((W - imgW) / 2);
+		const wrap = (ctx, text, maxWidth) => {
+			const chars = `${text}`.split('');
+			const out = [];
+			let line = '';
+			chars.forEach((ch) => { const t = line + ch; if (ctx.measureText(t).width > maxWidth && line) { out.push(line); line = ch; } else line = t; });
+			if (line) out.push(line);
+			return out;
+		};
+		const round = (ctx, x, y, ww, hh, r) => {
+			ctx.beginPath();
+			ctx.moveTo(x + r, y); ctx.arcTo(x + ww, y, x + ww, y + hh, r); ctx.arcTo(x + ww, y + hh, x, y + hh, r);
+			ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + ww, y, r); ctx.closePath();
+		};
 		const measure = document.createElement('canvas').getContext('2d');
 		measure.font = '14px "PingFang SC", sans-serif';
-		const contentWidth = reportWidth - padding * 2;
-		let textHeight = 0;
-		sections.forEach(([, lines]) => {
-			textHeight += 28;
-			lines.forEach((l) => { textHeight += wrapLines(measure, l, contentWidth).length * 22; });
-			textHeight += 14;
+		const blocks = sections.map((sec) => {
+			const wl = [];
+			sec.lines.forEach((ln) => { wrap(measure, ln.text, innerW).forEach((row) => wl.push({ text: row, tone: ln.tone })); });
+			return { ...sec, wl, h: 30 + wl.length * LH + 16 };
 		});
-		const reportCanvas = document.createElement('canvas');
-		reportCanvas.width = reportWidth;
-		reportCanvas.height = Math.round(padding + 40 + imgH + padding + textHeight + padding);
-		const rc = reportCanvas.getContext('2d');
-		rc.fillStyle = '#ffffff';
-		rc.fillRect(0, 0, reportWidth, reportCanvas.height);
-		rc.fillStyle = '#1b1812';
-		rc.font = 'bold 24px "PingFang SC", sans-serif';
-		rc.fillText('纳气盘判定报告', padding, padding + 6);
-		const imageTop = padding + 20;
-		rc.drawImage(composite, 0, 0, composite.width, composite.height, imageX, imageTop, imgW, imgH);
-		let y = imageTop + imgH + padding;
-		sections.forEach(([title, lines]) => {
-			rc.fillStyle = '#1b1812';
-			rc.font = 'bold 16px "PingFang SC", sans-serif';
-			rc.fillText(title, padding, y);
-			y += 24;
-			rc.fillStyle = '#3a342a';
-			rc.font = '14px "PingFang SC", sans-serif';
-			lines.forEach((l) => { wrapLines(rc, l, contentWidth).forEach((row) => { rc.fillText(row, padding, y); y += 22; }); });
-			y += 10;
+		const bodyH = blocks.reduce((s, b) => s + b.h + GAP, 0);
+		const H = HEADER + PAD + imgH + PAD + bodyH + FOOTER;
+		const cv = document.createElement('canvas');
+		cv.width = W; cv.height = H;
+		const c = cv.getContext('2d');
+		c.fillStyle = '#faf7f0'; c.fillRect(0, 0, W, H);
+		c.fillStyle = '#b88a3e'; c.fillRect(0, 0, W, HEADER);
+		c.fillStyle = '#fffaf0'; c.font = 'bold 26px "PingFang SC", sans-serif';
+		c.fillText(title, PAD, 42);
+		c.fillStyle = 'rgba(255,250,240,0.86)'; c.font = '13px "PingFang SC", sans-serif';
+		const skinLabel = (DISK_SKINS.find((s) => s.key === this.diskSkin) || {}).label || '绘制盘';
+		c.fillText(`星阙 · 风水　|　生成 ${new Date().toLocaleString()}　|　盘面 ${skinLabel}`, PAD, 64);
+		let y = HEADER + PAD;
+		c.save();
+		c.shadowColor = 'rgba(0,0,0,0.14)'; c.shadowBlur = 12; c.shadowOffsetY = 4;
+		round(c, imgX, y, imgW, imgH, 8); c.fillStyle = '#fff'; c.fill();
+		c.restore();
+		c.drawImage(composite, 0, 0, composite.width, composite.height, imgX, y, imgW, imgH);
+		round(c, imgX, y, imgW, imgH, 8); c.strokeStyle = 'rgba(0,0,0,0.14)'; c.lineWidth = 1; c.stroke();
+		y += imgH + PAD;
+		blocks.forEach((b) => {
+			round(c, PAD, y, contentW, b.h, 10); c.fillStyle = '#ffffff'; c.fill();
+			c.strokeStyle = 'rgba(0,0,0,0.06)'; c.lineWidth = 1; c.stroke();
+			c.fillStyle = b.accent || '#b88a3e'; round(c, PAD, y, 4, b.h, 2); c.fill();
+			c.fillStyle = '#1b1812'; c.font = 'bold 16px "PingFang SC", sans-serif';
+			c.fillText(b.title, PAD + 18, y + 26);
+			let ty = y + 50;
+			c.font = '14px "PingFang SC", sans-serif';
+			b.wl.forEach((ln) => {
+				c.fillStyle = ln.tone === 'bad' ? '#cf1322' : ln.tone === 'good' ? '#0f8a78' : ln.tone === 'muted' ? '#8a8276' : '#3a342a';
+				c.fillText(ln.text, PAD + 18, ty); ty += LH;
+			});
+			y += b.h + GAP;
 		});
-		return reportCanvas;
+		c.fillStyle = '#8a8276'; c.font = '12px "PingFang SC", sans-serif';
+		c.fillText('本报告为方位之参考，吉凶需合命盘综合参看。', PAD, y + 22);
+		return cv;
 	}
 
 	exportReportPng() {
 		const rc = this.buildReportCanvas();
 		if (!rc) return;
-		const link = document.createElement('a');
-		link.download = 'naqi-report.png';
-		link.href = rc.toDataURL('image/png');
-		link.click();
+		const name = this.techMode === 'bagua' ? '八卦阳宅-判定报告.png' : '纳气盘-判定报告.png';
+		this.downloadDataUrl(name, rc.toDataURL('image/png'));
 	}
 
 	exportReportPdf() {
 		const rc = this.buildReportCanvas();
 		if (!rc) return;
 		const dataUrl = rc.toDataURL('image/png');
+		const reportTitle = this.techMode === 'bagua' ? '八卦阳宅判定报告' : '纳气盘判定报告';
 		const win = window.open('', '_blank');
 		if (!win) return;
 		win.document.write([
-			'<!doctype html><html><head><title>纳气盘判定报告</title>',
+			`<!doctype html><html><head><title>${reportTitle}</title>`,
 			'<style>body{margin:0;padding:24px;font-family:"PingFang SC",sans-serif;background:#fff;}img{width:100%;max-width:100%;}</style>',
 			'</head><body>',
 			`<img src="${dataUrl}" />`,
@@ -851,7 +1095,7 @@ export default class FengShuiEngine {
 	}
 
 	clearMarkers() {
-		this.markers = [];
+		this.markers = this.markers.filter((m) => (m.mode || 'naqi') !== this.techMode);
 		this.selectedMarkerId = null;
 		this.drawAll();
 		this.pushHistory();
@@ -903,6 +1147,146 @@ export default class FengShuiEngine {
 
 	setPeriodMode(m) { this.periodMode = m; this.drawAll(); this.pushHistory(); this.emit(); }
 
+	// ── 模式 / 罗盘皮肤 / 灶口朝向 / 成員（P0 骨架 + 八卦）─────────
+	setTechMode(m) {
+		if (m !== 'naqi' && m !== 'bagua') return;
+		this.techMode = m;
+		this.markerType = (m === 'bagua' ? BAGUA_MARKER_TYPES : MARKER_TYPES)[0].id;
+		if (this.mode === 'placeMarker' || this.mode === 'drawStoveFacing' || this.mode === 'drawBaguaNorth') { this.mode = 'none'; this.canvas.style.cursor = 'default'; }
+		this.selectedMarkerId = null;
+		this.drawAll();
+		this.pushHistory();
+		this.emit();
+	}
+
+	setDiskSkin(key) {
+		this.diskSkin = key;
+		const skin = DISK_SKINS.find((s) => s.key === key);
+		if (skin && skin.src && !this.skinImages[skin.src]) {
+			const img = new Image();
+			img.onload = () => { this.drawAll(); this.emit(); };
+			img.src = skin.src;
+			this.skinImages[skin.src] = img;
+		}
+		this.drawAll();
+		this.emit();
+	}
+
+	getSkinImage() {
+		const skin = DISK_SKINS.find((s) => s.key === this.diskSkin);
+		if (!skin || !skin.src) return null;
+		const img = this.skinImages[skin.src];
+		return img && img.complete && img.naturalWidth ? { img, skin } : null;
+	}
+
+	startStoveFacing(markerId) {
+		if (!this.imgLoaded) return;
+		const m = this.markers.find((x) => x.id === markerId && x.type === 'stove');
+		if (!m) return;
+		this.facingMarkerId = markerId;
+		this.selectedMarkerId = markerId;
+		this.mode = 'drawStoveFacing';
+		this.canvas.style.cursor = 'crosshair';
+		this.setStatus('模式：标灶口朝向。从灶台向下厨者面对的方向画一条线。');
+		this.emit();
+	}
+
+	// 八卦阳宅：单一「正北方向(度)」。
+	setBaguaOrient(v) {
+		this.baguaOrient = v === '' || v === null || v === undefined ? null : parseFloat(v);
+		this.drawAll();
+		this.scheduleHistoryPush();
+		this.emit();
+	}
+
+	startBaguaNorth() {
+		if (!this.imgLoaded) return;
+		this.mode = 'drawBaguaNorth';
+		this.canvas.style.cursor = 'crosshair';
+		this.setStatus('模式：画正北方向。从盘心向正北画一条线。');
+		this.emit();
+	}
+
+	// ── 纳气盘法分析（破局危害 / 双卫 / 龙虎 / 评分 / 移动盘）─────
+	buildNaqiAnalysis() {
+		const naqiMarkers = this.currentModeMarkers();
+		const evals = naqiMarkers.map((m) => ({ m, ev: this.evaluateMarker(m) }));
+		const stoves = evals.filter((e) => e.m.type === 'stove' && e.ev.sector);
+		evals.forEach((e) => {
+			e.kitchen = e.m.type === 'sink' && !!e.ev.sector && stoves.some((s) => sectorAdjacent(s.ev.sector.num, e.ev.sector.num));
+		});
+		const markers = evals.map((e) => {
+			const broken = e.m.category !== 'neutral' && e.ev.sector && !e.ev.ok && !e.kitchen;
+			const harm = broken ? harmForMarker(e.m.category, e.ev.actual, e.ev.sector.num) : null;
+			return {
+				id: e.m.id, label: e.m.label, short: e.m.short, type: e.m.type, category: e.m.category, color: e.m.color,
+				sector: e.ev.sector ? { num: e.ev.sector.num, name: e.ev.sector.name } : null,
+				actual: e.ev.actual, ok: e.ev.ok, kitchen: !!e.kitchen, harm,
+				facingAngle: (e.m.facingAngle === null || e.m.facingAngle === undefined) ? null : e.m.facingAngle,
+			};
+		});
+		const harms = markers.filter((x) => x.harm).map((x) => x.harm);
+		const bathInWind = evals.filter((e) => (e.m.type === 'bathroom' || e.m.type === 'toilet') && e.ev.sector && e.ev.actual === 'wind').length;
+		const houseHarms = [];
+		if (bathInWind >= 2) { houseHarms.push(HARM_MAP['double-bath']); harms.push(HARM_MAP['double-bath']); }
+		let dragonTiger = null;
+		let dragonTigerHint = null;
+		const stove = naqiMarkers.find((m) => m.type === 'stove');
+		if (stove) {
+			const kitchen = evals.find((e) => e.kitchen);
+			if (stove.facingAngle === null || stove.facingAngle === undefined) dragonTigerHint = '请先标灶口朝向（点灶台“画灶口朝向”）';
+			else if (!kitchen) dragonTigerHint = '请在厨房放置水槽（与灶台同/邻扇区）';
+			else dragonTiger = evalDragonTiger(stove, kitchen.m, stove.facingAngle);
+		}
+		const windOk = markers.filter((x) => x.category === 'wind' && x.ok && x.sector).length;
+		const waterOk = markers.filter((x) => x.category === 'water' && x.ok && x.sector && !x.kitchen).length;
+		const score = scoreNaqi({ windOk, waterOk, harms, dragonTiger });
+		const grade = gradeOf(score);
+		const dtRemedy = dragonTiger && dragonTiger.remedyKey ? [dragonTiger.remedyKey] : [];
+		const remedyKeys = Array.from(new Set([...harms.map((h) => h && h.remedyKey), ...dtRemedy].filter(Boolean)));
+		const remedies = remedyKeys.map((k) => ({ key: k, items: REMEDY_LIB[k] || [] }));
+		return { markers, harms, houseHarms, dragonTiger, dragonTigerHint, score, grade, remedies, probe: this.buildProbe() };
+	}
+
+	buildProbe() {
+		if (this.diskCenterMode !== 'marker') return null;
+		const naqiMarkers = this.currentModeMarkers();
+		const center = naqiMarkers.find((m) => m.id === this.selectedMarkerId);
+		if (!center || !['bed', 'desk', 'sofa'].includes(center.type)) return null;
+		const items = naqiMarkers.filter((m) => m.id !== center.id && (m.category === 'wind' || m.category === 'water')).map((m) => {
+			const ev = this.evaluateMarker(m);
+			return { label: m.label, sectorName: ev.sector ? ev.sector.name : '未定位', windOrWater: ev.sector ? ev.actual : null };
+		});
+		return { centerLabel: center.label, items };
+	}
+
+	// ── 八卦阳宅法分析（读图上 bagua 标记：成員→名上位下64卦+应期+排位+形神；格局→四类象）──
+	buildBaguaAnalysis() {
+		const list = this.currentModeMarkers();
+		const dirOf = (gua) => (gua ? (GUA_8.find((g) => g.gua === gua) || {}).dir || '' : '');
+		const sectorGuaOf = (m) => {
+			const sector = this.getSectorForPoint(m);
+			return { sector: sector ? { num: sector.num, name: sector.name } : null, gua: sector ? guaBySectorNum(sector.num) : null };
+		};
+		const members = list.filter((m) => m.kind === 'member').map((m) => {
+			const { sector, gua: roomGua } = sectorGuaOf(m);
+			const benmingGua = m.benmingGua;
+			const hex = roomGua ? composeHexagram(benmingGua, roomGua) : null;
+			return {
+				id: m.id, role: m.role, benmingGua, color: m.color, sector, roomGua, roomDir: dirOf(roomGua),
+				hex, text: hex ? HEXAGRAM_TEXTS[hex.no] : null, meta: hex ? HEXAGRAM_META[hex.no] : null,
+				timing: hex ? computeTiming(hex, { benmingGua, roomGua }) : null,
+				rankShift: roomGua ? computeRankShift(benmingGua, roomGua) : null,
+				shenxing: roomGua ? namePositionRelation(benmingGua, roomGua) : null,
+			};
+		});
+		const features = list.filter((m) => m.kind === 'feature').map((m) => {
+			const { sector, gua } = sectorGuaOf(m);
+			return { id: m.id, feature: m.feature, label: m.label, short: m.short, color: m.color, sector, gua, roomDir: dirOf(gua), family: gua ? GUA_TO_ROLE[gua] : '', judge: gua ? featureJudgment(m.feature, gua) : null };
+		});
+		return { members, features };
+	}
+
 	togglePan() {
 		this.panMode = !this.panMode;
 		this.canvas.style.cursor = this.panMode ? 'grab' : 'default';
@@ -913,21 +1297,32 @@ export default class FengShuiEngine {
 	toggleSnap() { this.snapEnabled = !this.snapEnabled; this.setStatus(this.snapEnabled ? '吸附对齐已开启' : '吸附对齐已关闭'); this.emit(); }
 
 	addMarkerAt(pos) {
-		const type = MARKER_TYPES.find((t) => t.id === this.markerType);
+		const bagua = this.techMode === 'bagua';
+		const pool = bagua ? BAGUA_MARKER_TYPES : MARKER_TYPES;
+		const type = pool.find((t) => t.id === this.markerType) || pool[0];
 		if (!type) return;
 		const sp = this.snapPointToRect(pos);
-		this.markers.push({ id: this.markerIdSeed++, type: type.id, label: type.label, short: type.short, category: type.category, color: type.color, x: sp.x, y: sp.y });
-		this.selectedMarkerId = this.markers[this.markers.length - 1].id;
+		const marker = bagua
+			? { id: this.markerIdSeed++, mode: 'bagua', type: type.id, label: type.label, short: type.short, kind: type.kind, role: type.role || null, benmingGua: type.benmingGua || null, feature: type.feature || null, color: type.color, x: sp.x, y: sp.y }
+			: { id: this.markerIdSeed++, mode: 'naqi', type: type.id, label: type.label, short: type.short, category: type.category, color: type.color, x: sp.x, y: sp.y };
+		this.markers.push(marker);
+		this.selectedMarkerId = marker.id;
 		this.drawAll();
 		this.pushHistory();
 		this.emit();
 	}
 
+	// 当前模式的标记（旧存档无 mode 视为 naqi，保后向兼容）。
+	currentModeMarkers() {
+		return this.markers.filter((m) => (m.mode || 'naqi') === this.techMode);
+	}
+
 	getMarkerAtPos(pos) {
 		const threshold = 10;
 		const c = this.getCombinedScale();
-		for (let i = this.markers.length - 1; i >= 0; i -= 1) {
-			const m = this.markers[i];
+		const list = this.currentModeMarkers();
+		for (let i = list.length - 1; i >= 0; i -= 1) {
+			const m = list[i];
 			const dx = m.x * c + this.viewOffset.x - pos.x;
 			const dy = m.y * c + this.viewOffset.y - pos.y;
 			if (Math.hypot(dx, dy) <= threshold) return m;
@@ -968,10 +1363,16 @@ export default class FengShuiEngine {
 		}
 		if (this.mode === 'placeMarker') {
 			this.addMarkerAt(imgPos);
+			this.isDragging = false;
+			const placed = this.markers.find((m) => m.id === this.selectedMarkerId);
+			// 放灶台后自动进入「画灶口朝向」，免去再点按钮。
+			if (placed && this.techMode === 'naqi' && placed.type === 'stove') {
+				this.startStoveFacing(placed.id);
+				return;
+			}
 			this.mode = 'none';
 			this.canvas.style.cursor = 'default';
 			this.setStatus('标记已放置。');
-			this.isDragging = false;
 			this.emit();
 			return;
 		}
@@ -989,7 +1390,7 @@ export default class FengShuiEngine {
 			this.rect.x = imgPos.x; this.rect.y = imgPos.y; this.rect.w = 0; this.rect.h = 0;
 			return;
 		}
-		if (this.mode === 'drawDoorLine') return;
+		if (this.mode === 'drawDoorLine' || this.mode === 'drawStoveFacing' || this.mode === 'drawBaguaNorth') return;
 		const hit = this.getMarkerAtPos(pos);
 		if (hit) {
 			this.selectedMarkerId = hit.id;
@@ -1034,12 +1435,12 @@ export default class FengShuiEngine {
 			return;
 		}
 		if (this.mode === 'drawRect') { this.rect.w = deltaX; this.rect.h = deltaY; this.drawAll(); return; }
-		if (this.mode === 'drawDoorLine') {
+		if (this.mode === 'drawDoorLine' || this.mode === 'drawStoveFacing' || this.mode === 'drawBaguaNorth') {
 			this.drawAll();
 			this.ctx.beginPath();
 			this.ctx.moveTo(this.startPoint.x, this.startPoint.y);
 			this.ctx.lineTo(pos.x, pos.y);
-			this.ctx.strokeStyle = '#d84f4f';
+			this.ctx.strokeStyle = this.mode === 'drawBaguaNorth' ? '#3a6ea5' : this.mode === 'drawStoveFacing' ? '#e08a3c' : '#d84f4f';
 			this.ctx.lineWidth = 2;
 			this.ctx.stroke();
 			return;
@@ -1094,6 +1495,26 @@ export default class FengShuiEngine {
 			if (mapDeg < 0) mapDeg += 360;
 			this.doorImageAngle = mapDeg;
 			this.setStatus(`入户门角度已设定：${Math.round(this.doorImageAngle)}°`);
+			this.mode = 'none';
+			this.pushHistory();
+		} else if (this.mode === 'drawBaguaNorth') {
+			const dx = pos.x - this.startPoint.x;
+			const dy = pos.y - this.startPoint.y;
+			let mapDeg = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
+			if (mapDeg < 0) mapDeg += 360;
+			this.baguaOrient = mapDeg;
+			this.setStatus(`正北方向已设定：${Math.round(mapDeg)}°`);
+			this.mode = 'none';
+			this.pushHistory();
+		} else if (this.mode === 'drawStoveFacing') {
+			const dx = pos.x - this.startPoint.x;
+			const dy = pos.y - this.startPoint.y;
+			let mapDeg = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
+			if (mapDeg < 0) mapDeg += 360;
+			const m = this.markers.find((x) => x.id === this.facingMarkerId);
+			if (m) m.facingAngle = mapDeg;
+			this.facingMarkerId = null;
+			this.setStatus(`灶口朝向已设定：${Math.round(mapDeg)}°`);
 			this.mode = 'none';
 			this.pushHistory();
 		} else if (this.mode === 'movingRect' || this.mode === 'resizingRect') {

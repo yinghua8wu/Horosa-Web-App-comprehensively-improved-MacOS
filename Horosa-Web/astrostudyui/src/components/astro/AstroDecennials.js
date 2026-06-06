@@ -228,19 +228,53 @@ function buildDecennialAISnapshot(chartObj, params, settings, timelineMeta, list
 	return lines.join('\n');
 }
 
+// AI 挂载「十年大运」可调项默认（=组件初始 settings/aiState；不调任何项 → 输出逐字不变）。
+const DECENNIALS_DEFAULT_OPTS = {
+	startMode: DECENNIAL_START_MODE_SECT_LIGHT,
+	orderType: DECENNIAL_ORDER_ZODIACAL,
+	dayMethod: DECENNIAL_DAY_METHOD_VALENS,
+	calendarType: DECENNIAL_CALENDAR_TRADITIONAL,
+	aiMode: AI_MODE_L1_ALL,
+	aiL1Idx: 0,
+	aiL2Idx: 0,
+	aiL3Idx: 0,
+};
+// 起运主星选项（与 genSettingsDom 一致）——挂载 schema 复用。
+export const DECENNIALS_START_MODES = [
+	{ value: DECENNIAL_START_MODE_SECT_LIGHT, label: '得时光体（昼日夜月）' },
+	...DECENNIAL_TRADITIONAL_PLANETS.map((planet)=>({ value: planet, label: getDecennialPlanetLongName(planet) })),
+];
+export const DECENNIALS_ORDER_TYPES = [
+	{ value: DECENNIAL_ORDER_ZODIACAL, label: getDecennialOrderLabel(DECENNIAL_ORDER_ZODIACAL) },
+	{ value: DECENNIAL_ORDER_CHALDEAN, label: getDecennialOrderLabel(DECENNIAL_ORDER_CHALDEAN) },
+];
+export const DECENNIALS_DAY_METHODS = [
+	{ value: DECENNIAL_DAY_METHOD_VALENS, label: getDecennialDayMethodLabel(DECENNIAL_DAY_METHOD_VALENS) },
+	{ value: DECENNIAL_DAY_METHOD_HEPHAISTIO, label: getDecennialDayMethodLabel(DECENNIAL_DAY_METHOD_HEPHAISTIO) },
+];
+export const DECENNIALS_CALENDAR_TYPES = [
+	{ value: DECENNIAL_CALENDAR_TRADITIONAL, label: getDecennialCalendarLabel(DECENNIAL_CALENDAR_TRADITIONAL) },
+	{ value: DECENNIAL_CALENDAR_ACTUAL, label: getDecennialCalendarLabel(DECENNIAL_CALENDAR_ACTUAL) },
+];
+export const DECENNIALS_AI_MODES = AI_MODE_ITEMS.map((item)=>({ value: item.value, label: item.label }));
+
 // 十年大运 AI 快照(无头):纯前端 buildDecennialTimeline + 默认设置(本光起运/黄道序/Valens日限/传统历)+ L1 全列概览。
 // aiAnalysisContext 复算用;无 timeline 即返 '' → 挂载显示「缺失」。
-export function buildDecennialsSnapshotText(chartObj){
+// opts（AI 挂载「每技法设置」）：startMode/orderType/dayMethod/calendarType + aiMode/aiL1Idx/aiL2Idx/aiL3Idx。
+// 缺省/坏值经 DECENNIALS_DEFAULT_OPTS 回退（buildDecennialTimeline 内部亦 `|| 默认`）→ 与现状逐字一致。
+export function buildDecennialsSnapshotText(chartObj, opts){
 	if(!chartObj){
 		return '';
 	}
 	try{
+		const o = { ...DECENNIALS_DEFAULT_OPTS, ...(opts && typeof opts === 'object' ? opts : {}) };
 		const settings = {
-			startMode: DECENNIAL_START_MODE_SECT_LIGHT,
-			orderType: DECENNIAL_ORDER_ZODIACAL,
-			dayMethod: DECENNIAL_DAY_METHOD_VALENS,
-			calendarType: DECENNIAL_CALENDAR_TRADITIONAL,
+			startMode: o.startMode || DECENNIAL_START_MODE_SECT_LIGHT,
+			orderType: o.orderType || DECENNIAL_ORDER_ZODIACAL,
+			dayMethod: o.dayMethod || DECENNIAL_DAY_METHOD_VALENS,
+			calendarType: o.calendarType || DECENNIAL_CALENDAR_TRADITIONAL,
 		};
+		const aiMode = AI_MODE_ITEMS.some((m)=>m.value === o.aiMode) ? o.aiMode : AI_MODE_L1_ALL;
 		const timelineMeta = buildDecennialTimeline(chartObj, settings);
 		const list = timelineMeta && Array.isArray(timelineMeta.list) ? timelineMeta.list : [];
 		if(!list.length){
@@ -252,7 +286,12 @@ export function buildDecennialsSnapshotText(chartObj){
 			settings,
 			timelineMeta,
 			list,
-			{ aiMode: AI_MODE_L1_ALL, aiL1Idx: 0, aiL2Idx: 0, aiL3Idx: 0 }
+			{
+				aiMode,
+				aiL1Idx: Number(o.aiL1Idx) || 0,
+				aiL2Idx: Number(o.aiL2Idx) || 0,
+				aiL3Idx: Number(o.aiL3Idx) || 0,
+			}
 		) || '';
 	}catch(e){
 		return '';

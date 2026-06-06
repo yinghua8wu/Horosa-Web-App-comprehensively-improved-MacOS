@@ -244,9 +244,27 @@ function buildZRAISnapshot(chartObj, params, basePoint, list, aiState){
 	return lines.join('\n');
 }
 
+// AI 挂载「黄道星释」可调项默认（=组件初始 state / 无头默认；不调任何项 → 输出逐字不变）。
+const ZR_DEFAULT_OPTS = {
+	basePoint: AstroConst.PARS_FORTUNA,
+	aiMode: AI_MODE_L1_ALL,
+	aiL1Idx: 0,
+	aiL2Idx: 0,
+	aiL3Idx: 0,
+};
+// 11 个推运基点（与 genConditionDom 一致）——挂载 schema 复用，杜绝手写错值。
+export const ZR_BASE_POINTS = [
+	AstroConst.PARS_FORTUNA, AstroConst.PARS_SPIRIT, AstroConst.PARS_MERCURY,
+	AstroConst.PARS_VENUS, AstroConst.PARS_MARS, AstroConst.PARS_JUPITER,
+	AstroConst.PARS_SATURN,
+	AstroConst.ASC, AstroConst.DESC, AstroConst.MC, AstroConst.IC,
+];
+// AI 输出层级（aiMode）选项（与 AI_MODE_ITEMS 一致）——挂载 schema 复用。
+export const ZR_AI_MODES = AI_MODE_ITEMS.map((item)=>({ value: item.value, label: item.label }));
+
 // 黄道星释（zodiacal releasing）AI 快照(无头):内部 fetch /predict/zr,默认福点(Pars Fortuna)基点 + L1 全列概览。
 // aiAnalysisContext 复算用;无 zr 数据即返 '' → 挂载显示「缺失」。
-function zrNatalParamsStandalone(chartObj){
+function zrNatalParamsStandalone(chartObj, startSign){
 	const qp = (chartObj && chartObj.params) ? chartObj.params : {};
 	let date = qp.date;
 	let time = qp.time;
@@ -265,17 +283,28 @@ function zrNatalParamsStandalone(chartObj){
 		tradition: qp.tradition,
 		birth: qp.birth,
 		zodiacal: qp.zodiacal,
-		startSign: null,
+		startSign: startSign !== undefined ? startSign : null,
 		stopLevelIdx: 3,
 	};
 }
 
-export async function buildZodialReleaseSnapshotText(chartObj){
+// opts（AI 挂载「每技法设置」）：basePoint(11 基点) + aiMode(L1全/L2/L3/L4) + aiL1Idx/aiL2Idx/aiL3Idx。
+// 缺省/坏值经 ZR_DEFAULT_OPTS 回退 → 与现状逐字一致(守「默认即现状」)。
+export async function buildZodialReleaseSnapshotText(chartObj, opts){
 	if(!chartObj){
 		return '';
 	}
 	try{
-		const params = zrNatalParamsStandalone(chartObj);
+		const o = { ...ZR_DEFAULT_OPTS, ...(opts && typeof opts === 'object' ? opts : {}) };
+		const basePoint = ZR_BASE_POINTS.indexOf(o.basePoint) >= 0 ? o.basePoint : AstroConst.PARS_FORTUNA;
+		const aiMode = AI_MODE_ITEMS.some((m)=>m.value === o.aiMode) ? o.aiMode : AI_MODE_L1_ALL;
+		// 基点 → startSign（取该点所在星座）；福点等同现状传 null（后端按福点起）。
+		let startSign = null;
+		if(basePoint !== AstroConst.PARS_FORTUNA){
+			const pnt = AstroHelper.getObject(chartObj, basePoint);
+			startSign = pnt ? pnt.sign : null;
+		}
+		const params = zrNatalParamsStandalone(chartObj, startSign);
 		const data = await request(`${Constants.ServerRoot}/predict/zr`, {
 			body: JSON.stringify(params),
 			timeoutMs: 60000,
@@ -288,9 +317,14 @@ export async function buildZodialReleaseSnapshotText(chartObj){
 		return buildZRAISnapshot(
 			chartObj,
 			params,
-			AstroConst.PARS_FORTUNA,
+			basePoint,
 			list,
-			{ aiMode: AI_MODE_L1_ALL, aiL1Idx: 0, aiL2Idx: 0, aiL3Idx: 0 }
+			{
+				aiMode,
+				aiL1Idx: Number(o.aiL1Idx) || 0,
+				aiL2Idx: Number(o.aiL2Idx) || 0,
+				aiL3Idx: Number(o.aiL3Idx) || 0,
+			}
 		) || '';
 	}catch(e){
 		return '';

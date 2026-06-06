@@ -9,12 +9,12 @@
 **把占星与中国术数，收进一个原生 macOS 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native macOS workstation*
 
-[![Version](https://img.shields.io/badge/version-2.6.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)
+[![Version](https://img.shields.io/badge/version-2.6.1-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.0/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.1/Horosa-Installer-macos-arm64-offline.pkg) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -33,7 +33,7 @@
 
 > Regular users grab the offline installer and open it like any finished macOS app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.0/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.1/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合：Apple Silicon · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -91,18 +91,18 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.6.0 beta
+## 本次更新 · What's New in v2.6.1 beta
 
-这一版是自 v2.5.5 以来的一次**大合集**——六壬 / 占星 / 紫微 / 奇门四大技法深度补全,外加多项安装与 AI 稳定性修复:
+这一版聚焦 **AI 挂载的全面打磨**、**多时段输出**与**风水阳宅法**,外加一批跨模块修复——所有技法的命盘计算与 v2.6.0 一致:
 
-- **大六壬 · 解读层全建成** —— 取象 / 类象、毕法赋一百法(可机械判定者自动命中 + 读法心诀)、占断分类向导、常用神煞释义、三传关系图、应期与贵神特殊态;并以《六壬开阳》逐条审计纠错。
-- **西洋占星 · 世俗 / 卜卦 / 择日 / 星运全链路** —— 新增世俗(Mundane)、卜卦(Horary)、择日(Election)、星运(行运)四套完整盘,AI 导出 / 挂载 / 储存四同步。
-- **紫微斗数 · 全面增强** —— 杂曜显示、流派四化表、运限流曜、格局详情、天伤天使等。
-- **奇门遁甲 · 法奇门 + 局中人** —— 荀爽法奇门「断 + 解」层(六害完整 / 化解 / 用神分论 / 取象);左栏新增「相关人员」多选(从命盘库选人 → 各人生年干喂八门化气大阵)与「命盘 / 事盘」双库(命盘复用命盘管理、跨技法可用)。
-- **城市搜索专业化** —— 简体显示 + 拼音 / 首字母 + 繁简折叠。
-- **安装与 AI 修复** —— 修 Apple Silicon 安装包「安装失败」(装包优雅降级)、DeepSeek 深度思维链多轮超时失败、AI 分析「起课 / 命盘时间」选中即为此刻(此前误用打开软件的时刻)。
+- **AI 挂载 · 每技法全选项无遗漏** —— 对全部可挂载技法做地毯式审计:凡主页面能选、且会改挂载快照的项,齿轮抽屉里都能选,「想挂什么就挂什么」。
+- **AI 挂载 · 多时段输出** —— 紫微 / 八字可挂载任意大限 / 流年 / 流月 / 流日 / 流时;新增日期选择器、默认当前时刻、时间段区间扫描。
+- **主限法 · 盘与表格拆分** —— 主限法盘投影与表格各自独立呈现,互不干扰。
+- **六爻 · 三卦逐爻全装卦** —— 本卦 / 互卦 / 变卦逐爻完整装卦;「一键挂载」涵盖六爻、排盘与奇门。
+- **风水 · 八卦阳宅法(倪海厦)** —— 在纳气盘基础上新增八卦阳宅 v2:户型图落点 + 朝向度数自动判卦、成員卦象与四类象格局、应期排位升降。
+- **一批跨模块修复** —— 占星辅盘样式切换、三式合一时空中点盘、若干主题 / 布局与暗黑双色细节。
 
-> v2.6.0 is a **major roll-up** since v2.5.5, deepening four core techniques plus several install / AI-stability fixes. **Da Liu Ren** gains a full interpretation layer (imagery, the 100 Bi-Fa verses with auto-matching where mechanically decidable, a divination-category guide, a shen-sha glossary, a three-transmission relation diagram, timing & noble-deity states), audited line-by-line against *Liu Ren Kai Yang*. **Western astrology** adds full **Mundane / Horary / Election / transit** charts with four-way AI sync. **Zi Wei Dou Shu** is comprehensively expanded (minor stars, school-specific four-transformation tables, period flying stars, pattern details). **Qi Men Dun Jia** gains the Xun-Shuang "judge + resolve" overlay (complete six-harms / resolutions / useful-god analysis / imagery) plus a left-panel **related-persons** multi-select (each person's birth-year stem feeds the Eight-Gate protective array) and a **natal / event** dual library (natal charts reuse the normal chart manager, usable across techniques). Fixes: **Apple-Silicon installer "install failed"** (graceful packaging degradation), **DeepSeek chain-of-thought** multi-turn timeouts, and AI-analysis **cast-time** now resolves to "now" on select (previously the app-open time). See the [v2.6.0 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0) for the full log (offline `.pkg`, app zip, runtime package and manifest aligned to `2.6.0 / 2.6.0-runtime1`).
+> v2.6.1 focuses on **AI-mount polish**, **multi-period output**, and a new **Bagua dwelling (Feng Shui)** method, plus a batch of cross-module fixes — every technique's chart computation is identical to v2.6.0. The AI **mount drawer** was carpet-audited so that any option a technique's main page exposes (and that changes the mounted snapshot) is also selectable in the gear drawer — "mount exactly what you want." **Multi-period mounting** lets Zi Wei / Bazi mount any major-period / annual / monthly / daily / hourly layer, with a new date picker, a default of "now," and a time-range scan. The **primary-direction** chart projection and table are now split into independent views. **Six-Yao** builds the full hexagram line-by-line for the primary, mutual, and changing hexagrams, and a one-click mount covers Six-Yao, the chart, and Qi Men. Feng Shui adds a **Bagua dwelling (yang house)** v2 method: drop markers on a floor plan with a single facing degree, auto-derive each member's hexagram and the four feature patterns, and compute timing/rank shifts. Cross-module fixes cover auxiliary-chart style switching, the Sanshi-United time-space midpoint chart, and assorted theme/layout and dark-mode contrast details. See the [v2.6.1 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1) for the full log (offline `.pkg`, app zip, runtime package and manifest aligned to `2.6.1 / 2.6.1-runtime1`).
 
 ## 技术构成 · Under the Hood
 

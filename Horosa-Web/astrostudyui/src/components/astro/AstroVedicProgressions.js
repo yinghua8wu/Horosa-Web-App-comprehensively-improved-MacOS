@@ -16,16 +16,20 @@ function today(){
 const EVENT_POINTS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Asc', 'MC'];
 
 // 恒星推运 AI 快照（无头）：内部 fetch /astroextra/progressions + zodiacal:1，与组件同口径。无数据返回 ''。
-export async function buildVedicProgSnapshotText(chartObj){
+// opts（AI 挂载「每技法设置」）：targetDate + targetTime（目标时刻）。缺省 → today()/12:00:00（=现状）。
+export async function buildVedicProgSnapshotText(chartObj, opts){
 	if(!chartObj){ return ''; }
+	const o = opts && typeof opts === 'object' ? opts : {};
+	const targetDate = `${o.targetDate || ''}`.trim() || today();
+	const targetTime = `${o.targetTime || ''}`.trim() || '12:00:00';
 	let result = null;
 	try{
 		const data = await request(`${Constants.ServerRoot}/astroextra/progressions`, {
 			body: JSON.stringify({
 				...chartParams(chartObj),
 				zodiacal: 1,
-				targetDate: today(),
-				targetTime: '12:00:00',
+				targetDate,
+				targetTime,
 				orb: 1.5,
 			}),
 			timeoutMs: 45000,

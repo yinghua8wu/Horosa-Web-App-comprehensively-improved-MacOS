@@ -8,6 +8,24 @@
 
 ---
 
+## v2.6.1 发布 · AI 挂载全选项打磨 + 多时段输出 + 风水八卦阳宅法 + 跨模块修复
+
+- **性质：前端为主 + 后端一处（pdYears 转发，需重编 jar）。** 绝大多数改动纯前端（同步 `.js`/`.less` → `npm run build && npm run build:file`）；**唯一后端改动**是 `ChartController.getParams()` 转发 pdYears（挂载侧主限法年数选项生效的真因），**必须重编 fat jar**。
+- **改了什么（后端，必重编 jar）**：
+  - `astrostudysrv/astrostudycn/.../controller/ChartController.java`：`getParams()`（`/chart` 路径，AI 挂载用）原**丢弃** `pdYears` + `pdDirect/pdConverse/pdAntiscia/pdTerms` → 挂载主限法选项不生效。修法＝条件转发（缺省零回归）+ `_wireRev` `pd_method_sync_v8`→`v9`（让旧 ParamHashCache 失效）。
+  - **Windows 必须做**：同步该 `.java` → **JDK17 重编**：`export JAVA_HOME=.../zulu-17.jdk/Contents/Home`（或 Windows JDK17）；`cd astrostudysrv && mvn -o -f astrostudycn/pom.xml install -DskipTests && mvn -o -f astrostudyboot/pom.xml clean package -DskipTests`；`unzip`+`javap` 验内嵌 `BOOT-INF/lib/astrostudycn-1.0.0.jar` 的 `ChartController` 含 `pdYears`/`pd_method_sync_v9`；重启后端。
+- **改了什么（前端，必重建包）**：
+  - **AI 挂载全选项**：新增 `utils/techniqueMountSettings.js`（`TECHNIQUE_SETTINGS_SCHEMA` 驱动齿轮抽屉）；`components/aianalysis/AIAnalysisMain.{js,less}`（抽屉渲染 + 多时段日期选择器 + 区间扫描）；`utils/{aiAnalysisContext,aiExport,localcharts,baziLunarLocal}.js`。
+  - **多时段输出 / 主限法盘表拆分 / 推运多盘**：`components/astro/*`（PD chart-mount、各推运 builder）、`components/ziwei/{ZiWeiMain,ZWLuckPanel}.js`、`components/cntradition/BaZi.js`。
+  - **六爻三卦全装卦 + 一键挂载**：`components/guazhan/GuaZhanMain.js`（+ `__tests__/guaSnapshot.test.js`）。
+  - **风水八卦阳宅法 v2（倪海厦，纯前端）**：`components/fengshui/{FengShuiMain,fengshuiEngine}.js` + 新增 `fengshui/{baguaCore,baguaData,naqiRules,fengshuiGeom}.js`、`public/fengshui/skins/`（罗盘皮肤 PNG）；默认仍纳气盘、零回归。
+  - **跨模块修复**：`components/divination/DivinationChartShell.js`（`changeChartStyle` 误把事件对象当值 → 辅盘样式切换失效，已修）、`components/astro/AstroRelative.js`（三式「时空」中点盘 `:9999→:8899` 端口兜底）、`layouts/app.less`（主题 / 布局 / 暗黑双色快修）。
+- **零回归**：AI 挂载铁律「默认即现状」（等于默认的项被 prune、快照逐字节不变）；pdYears 转发缺省时行为不变；风水默认 `techMode='naqi'` 逐字节同改前。
+- **所有技法命盘计算与 v2.6.0 字节级一致**：`perpredict.py`/`perchart.py` 本会话零改动；主限法 Alcabitius+Ptolemy 540 case byte-perfect 仍守。
+- **为什么/坑**：见 `实现说明 §AI 挂载·每技法「设置」全选项无遗漏`（含 `🔒 pdYears 需重编 jar`）+ §风水·八卦阳宅法 + §跨模块修复。
+
+---
+
 ## v2.6.0 发布 · 奇门「相关人员(生年干) + 命盘/事盘双库」 + AI 分析起课时间修复(Win#17)
 
 - **性质：纯前端**（无 Java/jar 改动）。Windows 同步下列 `.js` → **重建前端包**（`npm run build && npm run build:file`）即可，**无需重编 jar**。

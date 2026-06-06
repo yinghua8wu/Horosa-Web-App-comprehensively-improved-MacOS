@@ -112,21 +112,28 @@ export function buildGuaSnapshotText(fields, st){
 	}
 
 	lines.push('');
+	// 之卦/互卦/错卦/综卦：从六爻线值直接计算(不依赖 guaDesc) → 挂载经 buildTimeGua(无 guaDesc)时也能全面输出,
+	// 修「AI分析挂载六爻只有本卦」。yao 缺失时回落 guaDesc。
+	// 提升到函数作用域，供下方[六爻与动爻]给之卦/互卦逐爻装卦复用。
+	const yaoVals = (yao && yao.length === 6 && yao.every((y)=>y && (y.value === 0 || y.value === 1))) ? yao.map((y)=>y.value) : null;
+	const hasMoving = !!(yao && yao.some((y)=>y.change));
+	let huGua = null;
+	let bianGua = null;
+	let cuoGua = null;
+	let zongGua = null;
+	if(yaoVals){
+		huGua = guaFromYaoValues([yaoVals[1], yaoVals[2], yaoVals[3], yaoVals[2], yaoVals[3], yaoVals[4]]);
+		bianGua = guaFromYaoValues(yao.map((y)=>y.change ? (y.value === 1 ? 0 : 1) : y.value));
+		cuoGua = guaFromYaoValues(yaoVals.map((v)=>(v === 1 ? 0 : 1)));
+		zongGua = guaFromYaoValues([...yaoVals].reverse());
+	}
 	lines.push('[卦象]');
 	if(nowGua){
 		lines.push(`本卦：${guaText(nowGua)}`);
 	}else{
 		lines.push('本卦：未生成');
 	}
-	// 之卦/互卦/错卦/综卦：一律从六爻线值直接计算(不依赖 guaDesc) → 挂载经 buildTimeGua(无 guaDesc)时也能全面输出,
-	// 修「AI分析挂载六爻只有本卦」。yao 缺失时回落 guaDesc。
-	const yaoVals = (yao && yao.length === 6 && yao.every((y)=>y && (y.value === 0 || y.value === 1))) ? yao.map((y)=>y.value) : null;
 	if(yaoVals){
-		const hasMoving = yao.some((y)=>y.change);
-		const huGua = guaFromYaoValues([yaoVals[1], yaoVals[2], yaoVals[3], yaoVals[2], yaoVals[3], yaoVals[4]]);
-		const bianGua = guaFromYaoValues(yao.map((y)=>y.change ? (y.value === 1 ? 0 : 1) : y.value));
-		const cuoGua = guaFromYaoValues(yaoVals.map((v)=>(v === 1 ? 0 : 1)));
-		const zongGua = guaFromYaoValues([...yaoVals].reverse());
 		if(huGua){ lines.push(`互卦：${guaText(huGua)}`); }
 		else if(guaDesc.guaMiddle){ lines.push(`互卦：${guaText(guaDesc.guaMiddle)}`); }
 		if(hasMoving){
@@ -147,6 +154,7 @@ export function buildGuaSnapshotText(fields, st){
 	if(!yao || yao.length === 0){
 		lines.push('暂无爻线数据');
 	}else{
+		// 本卦逐爻（保持原样）：阴阳/动静 + 六神(六兽) + 爻名(纳甲=地支/五行/六亲/世应)。
 		yao.forEach((item, idx)=>{
 			const yaoType = item.value === 1 ? '阳爻' : (item.value === 0 ? '阴爻' : '未定');
 			const moving = item.change ? '（动）' : '（静）';
@@ -154,6 +162,20 @@ export function buildGuaSnapshotText(fields, st){
 			const name = item.name ? `，爻名:${item.name}` : '';
 			lines.push(`第${idx + 1}爻：${yaoType}${moving}${god}${name}`);
 		});
+		// 之卦(变卦)/互卦逐爻装卦：地支/五行/六亲/世应取自该卦 yaoname；六神(六兽)沿用本卦同位(按日干起、各卦同序)。
+		const godAt = (i)=>(yao[i] && yao[i].god ? `，六神:${yao[i].god}` : '');
+		const pushGuaYao = (label, gua)=>{
+			if(!gua || !Array.isArray(gua.yaoname)){ return; }
+			lines.push(`${label}逐爻（初→上）：`);
+			gua.yaoname.forEach((nm, idx)=>{
+				// 阴阳爻取该卦线值 gua.value[idx]（1=阳/0=阴），与本卦逐爻一致。
+				const v = Array.isArray(gua.value) ? gua.value[idx] : undefined;
+				const yinYang = v === 1 ? '阳爻' : (v === 0 ? '阴爻' : '');
+				lines.push(`第${idx + 1}爻：${yinYang ? `${yinYang}，` : ''}爻名:${nm}${godAt(idx)}`);
+			});
+		};
+		if(hasMoving && bianGua){ pushGuaYao('之卦(变卦)', bianGua); }
+		if(huGua){ pushGuaYao('互卦', huGua); }
 	}
 
 	lines.push('');

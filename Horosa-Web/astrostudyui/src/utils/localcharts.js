@@ -287,6 +287,20 @@ export function buildLocalChartRecord(values){
 		pdConverse: values.pdConverse !== undefined && values.pdConverse !== null ? parseInt(values.pdConverse + '', 10) : undefined,
 		pdAntiscia: values.pdAntiscia !== undefined && values.pdAntiscia !== null ? parseInt(values.pdAntiscia + '', 10) : undefined,
 		pdTerms: values.pdTerms !== undefined && values.pdTerms !== null ? parseInt(values.pdTerms + '', 10) : undefined,
+		// AI 挂载「每技法设置」可调的占星排盘开关 + 数算/八字取用 + 七政命度模式:仅在 values 提供时落库
+		// (present 才落库,对齐 pd* 写法),否则 buildFieldObject 回退现状默认 → 不破坏既有命盘。
+		hsys: values.hsys !== undefined && values.hsys !== null ? values.hsys : undefined,
+		zodiacal: values.zodiacal !== undefined && values.zodiacal !== null ? parseInt(values.zodiacal + '', 10) : undefined,
+		tradition: values.tradition !== undefined && values.tradition !== null ? parseInt(values.tradition + '', 10) : undefined,
+		strongRecption: values.strongRecption !== undefined && values.strongRecption !== null ? parseInt(values.strongRecption + '', 10) : undefined,
+		simpleAsp: values.simpleAsp !== undefined && values.simpleAsp !== null ? parseInt(values.simpleAsp + '', 10) : undefined,
+		virtualPointReceiveAsp: values.virtualPointReceiveAsp !== undefined && values.virtualPointReceiveAsp !== null ? parseInt(values.virtualPointReceiveAsp + '', 10) : undefined,
+		southchart: values.southchart !== undefined && values.southchart !== null ? parseInt(values.southchart + '', 10) : undefined,
+		phaseType: values.phaseType !== undefined && values.phaseType !== null ? parseInt(values.phaseType + '', 10) : undefined,
+		godKeyPos: values.godKeyPos !== undefined && values.godKeyPos !== null ? values.godKeyPos : undefined,
+		adjustJieqi: values.adjustJieqi !== undefined && values.adjustJieqi !== null ? parseInt(values.adjustJieqi + '', 10) : undefined,
+		guolaoLifeMode: values.guolaoLifeMode !== undefined && values.guolaoLifeMode !== null ? values.guolaoLifeMode : undefined,
+		guolaoNodeMode: values.guolaoNodeMode !== undefined && values.guolaoNodeMode !== null ? values.guolaoNodeMode : undefined,
 	};
 	return record;
 }

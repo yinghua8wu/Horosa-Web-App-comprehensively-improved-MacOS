@@ -126,7 +126,7 @@
   display: grid;
   grid-template-columns: 1fr 118px;
   gap: 6px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .pillarLeft {
@@ -192,15 +192,18 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
+  height: 100%;
 }
 
 .metaPair {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  height: 100%;
 }
 
 .metaTitle {
+  flex: 1;
   min-height: 32px;
   border-radius: 8px;
   border: 1px solid var(--horosa-border);
@@ -213,6 +216,7 @@
 }
 
 .metaValue {
+  flex: 1;
   min-height: 32px;
   border: 1px solid var(--horosa-border);
   border-radius: 8px;

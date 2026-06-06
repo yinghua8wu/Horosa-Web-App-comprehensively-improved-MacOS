@@ -476,6 +476,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         showPlanetHouseInfo={showPlanetHouseInfo}
                         showAstroMeaning={showAstroMeaning}
                         hook={predictHook.auxchart}
+                        chartStyle={chartStyle}
                         dispatch={dispatch}
                         currentSubTab={currentSubTab}
                     />

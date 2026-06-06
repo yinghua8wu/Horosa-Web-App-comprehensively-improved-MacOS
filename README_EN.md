@@ -8,12 +8,12 @@
 
 **Western astrology and Chinese metaphysics, in one native macOS workstation**
 
-[![Version](https://img.shields.io/badge/version-2.6.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)
+[![Version](https://img.shields.io/badge/version-2.6.1-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.0/Horosa-Installer-macos-arm64-offline.pkg) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.1/Horosa-Installer-macos-arm64-offline.pkg) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@ This repository is the macOS delivery of that app: the application source, the s
 
 Regular users should go straight to the offline installer and open Horosa like any other macOS app.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.0/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.1/Horosa-Installer-macos-arm64-offline.pkg)**
 
 Best for:
 
@@ -91,18 +91,18 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## What's New in v2.6.0 beta
+## What's New in v2.6.1 beta
 
-This release is a **major roll-up** since v2.5.5 — deepening four core techniques plus several install / AI-stability fixes.
+This release focuses on **AI-mount polish**, **multi-period output**, and a new **Bagua dwelling (Feng Shui)** method, plus a batch of cross-module fixes. Every technique's chart computation is identical to v2.6.0.
 
-- **Da Liu Ren — full interpretation layer** — imagery / categorical symbolism, the 100 Bi-Fa verses (auto-matched where mechanically decidable, plus reading mnemonics), a divination-category guide, a shen-sha glossary, a three-transmission relation diagram, and timing & noble-deity states — audited line-by-line against *Liu Ren Kai Yang*.
-- **Western astrology — Mundane / Horary / Election / transits** — four complete new chart types with full AI export / mount / storage sync.
-- **Zi Wei Dou Shu — comprehensively expanded** — minor stars, school-specific four-transformation tables, period flying stars, pattern details, and more.
-- **Qi Men Dun Jia — Fa-Qimen + people in the chart** — the Xun-Shuang "judge + resolve" overlay (complete six-harms / resolutions / useful-god analysis / imagery); a left-panel **related-persons** multi-select (each person's birth-year stem feeds the Eight-Gate protective array) and a **natal / event** dual library (natal charts reuse the normal chart manager, usable across techniques).
-- **Professional city search** — Simplified display + pinyin / initials + traditional-simplified folding.
-- **Install & AI fixes** — Apple-Silicon installer "install failed" (graceful packaging degradation), DeepSeek chain-of-thought multi-turn timeouts, and AI-analysis "cast / natal time" now resolving to *now* on select (previously the app-open time).
+- **AI mount — every per-technique option, nothing missing** — a carpet audit of all mountable techniques: any option a technique's main page exposes (and that changes the mounted snapshot) is also selectable in the gear drawer, so you mount exactly what you want.
+- **AI mount — multi-period output** — Zi Wei / Bazi can mount any major-period / annual / monthly / daily / hourly layer, with a new date picker, a default of *now*, and a time-range scan.
+- **Primary direction — chart / table split** — the primary-direction chart projection and the table are now independent views.
+- **Six-Yao — full hexagrams, line by line** — the primary, mutual, and changing hexagrams are each built line-by-line; a one-click mount covers Six-Yao, the chart, and Qi Men.
+- **Feng Shui — Bagua dwelling (yang house), after Ni Hai-Sha** — alongside the air-intake chart, a Bagua dwelling v2 method: drop markers on a floor plan with a single facing degree, auto-derive each member's hexagram and the four feature patterns, and compute timing / rank shifts.
+- **Cross-module fixes** — auxiliary-chart style switching, the Sanshi-United time-space midpoint chart, and assorted theme / layout and dark-mode contrast details.
 
-The notarized offline `.pkg`, app zip, runtime archive, and manifest are aligned to `2.6.0 / 2.6.0-runtime1`. Full log on the [v2.6.0 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.0).
+The notarized offline `.pkg`, app zip, runtime archive, and manifest are aligned to `2.6.1 / 2.6.1-runtime1`. Full log on the [v2.6.1 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1).
 
 ## Under the Hood
 

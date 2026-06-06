@@ -206,13 +206,15 @@ class AstroChart13 extends Component{
 
 		return (
 			<div style={{height: '100%', minHeight: 0}}>
-					<AstroChartMain 
-						value={chartObj} 
+					<AstroChartMain
+						value={chartObj}
 					onChange={this.onFieldsChange}
 					hidehsys={1}
 					hidezodiacal={1}
-					fields={fields} 
-					height={height} 
+					fields={fields}
+					height={height}
+						chartStyle={this.props.chartStyle}
+						dispatch={this.props.dispatch}
 						chartDisplay={this.props.chartDisplay}
 						planetDisplay={this.props.planetDisplay}
 						lotsDisplay={this.props.lotsDisplay}

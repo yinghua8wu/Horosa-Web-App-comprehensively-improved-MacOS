@@ -459,7 +459,7 @@ describe('aiAnalysisContext', ()=>{
 		);
 	});
 
-	test('recasts time-castable case techniques from case time when payload empty; never recasts 六爻', async ()=>{
+	test('recasts time-castable case techniques from case time when payload empty; 六爻无存卦时也按时间起卦补(本 mock 历法不全→优雅 missing)', async ()=>{
 		const sources = listAnalysisSources();
 		const source = sources.find((item)=>item.id === 'case-3');
 		const contexts = await getAnalysisTechniqueContexts(source, ['liureng', 'qimen', 'taiyi', 'sixyao']);
@@ -472,7 +472,9 @@ describe('aiAnalysisContext', ()=>{
 		expect(byKey.taiyi).toEqual(expect.objectContaining({ available: true, status: 'ready' }));
 		// 补算的快照 meta 带 regeneratedFromCaseTime 标记（来源可追溯）
 		expect(byKey.liureng.meta).toEqual(expect.objectContaining({ regeneratedFromCaseTime: true }));
-		// 🔒 六爻是摇钱/报数起卦，不在白名单 → 绝不按时间重算（否则伪造一个不同的卦），无 payload 即缺失。
+		// 六爻（用户拍板放开护栏）：已存 payload.gua 优先；无存卦时按起课时间「时间起卦」补（确定性、非伪造摇卦）。
+		// 本 mock 的起课时间历法不全 → regenerateSixyaoSnapshot 的 buildTimeGua 取不到卦 → 兜底返 '' → 此例仍 missing（不崩）。
+		// 生产环境（真历法）此处会时间起卦补出六爻盘。六爻仍**不进** TIME_CASTABLE_DIVINATION（preflight[24] 护栏在）。
 		expect(byKey.sixyao).toEqual(expect.objectContaining({ available: false, status: 'missing', content: '' }));
 	});
 

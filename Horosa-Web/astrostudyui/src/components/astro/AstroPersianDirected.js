@@ -15,7 +15,9 @@ import { XQSelect as Select } from '../xq-ui';
 
 const Option = Select.Option;
 const RATE = { persian: 1.0, prophected: 30.0, naibod: 0.9856473 };
-const RATE_LABEL = { persian: '波斯 1°/年', prophected: 'Prophected 30°/年', naibod: 'Naibod 59′08″/年' };
+export const RATE_LABEL = { persian: '波斯 1°/年', prophected: 'Prophected 30°/年', naibod: 'Naibod 59′08″/年' };
+// AI 挂载「波斯向运」可调项默认（=组件初始 state / 无头默认：波斯速率 + 顺向）。不调任何项 → 输出逐字不变。
+const PERSIAN_DEFAULT_OPTS = { rateKey: 'persian', direction: 'direct' };
 const MOVERS = [AstroConst.SUN, AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN];
 const ASPECTS = [0, 60, 90, 120, 180];
 
@@ -82,9 +84,14 @@ export function buildPersianHits(chartObj, rateKey, maxAge, direction){
 	return hits;
 }
 
-export function buildPersianDirectedSnapshotText(chartObj){
+// opts（AI 挂载「每技法设置」）：rateKey(波斯/Prophected/Naibod) + direction(direct/converse)。
+// 缺省/坏值经 PERSIAN_DEFAULT_OPTS 回退 → 与现状逐字一致(守「默认即现状」)。
+export function buildPersianDirectedSnapshotText(chartObj, opts){
 	if(!chartObj){ return ''; }
-	const hits = buildPersianHits(chartObj, 'persian', 90, 'direct');
+	const o = { ...PERSIAN_DEFAULT_OPTS, ...(opts && typeof opts === 'object' ? opts : {}) };
+	const rateKey = RATE[o.rateKey] !== undefined ? o.rateKey : 'persian';
+	const direction = o.direction === 'converse' ? 'converse' : 'direct';
+	const hits = buildPersianHits(chartObj, rateKey, 90, direction);
 	if(!hits.length){ return ''; }
 	const sym = (id) => (AstroText.AstroTxtMsg[id] || `${id}`);
 	const asp = (deg) => (AstroText.AstroTxtMsg['Asp' + deg] || `${deg}°`);

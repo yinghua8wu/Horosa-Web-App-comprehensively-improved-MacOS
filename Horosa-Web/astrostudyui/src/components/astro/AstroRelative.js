@@ -9,6 +9,7 @@ import AstroTimeSpace from '../relative/AstroTimeSpace'
 import AstroMarks from '../relative/AstroMarks'
 import AstroRelativeScore from '../relative/AstroRelativeScore'
 import * as Constants from '../../utils/constants';
+import { resolveKentangServiceRoot } from '../../integrations/kentang/serviceRoot';
 import request from '../../utils/request';
 import * as AstroText from '../../constants/AstroText';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
@@ -357,7 +358,8 @@ class AstroRelative extends Component{
 			return;
 		}
 
-		const data = await request(`${Constants.ServerRoot}/modern/relative`, {
+		// 合盘(含时空中点盘)的 /modern/relative 复用端口兜底：本地 :9999 不可达时落到 chart 服务 :8899（与太乙/奇门一致；线上 ServerRoot 非 :9999 时原样返回，零回归）。
+		const data = await request(`${resolveKentangServiceRoot('taiyi')}/modern/relative`, {
 			body: JSON.stringify(params),
 		});
 

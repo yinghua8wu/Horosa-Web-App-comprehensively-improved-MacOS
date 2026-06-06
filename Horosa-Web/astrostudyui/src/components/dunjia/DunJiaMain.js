@@ -1643,7 +1643,7 @@ class DunJiaMain extends Component {
 
 	renderCell(cell){
 		const titleColor = cell.hasKongWang
-			? 'var(--horosa-accent, #2f54eb)'
+			? '#2f54eb'
 			: (cell.isCenter ? 'var(--horosa-muted, #c7c7c7)' : 'var(--horosa-text-soft, #5f5f5f)');
 		let tianGanColor = 'var(--horosa-text, #262626)';
 		if(cell.hasJiXing && cell.hasRuMu){

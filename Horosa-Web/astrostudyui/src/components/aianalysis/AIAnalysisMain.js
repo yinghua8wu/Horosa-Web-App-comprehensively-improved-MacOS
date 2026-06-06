@@ -19,6 +19,7 @@ import {
 	message,
 } from 'antd';
 import Mustache from 'mustache';
+import moment from 'moment';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { marked } from 'marked';
@@ -29,12 +30,17 @@ import XQIcon from '../xq-icons';
 import {
 	XQButton as Button,
 	XQCard as Card,
+	XQCheckItem,
+	XQCheckList,
+	XQDatePicker,
 	XQDrawer as Drawer,
 	XQInput as Input,
 	XQModal as Modal,
+	XQSectionTitle,
 	XQSelect as Select,
 	XQSwitch as Switch,
 	XQTabs as Tabs,
+	XQToolbar,
 } from '../xq-ui';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import * as AstroHelper from '../astro/AstroHelper';
@@ -70,6 +76,21 @@ import {
 	listAnalysisSources,
 	listAnalysisTechniqueOptions,
 } from '../../utils/aiAnalysisContext';
+import {
+	getTechniqueSettingsSchema,
+	getTechniqueSettingsDefaults,
+	isSectionsOnlyTechnique,
+	hasMountSettingsFields,
+	pruneOptionsToNonDefault,
+	saveMountTechniqueDefaults,
+	getMountTechniqueDefault,
+} from '../../utils/techniqueMountSettings';
+import {
+	loadAIExportSettings,
+	saveAIExportSettings,
+	getAIExportEffectiveSectionsForTechnique,
+	listAIExportTechniqueSettings,
+} from '../../utils/aiExport';
 import * as Constants from '../../utils/constants';
 import { parseMaterialFile } from '../../utils/aiAnalysisMaterial';
 import {
@@ -743,6 +764,13 @@ function AIAnalysisMain(props){
 	const [prompt, setPrompt] = React.useState('');
 	const [sessionSystemPrompt, setSessionSystemPrompt] = React.useState(defaultUi.sessionSystemPrompt || '');
 	const [mountDrawerOpen, setMountDrawerOpen] = React.useState(false);
+	// AI 挂载「每技法设置」：会话级覆盖 {[key]:options}（仅本次，未点「设为同类默认」不持久）。默认空 → 走默认路径。
+	const [techniqueOptionOverrides, setTechniqueOptionOverrides] = React.useState({});
+	// 当前打开设置抽屉的技法 key + 抽屉内编辑草稿（含 settings 段勾选即时态）。
+	const [techniqueSettingsKey, setTechniqueSettingsKey] = React.useState('');
+	const [techniqueSettingsDraft, setTechniqueSettingsDraft] = React.useState({});
+	// 段勾选写入 aiExport 设置后用此 nonce 触发挂载重新 fetch（让卡片快照按新段刷新）。
+	const [mountSettingsNonce, setMountSettingsNonce] = React.useState(0);
 	const [timepointDraft, setTimepointDraft] = React.useState(()=>({
 		divTime: formatTimepointNow(),
 		zone: '+08:00',
@@ -893,6 +921,29 @@ function AIAnalysisMain(props){
 		return filterTechniqueKeysBySource(activeSource, techniqueOptions, selectedTechniqueKeys);
 	}, [activeSource, techniqueOptions, selectedTechniqueKeys]);
 	const sourceContextMode = getTechniqueContextMode(activeTechniqueKeys);
+
+	// 每技法的「生效覆盖」= 会话覆盖 ?? 同类默认(localStorage) ?? 空。仅收非空(有非默认项)的技法 →
+	// 传给 getAnalysisTechniqueContexts 走强制重算；空 → 不进映射 → 默认路径(默认即现状)。
+	// 依赖 mountSettingsNonce：点「设为同类默认/恢复默认」后重算。
+	const effectiveTechniqueOptions = React.useMemo(()=>{
+		const out = {};
+		(activeTechniqueKeys || []).forEach((key)=>{
+			const session = techniqueOptionOverrides[key];
+			const eff = (session && typeof session === 'object')
+				? pruneOptionsToNonDefault(key, session)
+				: getMountTechniqueDefault(key);
+			if(eff && Object.keys(eff).length){
+				out[key] = eff;
+			}
+		});
+		return out;
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [activeTechniqueKeys, techniqueOptionOverrides, mountSettingsNonce]);
+	// 稳定签名,供 useEffect 依赖(对象引用每次都变,用 JSON 串避免无谓重算)。
+	const effectiveTechniqueOptionsSig = React.useMemo(
+		()=>JSON.stringify(effectiveTechniqueOptions),
+		[effectiveTechniqueOptions]
+	);
 
 	const modelOptions = React.useMemo(()=>{
 		const result = [];
@@ -1251,8 +1302,11 @@ function AIAnalysisMain(props){
 		let cancelled = false;
 		setTechniqueContexts(buildTechniqueLoadingState(activeTechniqueKeys, techniqueLabelMap));
 		activeTechniqueKeys.forEach((techniqueKey)=>{
+			// 该技法若有「每技法设置」覆盖 → 走强制重算；否则默认路径(默认即现状)。段过滤复用 AI导出设置(Phase 1)。
+			const optsForKey = effectiveTechniqueOptions[techniqueKey];
 			getAnalysisTechniqueContexts(activeSource, [techniqueKey], {
 				sourceContext,
+				techniqueOptions: optsForKey ? { [techniqueKey]: optsForKey } : null,
 			}).then((items)=>{
 				if(cancelled){
 					return;
@@ -1287,7 +1341,9 @@ function AIAnalysisMain(props){
 		return ()=>{
 			cancelled = true;
 		};
-	}, [activeSource, activeTechniqueKeys, sourceContext, techniqueLabelMap]);
+	// effectiveTechniqueOptionsSig / mountSettingsNonce 变更(改设置或段勾选) → 重新 fetch 让卡片快照刷新。
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [activeSource, activeTechniqueKeys, sourceContext, techniqueLabelMap, effectiveTechniqueOptionsSig, mountSettingsNonce]);
 
 	React.useEffect(()=>{
 		if(!modelOptions.length){
@@ -1668,7 +1724,11 @@ function AIAnalysisMain(props){
 			mode: activeTechniqueKeys.length ? 'meta' : 'full',
 		}) : sourceContext;
 		const resolvedTechniqueContexts = currentSource && activeTechniqueKeys.length
-			? await getAnalysisTechniqueContexts(currentSource, activeTechniqueKeys, { sourceContext: ctx })
+			? await getAnalysisTechniqueContexts(currentSource, activeTechniqueKeys, {
+				sourceContext: ctx,
+				// 发送给 LLM 的最终上下文也带上「每技法设置」覆盖（与预览卡一致）。
+				techniqueOptions: effectiveTechniqueOptions,
+			})
 			: [];
 		if(ctx){
 			setSourceContext(ctx);
@@ -2840,6 +2900,382 @@ function AIAnalysisMain(props){
 		);
 	}
 
+	// ===== AI 挂载「每技法设置」抽屉：纳入内容(共用 AI导出 sections) + 该技法排盘/起卦设置 =====
+
+	function openTechniqueSettings(key){
+		const k = `${key || ''}`;
+		if(!k){
+			return;
+		}
+		// 草稿初值 = 默认值 叠加 当前生效覆盖（会话覆盖 ?? 同类默认）。未改任何项 → 草稿 === 默认 → prune 后空。
+		const base = getTechniqueSettingsDefaults(k);
+		const session = techniqueOptionOverrides[k];
+		const eff = (session && typeof session === 'object') ? pruneOptionsToNonDefault(k, session) : getMountTechniqueDefault(k);
+		setTechniqueSettingsKey(k);
+		setTechniqueSettingsDraft({ ...base, ...(eff || {}) });
+	}
+
+	function closeTechniqueSettings(){
+		setTechniqueSettingsKey('');
+		setTechniqueSettingsDraft({});
+	}
+
+	function updateTechniqueDraftField(name, value){
+		setTechniqueSettingsDraft((prev)=>({ ...prev, [name]: value }));
+	}
+
+	// 「应用并重算」：把草稿(去默认后)写进会话覆盖 → 触发该技法重算(状态转「已按盘重算」)。
+	function applyTechniqueSettings(){
+		const k = techniqueSettingsKey;
+		if(!k){
+			return;
+		}
+		const pruned = pruneOptionsToNonDefault(k, techniqueSettingsDraft);
+		setTechniqueOptionOverrides((prev)=>{
+			const next = { ...prev };
+			if(pruned && Object.keys(pruned).length){
+				next[k] = pruned;
+			}else{
+				delete next[k];
+			}
+			return next;
+		});
+		message.success(Object.keys(pruned).length ? '已应用并按新设置重算该技法' : '已恢复该技法默认设置');
+	}
+
+	// 「设为同类默认」：持久到 mount defaults（以后该技法默认沿用）。同时清掉会话覆盖（避免双写歧义）。
+	function saveTechniqueAsDefault(){
+		const k = techniqueSettingsKey;
+		if(!k){
+			return;
+		}
+		const pruned = pruneOptionsToNonDefault(k, techniqueSettingsDraft);
+		saveMountTechniqueDefaults(k, pruned);
+		setTechniqueOptionOverrides((prev)=>{
+			const next = { ...prev };
+			delete next[k];
+			return next;
+		});
+		setMountSettingsNonce((n)=>n + 1);
+		message.success(Object.keys(pruned).length ? '已设为该技法的同类默认（持久）' : '已清除该技法的同类默认');
+	}
+
+	// 「恢复默认」：删会话覆盖 + 删同类默认 + 草稿回默认 → 回现状。
+	function resetTechniqueSettings(){
+		const k = techniqueSettingsKey;
+		if(!k){
+			return;
+		}
+		saveMountTechniqueDefaults(k, {});
+		setTechniqueOptionOverrides((prev)=>{
+			const next = { ...prev };
+			delete next[k];
+			return next;
+		});
+		setTechniqueSettingsDraft(getTechniqueSettingsDefaults(k));
+		setMountSettingsNonce((n)=>n + 1);
+		message.success('已恢复该技法默认（设置 + 同类默认均清除）');
+	}
+
+	// ---- 纳入内容（段勾选）：读写同一份 aiExport 设置 → 与「AI导出设置」四同步 ----
+
+	function persistAIExportSettings(mutator){
+		const current = loadAIExportSettings();
+		const next = mutator({
+			...current,
+			sections: { ...(current.sections || {}) },
+			planetInfo: { ...(current.planetInfo || {}) },
+			astroMeaning: { ...(current.astroMeaning || {}) },
+		});
+		saveAIExportSettings(next);
+		// 段过滤是「显式自定义才生效」→ 改完即触发挂载重新 fetch 刷新卡片。
+		setMountSettingsNonce((n)=>n + 1);
+	}
+
+	function getTechExportMeta(key){
+		const list = listAIExportTechniqueSettings();
+		return list.find((item)=>item.key === key) || null;
+	}
+
+	function getEffectiveSectionSelected(key){
+		// 当前生效段（用户选了用选中、否则 preset）。用于复选框勾选态。
+		return getAIExportEffectiveSectionsForTechnique(key, loadAIExportSettings());
+	}
+
+	function toggleSectionForTech(key, section){
+		const selectedNow = getEffectiveSectionSelected(key);
+		const has = selectedNow.indexOf(section) >= 0;
+		const nextSel = has ? selectedNow.filter((s)=>s !== section) : selectedNow.concat([section]);
+		persistAIExportSettings((draft)=>{
+			draft.sections[key] = nextSel;
+			return draft;
+		});
+	}
+
+	function selectAllSectionsForTech(key, allOptions){
+		persistAIExportSettings((draft)=>{
+			draft.sections[key] = (allOptions || []).slice(0);
+			return draft;
+		});
+	}
+
+	function clearSectionsForTech(key){
+		persistAIExportSettings((draft)=>{
+			draft.sections[key] = [];
+			return draft;
+		});
+	}
+
+	function resetSectionsForTech(key){
+		// 删该 key 的段/后天/术语自定义 → 回 preset 全段(默认即现状)。
+		persistAIExportSettings((draft)=>{
+			delete draft.sections[key];
+			delete draft.planetInfo[key];
+			delete draft.astroMeaning[key];
+			return draft;
+		});
+	}
+
+	function togglePlanetInfoForTech(key, field, checked){
+		persistAIExportSettings((draft)=>{
+			const current = draft.planetInfo[key] || { showHouse: 1, showRuler: 1 };
+			draft.planetInfo[key] = {
+				showHouse: current.showHouse === 1 || current.showHouse === true ? 1 : 0,
+				showRuler: current.showRuler === 1 || current.showRuler === true ? 1 : 0,
+			};
+			draft.planetInfo[key][field] = checked ? 1 : 0;
+			return draft;
+		});
+	}
+
+	function toggleAstroMeaningForTech(key, checked){
+		persistAIExportSettings((draft)=>{
+			draft.astroMeaning[key] = { enabled: checked ? 1 : 0 };
+			return draft;
+		});
+	}
+
+	function renderTechniqueSettingField(field){
+		const value = Object.prototype.hasOwnProperty.call(techniqueSettingsDraft, field.name)
+			? techniqueSettingsDraft[field.name]
+			: field.default;
+		if(field.type === 'switch'){
+			return (
+				<div className={styles.techSettingRow} key={field.name}>
+					<span className={styles.techSettingLabel}>{field.label}</span>
+					<Switch
+						size="small"
+						checked={`${value}` === '1' || value === true}
+						onChange={(checked)=>updateTechniqueDraftField(field.name, checked ? 1 : 0)}
+					/>
+				</div>
+			);
+		}
+		if(field.type === 'select'){
+			return (
+				<div className={styles.techSettingRow} key={field.name}>
+					<span className={styles.techSettingLabel}>{field.label}</span>
+					<Select
+						size="small"
+						value={value}
+						style={{ minWidth: 180 }}
+						onChange={(val)=>updateTechniqueDraftField(field.name, val)}
+					>
+						{(field.options || []).map((opt)=>(
+							<Select.Option key={`${opt.value}`} value={opt.value}>{opt.label}</Select.Option>
+						))}
+					</Select>
+				</div>
+			);
+		}
+		if(field.type === 'multiselect'){
+			// 多选：value=draft 数组（空数组兜底 []，守「默认即现状」=不挂）；
+			// options 取静态 field.options 或动态 field.dynamicOptions（接受函数或数组）。
+			const arrVal = Array.isArray(value) ? value : [];
+			let opts = field.options;
+			if(!Array.isArray(opts) && field.dynamicOptions){
+				opts = typeof field.dynamicOptions === 'function' ? field.dynamicOptions(techniqueSettingsDraft) : field.dynamicOptions;
+			}
+			return (
+				<div className={styles.techSettingRow} key={field.name}>
+					<span className={styles.techSettingLabel}>{field.label}</span>
+					<Select
+						mode="multiple"
+						size="small"
+						value={arrVal}
+						allowClear
+						style={{ minWidth: 220, maxWidth: 280 }}
+						placeholder={field.placeholder || '不选=不挂'}
+						onChange={(val)=>updateTechniqueDraftField(field.name, Array.isArray(val) ? val : [])}
+					>
+						{(Array.isArray(opts) ? opts : []).map((opt)=>(
+							<Select.Option key={`${opt.value}`} value={opt.value}>{opt.label}</Select.Option>
+						))}
+					</Select>
+				</div>
+			);
+		}
+		if(field.type === 'datetime' || field.type === 'date' || field.type === 'time'){
+			// 日期/时刻 picker：schema 默认恒 ''（不破 prune）。空 → 显示「此刻 / 今日」(moment())但 draft 仍空；
+			// 选中 → 写 format 串。datetime 含时分；date 仅日；time 仅时刻。
+			const draftStr = value === undefined || value === null ? '' : `${value}`;
+			const isDatetime = field.type === 'datetime';
+			const isTime = field.type === 'time';
+			const fmt = isDatetime ? 'YYYY-MM-DD HH:mm' : (isTime ? 'HH:mm' : 'YYYY-MM-DD');
+			const mVal = draftStr ? moment(draftStr, fmt) : moment();
+			const pickerProps = {
+				size: 'small',
+				format: fmt,
+				value: mVal && mVal.isValid() ? mVal : moment(),
+				placeholder: field.placeholder || (draftStr ? '' : '此刻'),
+				style: { minWidth: 200 },
+				allowClear: true,
+				onChange: (mObj)=>updateTechniqueDraftField(field.name, mObj ? mObj.format(fmt) : ''),
+			};
+			if(isDatetime){
+				pickerProps.showTime = { format: 'HH:mm' };
+			}else if(isTime){
+				pickerProps.picker = 'time';
+			}
+			return (
+				<div className={styles.techSettingRow} key={field.name}>
+					<span className={styles.techSettingLabel}>{field.label}</span>
+					<XQDatePicker {...pickerProps} />
+				</div>
+			);
+		}
+		// 兜底：number / text
+		return (
+			<div className={styles.techSettingRow} key={field.name}>
+				<span className={styles.techSettingLabel}>{field.label}</span>
+				<Input
+					size="small"
+					value={`${value === undefined || value === null ? '' : value}`}
+					style={{ maxWidth: 180 }}
+					onChange={(e)=>updateTechniqueDraftField(field.name, field.type === 'number' ? (e.target.value === '' ? field.default : Number(e.target.value)) : e.target.value)}
+				/>
+			</div>
+		);
+	}
+
+	function renderTechniqueSettingsDrawer(){
+		const key = techniqueSettingsKey;
+		const open = !!key;
+		const label = key ? (techniqueLabelMap.get(key) || key) : '';
+		const schema = key ? getTechniqueSettingsSchema(key) : null;
+		const exportMeta = key ? getTechExportMeta(key) : null;
+		const sectionOptions = exportMeta ? (exportMeta.options || []) : [];
+		const selectedSections = key ? getEffectiveSectionSelected(key) : [];
+		const planetInfo = exportMeta ? exportMeta.planetInfo : null;
+		const astroMeaning = exportMeta ? exportMeta.astroMeaning : null;
+		const sectionsOnly = key ? isSectionsOnlyTechnique(key) : false;
+		const hasFields = key ? hasMountSettingsFields(key) : false;
+		// 按 group 分组渲染设置字段（仅本地变量，不改 schema 对象）。
+		const groups = [];
+		const groupMap = {};
+		if(schema && Array.isArray(schema.fields)){
+			schema.fields.forEach((field)=>{
+				// 条件揭示：field.showWhen(draft) 为假则不显示（如大六壬「选时支」仅 castMethod=xuanshi 时显示），
+				// 避免放出「当前起课法用不到」的项造成「选项与输出对不上」。
+				if(typeof field.showWhen === 'function' && !field.showWhen(techniqueSettingsDraft)){ return; }
+				const g = field.group || '设置';
+				if(!groupMap[g]){ groupMap[g] = []; groups.push(g); }
+				groupMap[g].push(field);
+			});
+		}
+		const pruned = key ? pruneOptionsToNonDefault(key, techniqueSettingsDraft) : {};
+		const customizedCount = Object.keys(pruned).length;
+		return (
+			<Drawer
+				title={label ? `${label} · 挂载设置` : '挂载设置'}
+				placement="right"
+				width={460}
+				open={open}
+				onClose={closeTechniqueSettings}
+				className={styles.techSettingsDrawer}
+			>
+				{key ? (
+					<div className={styles.techSettingsBody}>
+						{/* 分区一：该技法设置（A/B/C 类可调；sectionsOnly / 空 schema 显示只读说明） */}
+						<XQSectionTitle>该技法设置</XQSectionTitle>
+						{sectionsOnly || !schema ? (
+							<div className={styles.techSettingsReadonly}>
+								{schema && schema.reason ? schema.reason : '该技法快照按已存卦象/盘面生成，挂载仅可调纳入内容、不支持重算设置。'}
+							</div>
+						) : !hasFields ? (
+							<div className={styles.techSettingsReadonly}>
+								{schema.emptyHint || '该技法按本命盘默认参数生成，挂载暂只支持内容勾选。'}
+							</div>
+						) : (
+							<div className={styles.techSettingsFields}>
+								{groups.map((g)=>(
+									<div className={styles.techSettingGroup} key={g}>
+										<div className={styles.techSettingGroupTitle}>{g}</div>
+										{groupMap[g].map((field)=>renderTechniqueSettingField(field))}
+									</div>
+								))}
+								<XQToolbar compact className={styles.techSettingsActions}>
+									<Button size="small" type="primary" onClick={applyTechniqueSettings}>应用并重算</Button>
+									<Button size="small" onClick={saveTechniqueAsDefault}>设为同类默认</Button>
+									<Button size="small" onClick={resetTechniqueSettings}>恢复默认</Button>
+								</XQToolbar>
+								<div className={styles.techSettingsHint}>
+									{customizedCount
+										? `已自定义 ${customizedCount} 项；「应用并重算」仅本次挂载生效，「设为同类默认」以后该技法默认沿用。`
+										: '全部为默认值（与现状一致）；改动后点「应用并重算」让卡片快照刷新。'}
+								</div>
+							</div>
+						)}
+
+						{/* 分区二：纳入内容（段勾选，写同一份 AI导出设置 → 四同步） */}
+						<XQSectionTitle>纳入内容</XQSectionTitle>
+						{sectionOptions.length ? (
+							<React.Fragment>
+								<XQToolbar compact className={styles.techSettingsActions}>
+									<Button size="small" onClick={()=>selectAllSectionsForTech(key, sectionOptions)}>全选</Button>
+									<Button size="small" onClick={()=>clearSectionsForTech(key)}>清空</Button>
+									<Button size="small" onClick={()=>resetSectionsForTech(key)}>恢复默认</Button>
+								</XQToolbar>
+								<XQCheckList columns={2} className={styles.techSectionChecks}>
+									{sectionOptions.map((sec)=>(
+										<XQCheckItem
+											key={sec}
+											compact
+											checked={selectedSections.indexOf(sec) >= 0}
+											onClick={()=>toggleSectionForTech(key, sec)}
+										>
+											{sec}
+										</XQCheckItem>
+									))}
+								</XQCheckList>
+								{exportMeta && exportMeta.supportsPlanetInfo && planetInfo ? (
+									<div>
+										<div className={styles.techSettingGroupTitle}>星曜后天信息</div>
+										<XQCheckList columns={2}>
+											<XQCheckItem compact checked={planetInfo.showHouse === 1} onClick={()=>togglePlanetInfoForTech(key, 'showHouse', planetInfo.showHouse !== 1)}>显示星曜宫位</XQCheckItem>
+											<XQCheckItem compact checked={planetInfo.showRuler === 1} onClick={()=>togglePlanetInfoForTech(key, 'showRuler', planetInfo.showRuler !== 1)}>显示星曜主宰宫</XQCheckItem>
+										</XQCheckList>
+									</div>
+								) : null}
+								{exportMeta && exportMeta.supportsAstroMeaning && astroMeaning ? (
+									<div>
+										<div className={styles.techSettingGroupTitle}>{exportMeta.astroMeaningTitle || '注释（仅AI导出）：'}</div>
+										<XQCheckItem compact checked={astroMeaning.enabled === 1} onClick={()=>toggleAstroMeaningForTech(key, astroMeaning.enabled !== 1)}>
+											{exportMeta.astroMeaningCheckbox || '在对应分段输出释义'}
+										</XQCheckItem>
+									</div>
+								) : null}
+								<div className={styles.techSettingsHint}>内容勾选与「AI导出设置」同源；取消某段 → 该技法挂载卡片与导出均去掉该段（默认全选＝现状）。</div>
+							</React.Fragment>
+						) : (
+							<div className={styles.techSettingsReadonly}>该技法暂未检测到可选分段；请先在该技法完成一次排盘后再设置。</div>
+						)}
+					</div>
+				) : null}
+			</Drawer>
+		);
+	}
+
 	function renderMountDrawer(){
 		return (
 			<Drawer
@@ -2907,7 +3343,9 @@ function AIAnalysisMain(props){
 										</div>
 									</div>
 									<div className={styles.qcActions}>
-										{isNatal ? null : <Button size="small" type="primary" onClick={()=>setSelectedTechniqueKeys(TIME_CASTABLE_DIVINATION.slice())}>一键挂载全部式法</Button>}
+										{/* 一键挂载：含六爻(无存卦则按时间起卦,见 sixyao 时间起卦路径)；排除奇门遁甲(用户考量:奇门不随一键带入,需手动勾选)。
+										    六爻不进 TIME_CASTABLE_DIVINATION(保已存事盘不被时间凭空补六爻的护栏),仅在此一键集 + sixyao。 */}
+										{isNatal ? null : <Button size="small" type="primary" title="含六爻(无存卦则按时间起卦)；奇门遁甲不随一键加入，需手动勾选" onClick={()=>setSelectedTechniqueKeys([...TIME_CASTABLE_DIVINATION, 'sixyao'].filter((k)=>k !== 'qimen'))}>一键挂载全部式法</Button>}
 										<Button size="small" onClick={handleSaveQuickDraftAsSource}>{isNatal ? '保存为命盘' : '保存为事盘'}</Button>
 									</div>
 									<div className={styles.qcHint}>{isNatal ? '默认设置即时起命盘（八字 / 紫微 / 星盘 / 各推运），可改时间·地点·时区；保存后进入案例列表复用。' : '六爻 / 统摄法需手动起卦后存为事盘再挂载（不能凭时间凭空起）。'}</div>
@@ -2970,15 +3408,33 @@ function AIAnalysisMain(props){
 							{lockedContextItems.map((item)=>{
 								const statusMeta = getContextStatusMeta(item.status);
 								const signature = buildContextSignatureText(item.meta);
+								const techKey = item.type === 'technique' && typeof item.key === 'string' && item.key.indexOf('technique:') === 0
+									? item.key.slice('technique:'.length)
+									: '';
+								const techCustomized = !!(techKey && effectiveTechniqueOptions[techKey] && Object.keys(effectiveTechniqueOptions[techKey]).length);
 								return (
 									<Collapse.Panel
 										key={item.key}
+										extra={techKey ? (
+											<Tooltip title="该技法挂载设置（纳入内容 / 排盘起卦选项）">
+												<Button
+													size="small"
+													type="text"
+													className={styles.contextGearBtn}
+													icon={<XQIcon name="settings" />}
+													onClick={(e)=>{ e.stopPropagation(); openTechniqueSettings(techKey); }}
+												>
+													设置{techCustomized ? ' ·已改' : ''}
+												</Button>
+											</Tooltip>
+										) : null}
 										header={(
 											<div className={styles.contextPanelHeader}>
 												<span className={styles.contextPanelTitle}>{item.title}</span>
 												<span className={styles.contextPanelTags}>
 													<Tag>{item.type}</Tag>
 													<Tag color={statusMeta.color}>{statusMeta.text}</Tag>
+													{techCustomized ? <Tag color="purple">已自定义</Tag> : null}
 												</span>
 												{signature ? <span className={styles.contextPanelSig}>{signature}</span> : null}
 											</div>
@@ -3663,6 +4119,7 @@ function AIAnalysisMain(props){
 			</Spin>
 
 			{renderMountDrawer()}
+			{renderTechniqueSettingsDrawer()}
 
 			<Modal
 				title={editingMaterial ? '编辑资料' : '新建资料'}

@@ -109,8 +109,10 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 //        升级后并不并入老用户设置;astrochart 的「12分度/主宰链/寿命格局」即曾受此坑)。jieqi 系列走自有 split 迁移,不在此列。
 // 升 SETTINGS_VERSION 触发用户旧 export presets 回收;升 MIGRATION_VERSION 把新段并入既有预设(union,不删用户项)。
 // v19 — 占星全面扩建:世俗盘(新月/满月/日食/月食/地区盘/行星周期/世俗宫义)+ 星运三技法(三分主星/数字相位/月相推运)。
-export const AI_EXPORT_SETTINGS_VERSION = 19;
-const AI_EXPORT_SECTION_MIGRATION_VERSION = 19;
+// v22 — R2 对抗自检:八字「多运限·指定时段」/ 紫微「运限」段未登记进 PRESET_SECTIONS,自定义过导出段+设了多运限的
+//        用户,显式要的多运限段被 filterContentByWantedSections 静默删。补 preset 末尾两段 + 升版让旧用户迁移时 union 并入。
+export const AI_EXPORT_SETTINGS_VERSION = 22;
+const AI_EXPORT_SECTION_MIGRATION_VERSION = 22;
 const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	// v18 补:占星/星运核心 + 卜卦/择日(此前漏登记)。务必与新增「有 preset 的技法」同步(aiExport.test 跨系统自检守)。
 	'astrochart',
@@ -341,8 +343,8 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	keypoints: ['数字相位推运'],
 	lunationphase: ['月相推运'],
 	extrareturns: ['多重回归'],
-	bazi: ['起盘信息', '四柱与三元', '神煞（四柱与三元）', '大运', '流年行运概略'],
-	ziwei: ['起盘信息', '宫位总览', '来因宫', '命中格局'],
+	bazi: ['起盘信息', '四柱与三元', '神煞（四柱与三元）', '大运', '流年行运概略', '多运限·指定时段'],
+	ziwei: ['起盘信息', '宫位总览', '来因宫', '命中格局', '运限'],
 	suzhan: ['起盘信息', '宿盘宫位与二十八宿星曜'],
 	sixyao: ['起盘信息', '卦象', '六爻与动爻', '卦辞与断语'],
 	tongshefa: ['本卦', '六爻', '潜藏', '亲和'],
@@ -444,7 +446,7 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	jieqi: ['节气盘参数', '春分星盘', '春分宿盘', '夏至星盘', '夏至宿盘', '秋分星盘', '秋分宿盘', '冬至星盘', '冬至宿盘'],
 	...JIEQI_SETTING_PRESETS,
 	otherbu: ['起盘信息', '骰子结果', '骰子盘宫位与星体', '天象盘宫位与星体'],
-	fengshui: ['起盘信息', '标记判定', '冲突清单', '建议汇总', '纳气建议'],
+	fengshui: ['起盘信息', '标记判定', '冲突清单', '未定位标注', '破局危害', '龙虎灶台', '移动盘', '吉凶评分', '缓解建议', '使用要点', '建议汇总', '纳气建议', '八卦定位', '成員卦象', '四类象格局', '应期成格', '改运建议'],
 	canping: ['起盘', '本命', '大运·歲運', '流年·歲運'],
 	heluo: ['起命', '先天卦·元堂爻辞', '后天卦·元堂爻辞', '命运篇', '大限·岁运', '流年·岁运'],
 	generic: ['起盘信息'],
@@ -2447,6 +2449,31 @@ export function getAIExportEffectiveSectionsForTechnique(key, settings = loadAIE
 		.map((item)=>mapLegacySectionTitle(exportKey, item))
 		.filter(Boolean)
 		.filter((item)=>!forbidden || !forbidden.has(normalizeSectionTitle(item))));
+}
+
+// 把「按技法选段」过滤套到任意快照文本上（供 AI 挂载复用导出段设置，达成四同步）。
+// 安全铁律：仅当用户对该技法**显式自定义了段**时才过滤；未自定义 → 原样返回（默认即现状、零回归）；
+// 过滤后为空则回退原文，避免挂载空白。
+export function applyAIExportSectionFilterToSnapshot(key, content, settings = loadAIExportSettings()){
+	const text = `${content == null ? '' : content}`;
+	if(!text.trim()){
+		return content;
+	}
+	const exportKey = normalizeExportKey(key);
+	const sectionsCfg = settings && settings.sections && typeof settings.sections === 'object' ? settings.sections : {};
+	if(!Array.isArray(sectionsCfg[exportKey]) || sectionsCfg[exportKey].length === 0){
+		return content;
+	}
+	const picked = getAIExportEffectiveSectionsForTechnique(key, settings);
+	const wanted = new Set(uniqueArray(picked || []));
+	if(wanted.size === 0){
+		return content;
+	}
+	const filtered = filterContentByWantedSections(text, wanted);
+	if(!`${filtered || ''}`.trim()){
+		return content;
+	}
+	return filtered;
 }
 
 export function resolveAIExportContextForTest(context){

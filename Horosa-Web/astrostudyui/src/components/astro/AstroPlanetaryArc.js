@@ -13,7 +13,9 @@ import DateTime from '../comp/DateTime';
 import { XQSelect as Select } from '../xq-ui';
 
 const Option = Select.Option;
-const ARC_SOURCES = [AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN, AstroConst.SUN];
+export const ARC_SOURCES = [AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN, AstroConst.SUN];
+// AI 挂载「行星弧」可调项默认（=无头默认：月亮弧 / 截至今日 12:00 / 容许 1°）。不调任何项 → 输出逐字不变。
+const PLANETARY_ARC_DEFAULT_OPTS = { arcSource: AstroConst.MOON, datetime: '', asporb: 1 };
 
 function natalParams(chartObj){
 	const q = chartObj ? (chartObj.params || {}) : {};
@@ -60,10 +62,16 @@ function formatArcSnapshot(result, title, intro){
 }
 
 // 行星弧 AI 快照（无头）：默认月亮弧、截至今日。无数据返回 ''。
-export async function buildPlanetaryArcSnapshotText(chartObj){
+// opts（AI 挂载「每技法设置」）：arcSource(7星) + datetime(目标时刻) + asporb(容许度)。
+// 缺省经 PLANETARY_ARC_DEFAULT_OPTS 回退（datetime 空 → todayStr()）→ 与现状逐字一致(守「默认即现状」)。
+export async function buildPlanetaryArcSnapshotText(chartObj, opts){
 	if(!chartObj){ return ''; }
 	try{
-		const params = { ...natalParams(chartObj), datetime: todayStr(), asporb: 1, arcSource: AstroConst.MOON };
+		const o = { ...PLANETARY_ARC_DEFAULT_OPTS, ...(opts && typeof opts === 'object' ? opts : {}) };
+		const arcSource = ARC_SOURCES.indexOf(o.arcSource) >= 0 ? o.arcSource : AstroConst.MOON;
+		const datetime = `${o.datetime || ''}`.trim() || todayStr();
+		const asporb = (o.asporb !== undefined && o.asporb !== null && `${o.asporb}` !== '' && Number.isFinite(Number(o.asporb))) ? Number(o.asporb) : 1;
+		const params = { ...natalParams(chartObj), datetime, asporb, arcSource };
 		const data = await request(`${Constants.ServerRoot}/predict/planetaryarc`, { body: JSON.stringify(params) });
 		const result = data[Constants.ResultKey];
 		return formatArcSnapshot(result, '行星弧（Planetary Arc）', '行星弧(默认月亮弧)：以所选天体的二次推运移动量为弧推进全盘，看向运星对本命的相位。');
