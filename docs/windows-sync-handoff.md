@@ -8,6 +8,30 @@
 
 ---
 
+## v2.6.2（待发）· Issue 收尾：Mac #11 紫微补自化 + Mac #10 Java 假阴性 + Win #18 排查交接
+
+- **性质：纯前端一处 + Mac 启动脚本一处，无 Java/jar 改动 → Windows 同步前端 `.js` + 重建前端包即可，无需重编 jar。**
+- **Mac #11（前端，必同步 + 重建包）— 紫微挂载补「宫干自化」**：
+  - `astrostudyui/src/components/ziwei/ZiWeiMain.js`：`formatStarSiHua` 加第 4 参 `palaceGan`，`[宫位总览]` 逐宫传入 `normalizeGan(house.ganzi)` → 星曜行追加 `自化X`（飞星核心；`getSiHua` 自动按当前流派表算，与生年/命宫四化同口径）。
+  - 四同步**自动**：`buildZiWeiSnapshotText` 是挂载/储存/导出唯一构建器；自化在 `星曜` 行内（属已注册的 `宫位总览` 段）→ **不增删段、不需 `AI_EXPORT_SETTINGS_VERSION` bump**。
+  - 测试：`components/ziwei/__tests__/ziweiMountSnapshot.test.js` +2（动态自化断言）。
+  - **Windows 必须做**：同步该 `.js` + `npm run build && npm run build:file`。**（生年四化早已在；流年由 v2.6.1 多选挂载覆盖——确保 Windows 已同步 v2.6.1 那批前端。）**
+- **Mac #10（Mac 启动脚本，Windows 不波及但要顺手核）— Java 运行时假阴性**：
+  - `Horosa-Web/start_horosa_local.sh` · `java_bin_ready`：原把 `java -version` 委托 `/usr/bin/python3` 子进程；**无 CLT 的 Mac 上该桩返回非零 → 即便内置 java 完好也误判 not found → 严格模式拒回退 → 起不来**。改为直接 `java -version`。
+  - **Windows 行动**：Windows 用 **Electron 主进程**（另一仓库）做 java 检测，**此具体 bug 不在 Windows 链路**；但请顺手核 Windows 启动器的 java 探测**没有「依赖无关组件（如系统 python）导致假阴性」**的同类隐患。
+- **Win #18 排查交接（升级安装「Failed to uninstall old application files: 2」，v2.6.0 仍复现）**：
+  - **现象**：@1574802103 称关闭 app、关机重启后再跑安装器仍报该错，只能先手动卸载旧版再装。v2.6.0 已加「覆盖前精确 taskkill `Horosa.exe` + 仅杀 `embedded-runtime` 下 java/python」，但该用户仍失败。
+  - **该错含义**：electron-builder NSIS 的标准报错——**旧版本卸载器（`Uninstall Horosa.exe`）返回了非零**（`: 2`）。即覆盖安装前删旧文件这步失败。
+  - **根因假设（按优先级，待用户日志/Windows 仓确认）**：
+    1. **登录自启 / 残留后端重锁目录**：若 app 设了开机自启，或退出时内置 Java/Python 未随主进程退干净 → **重启后这些进程又起来、重新占用安装目录** → 卸载器删不掉 `Horosa.exe`/`embedded-runtime/*`。这最能解释「关 app + 重启仍失败」。**查**：安装目录是否有登录项/计划任务；退出时是否 100% 收掉 embedded-runtime 子进程。
+    2. **杀进程逻辑覆盖不全**：v2.6.0 的 taskkill 宏是否真在「**旧版卸载器运行之前**」执行？electron-builder 的 `customUnInstall`/`installer.nsh` 宏插入点若不对（在卸载器之后），则旧卸载器先跑先失败。**查**：`build/installer.nsh`（或等价 NSIS include）里 taskkill 的插入宏是 `!macro customInit` / `customUnInstall` 还是 `customRemoveFiles`，确认在删文件前。
+    3. **杀进程未覆盖中文路径 / 子进程树**：`taskkill /IM Horosa.exe` 不带 `/T` 不杀子进程树；中文安装路径（`…\星阙`）下若仍有按路径过滤的兜底，会失配。**查**：是否 `taskkill /F /T /IM Horosa.exe` 且对 embedded-runtime 的 java.exe/python.exe 也 `/F`。
+    4. **杀软占用**：360/Defender 实时扫描锁文件。**查**：用户是否开杀软（但该用户已重启，可较低优先级）。
+  - **需用户提供（我已起草 issue 回帖，见会话）**：① 安装器 `--verbose`/NSIS 调试日志（或 `%LocalAppData%\HorosaDesktop\logs`）；② 任务管理器里安装失败时是否还有 `Horosa.exe`/`java.exe`/`python.exe`；③ 是否设了开机自启。
+  - **Windows 仓侧动作**：拿到日志后，重点改 `installer.nsh` 的 taskkill 宏——`/F /T`、覆盖 embedded-runtime 的 java/python、确保在旧卸载器执行**之前**、并对中文路径鲁棒；必要时退出时显式 `tree-kill` 内置运行时。
+
+---
+
 ## v2.6.1 发布 · AI 挂载全选项打磨 + 多时段输出 + 风水八卦阳宅法 + 跨模块修复
 
 - **性质：前端为主 + 后端一处（pdYears 转发，需重编 jar）。** 绝大多数改动纯前端（同步 `.js`/`.less` → `npm run build && npm run build:file`）；**唯一后端改动**是 `ChartController.getParams()` 转发 pdYears（挂载侧主限法年数选项生效的真因），**必须重编 fat jar**。

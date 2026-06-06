@@ -83,7 +83,7 @@ function collectHouseStars(house){
 	return out;
 }
 
-function formatStarSiHua(starName, yearGan, lifeGan){
+function formatStarSiHua(starName, yearGan, lifeGan, palaceGan){
 	const tags = [];
 	if(yearGan){
 		const yearHua = ZiWeiHelper.getSiHua(starName, yearGan);
@@ -95,6 +95,14 @@ function formatStarSiHua(starName, yearGan, lifeGan){
 		const lifeHua = ZiWeiHelper.getSiHua(starName, lifeGan);
 		if(lifeHua){
 			tags.push(`命宫${lifeHua}`);
+		}
+	}
+	// 宫干自化（飞星紫微核心，Mac issue #11：用户反馈挂载缺自化信息）：星曜被「所落宫位本身天干」
+	// 引动的四化。用所落宫干复算，getSiHua 自动按当前流派四化表取值（与生年/命宫四化同口径）。
+	if(palaceGan){
+		const selfHua = ZiWeiHelper.getSiHua(starName, palaceGan);
+		if(selfHua){
+			tags.push(`自化${selfHua}`);
 		}
 	}
 	if(tags.length === 0){
@@ -313,11 +321,12 @@ function buildZiWeiSnapshotText(params, result){
 	houses.forEach((house, idx)=>{
 		const name = house.name || house.id || `宫位${idx + 1}`;
 		const ganzi = house.ganzi || '';
+		const palaceGan = ganzi ? normalizeGan(ganzi) : '';
 		const direction = house.direction && house.direction.length === 2 ? `${house.direction[0]}~${house.direction[1]}` : '';
 		const stars = collectHouseStars(house);
 		lines.push(`${name}：大限=${direction || '无'}，干支=${ganzi || '无'}`);
 		if(stars.length > 0){
-			lines.push(`星曜：${stars.map((starName)=>formatStarSiHua(starName, yearGan, lifeGan)).join('、')}`);
+			lines.push(`星曜：${stars.map((starName)=>formatStarSiHua(starName, yearGan, lifeGan, palaceGan)).join('、')}`);
 		}else{
 			lines.push('星曜：无');
 		}

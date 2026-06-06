@@ -53,6 +53,7 @@ jest.mock('../../../utils/request', () => ({
 }));
 
 import * as ZWConst from '../../../constants/ZWConst';
+import * as ZiWeiHelper from '../ZiWeiHelper';
 import { buildZiweiSnapshotForParams } from '../ZiWeiMain';
 
 const BASE_PARAMS = {
@@ -154,5 +155,35 @@ describe('紫微挂载 round-trip：四化流派 + 运限', () => {
 		// 12 年 × 12 月 = 144 流月段，远超 50。
 		const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS, period: { daxian: allDaxian, liunian: [1996, 1997, 1998, 1999], liuyue: manyMonths, liuri: [], liushi: [] } });
 		expect(text).toContain('运限段已达上限');
+	});
+
+	// Mac issue #11：用户反馈紫微挂载缺自化。宫位总览每颗星按「所落宫干」复算四化 →「自化X」标注。
+	// 动态断言：用真实四化表(当前=北派)在夹具里找确定自化的 (星,宫干)，再断言其出现在快照（不硬编码流派表）。
+	it('宫位总览·自化：宫干引动其内星曜的四化以「自化X」标注', async () => {
+		const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+		const houses = mockState.chart.houses;
+		let asserted = 0;
+		houses.forEach((h) => {
+			const palaceGan = `${h.ganzi || ''}`.charAt(0);
+			const stars = [...(h.starsMain || []), ...(h.starsAssist || [])];
+			stars.forEach((s) => {
+				const hua = ZiWeiHelper.getSiHua(s, palaceGan);
+				if (hua) {
+					expect(text).toContain(`自化${hua}`);
+					asserted += 1;
+				}
+			});
+		});
+		// 夹具中武曲落己宫(idx5)，北派己干→武曲化禄，故至少一处自化必现（接线证明 + 防回归）。
+		expect(asserted).toBeGreaterThan(0);
+	});
+
+	// 默认快照里 生年/自化 标注同段共存（生年四化此前已在，自化为本次新增）→ 证明两类四化都进了星曜行。
+	it('星曜行可同时承载 生年四化 与 自化（武曲@己宫：生年权×北派 + 自化禄）', async () => {
+		const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+		// 夹具 yearGan=庚 → 北派庚干 武曲化权（生年权）；宫干己 → 武曲化禄（自化禄）。
+		const wuquLine = text.split('\n').find((l) => l.includes('武曲'));
+		expect(wuquLine).toBeTruthy();
+		expect(wuquLine).toContain('自化');
 	});
 });

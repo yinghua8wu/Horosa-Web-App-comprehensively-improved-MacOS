@@ -283,25 +283,11 @@ java_bin_ready() {
   if [ ! -x "${java_bin}" ]; then
     return 1
   fi
-  if [ -x /usr/bin/python3 ]; then
-    /usr/bin/python3 - "${java_bin}" <<'PY' >/dev/null 2>&1
-import subprocess
-import sys
-
-try:
-    completed = subprocess.run(
-        [sys.argv[1], "-version"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-except Exception:
-    raise SystemExit(1)
-
-raise SystemExit(0 if completed.returncode == 0 else 1)
-PY
-    return $?
-  fi
+  # 直接探测 java 自身（Mac issue #10）：曾经把 `-version` 委托给 /usr/bin/python3 子进程，
+  # 但在「未安装 Xcode Command Line Tools」的 Mac 上 /usr/bin/python3 只是个会弹安装框、
+  # 返回非零的桩——于是即使内置 java 完全可执行（ARM64 17.x），探测也被该桩拖成失败，
+  # 叠加 REQUIRE_EMBEDDED_RUNTIME 严格模式 → 误报 "java runtime not found"，软件起不来。
+  # 该 python 包装并无超时等额外保护，与直接 `java -version` 行为等价，故移除该脆弱依赖。
   "${java_bin}" -version >/dev/null 2>&1
 }
 
