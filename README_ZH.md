@@ -8,12 +8,12 @@
 
 **把占星与中国术数，收进一个原生 macOS 工作站**
 
-[![Version](https://img.shields.io/badge/version-2.6.1-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)
+[![Version](https://img.shields.io/badge/version-2.6.2-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.1/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.2/Horosa-Installer-macos-arm64-offline.pkg) ·
 [入口页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@
 
 普通用户直接下载离线安装包，像任何 macOS 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.1/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.2/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合场景：
 
@@ -91,18 +91,14 @@
 
 命盘与事盘都能本地保存：带标签、快照与后端原始结构化数据，可 JSON 导入导出，重开后恢复现场。
 
-## v2.6.1 beta 更新
+## v2.6.2 beta 更新
 
-这一版聚焦 **AI 挂载的全面打磨**、**多时段输出**与**风水阳宅法**,外加一批跨模块修复——所有技法的命盘计算与 v2.6.0 一致。
+这一版收尾用户反馈的 issue:为紫微 AI 挂载补**宫干自化**,并修复部分 Mac 上的「java 运行时找不到」误报——所有技法的命盘计算与 v2.6.1 一致。
 
-- **AI 挂载 · 每技法全选项无遗漏** —— 对全部可挂载技法地毯式审计:凡主页面能选、且会改挂载快照的项,齿轮抽屉里都能选,「想挂什么就挂什么」。
-- **AI 挂载 · 多时段输出** —— 紫微 / 八字可挂载任意大限 / 流年 / 流月 / 流日 / 流时;新增日期选择器、默认当前时刻、时间段区间扫描。
-- **主限法 · 盘与表格拆分** —— 主限法盘投影与表格各自独立呈现,互不干扰。
-- **六爻 · 三卦逐爻全装卦** —— 本卦 / 互卦 / 变卦逐爻完整装卦;「一键挂载」涵盖六爻、排盘与奇门。
-- **风水 · 八卦阳宅法(倪海厦)** —— 在纳气盘基础上新增八卦阳宅 v2:户型图落点 + 朝向度数自动判卦、成員卦象与四类象格局、应期排位升降。
-- **一批跨模块修复** —— 占星辅盘样式切换、三式合一时空中点盘、若干主题 / 布局与暗黑双色细节。
+- **紫微 · AI 挂载补宫干自化** —— 宫位总览里每颗星标出「自化禄 / 权 / 科 / 忌」(飞星核心,按所选四化流派自动取值);生年四化、流年 / 大限 / 流月等运限挂载此前已具备,一并同步到 AI 导出 / 导出设置 / AI 挂载 / 命盘事盘储存。
+- **修复 · 部分 Mac「java 运行时找不到」误报** —— 少数未装 Xcode 命令行工具的 Mac 上,启动时的 java 探测会误判而报「后端启动失败」,实际内置 java 完好;本版改为直接探测、去掉多余依赖,未装命令行工具也能正常启动。
 
-公证离线 `.pkg`、app zip、runtime 包与 manifest 已统一对齐到 `2.6.1 / 2.6.1-runtime1`。完整改动见 [v2.6.1 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.1)。
+公证离线 `.pkg`、app zip、runtime 包与 manifest 已统一对齐到 `2.6.2 / 2.6.2-runtime1`。完整改动见 [v2.6.2 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)。
 
 ## 技术构成
 
