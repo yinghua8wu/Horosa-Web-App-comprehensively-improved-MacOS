@@ -8,6 +8,54 @@
 
 ---
 
+## v2.6.3（发版中）· AI 分析深度打磨 + 大批稳定性修复
+
+- **性质：前端 17 项 + 后端 4 项加性改造（已重编 jar），含 Tauri `prompt() is not supported` 崩溃修复（关键）**。详见 [`ai-analysis-comprehensive-enhancements-v3.md`](ai-analysis-comprehensive-enhancements-v3.md)。
+- **依赖**：`highlight.js@11.9.0` + `katex@0.16.10` 已在 `Horosa-Web/astrostudyui/package.json`；Windows 同步前端时务必 `npm install`。
+- **Windows 必同步前端 `.js/.less/.json` + `npm install && npm run build && npm run build:file`**。
+- **Windows 必同步后端 `AIAnalysisProxyService.java` + 重编 jar**（无聚合 pom 的坑：`cd 模块` 单独 `mvn install` 再 `cd astrostudyboot` `mvn package`）。
+- **关键稳定性修复**（Tauri 桌面壳一样会犯）：
+  - `window.prompt/confirm/alert` 在 Tauri 严格上下文中**直接抛 `Unhandled Rejection: prompt() is not supported`** → 全 7 处替换为 `asyncInput`/`asyncConfirm`（基于 `AntdModal.confirm`）。Windows 仓若有类似调用须一并替换。
+  - antd `<Dropdown overlay={JSX}>` 已废弃且 Menu 内部 setState-on-unmount 内存泄漏 → 6 处全换 `menu={{items,onClick}}` 新 API。
+- **8 个版本文件 lockstep 已 bump 2.6.2 → 2.6.3 / runtimeVersion 2.6.2-runtime1 → 2.6.3-runtime1**：`package.json` / `config/release_config.json` / `web/app.js` `APP_VERSION` / `src-tauri/Cargo.toml` / `src-tauri/Cargo.lock`（仅 `horosa-desktop-installer` 条目）/ `src-tauri/tauri.conf.json` / `scripts/verify_launcher_console_states.py` / `CITATION.cff` + 3 个 README + `config/release_notes/2.6.3.md`。
+- **Windows 行动**：同步上述前端 `.js/.less/.json` + `npm install` + 重建前端包；同步 `AIAnalysisProxyService.java` + 重编 jar；同步 8 版本文件相应字段；同步 README/release_notes 内容；本地跑 jest（应 522 绿）。
+
+---
+
+## （已并入 v2.6.3 发布）· AI 分析「再审计」全面增强（Tier 1+2+3）
+
+- **性质：纯前端 17 项 + 后端 4 项加性改造（需重编 jar）。** 详见 [`ai-analysis-comprehensive-enhancements-v3.md`](ai-analysis-comprehensive-enhancements-v3.md)。
+- **依赖**：`highlight.js@11.9.0`（语法高亮）+ `katex@0.16.10`（LaTeX 数学）已在 `Horosa-Web/astrostudyui/package.json`。Windows 同步前端时记得 `npm install`。
+- **纯前端同步**（`.js`/`.less` + `npm install && npm run build && npm run build:file`）：
+  - 聊天：代码块复制/高亮、上滚暂停、推理面板自动折/复制思考、对话栏拖拽+粘贴图、挂载状态条、首回自动命名、活动对话内导出、错误 Alert+重试、空状态示例 chip。
+  - 设置/接口：API Key 显隐+粘贴卫生、连接 chip tooltip+延迟、高级选项三段折叠。
+  - 资料：卡片/列表视图切换、列表模式 Table+导出 Dropdown。
+  - 组合：「预览」按钮 + Modal 显应用影响（含技法交集）。
+  - Markdown：LaTeX `$...$`/`$$...$$`/`\[...\]`/`\(...\)`。
+- **后端**（必重编 jar）`AIAnalysisProxyService.java`：
+  - `buildOpenAIChatBody` 加 `stream_options.include_usage`；OpenAI/Anthropic/Gemini/Ollama 四家 stream 解析器抽 `usage` 统一 SSE「usage」事件下发。
+  - `buildGeminiBody` 重写：用 `generationConfig` 装 `temperature/topP/maxOutputTokens/stopSequences/responseMimeType/thinkingConfig`；多模态从 `images` 拼 `inlineData/fileData`。
+  - `buildAnthropicBody` 显式 `stop_sequences/thinking`；扔掉不支持的 frequency_penalty/presence_penalty/response_format。
+  - `buildOllamaNativeBody` `opts.stop` 映射 + `message.images` 抽 base64（llava 等视觉模型）。
+  - `isOpenAIReasoningModel` 加 gpt-7/o6/o7；前端 `isReasoningModel` 同步 `/(^|\/)(gpt-?[567]|o[13-7])/`。
+- **Windows 行动**：同步全部 `.js/.less/.json` + `npm install` + 重建前端包；同步 `AIAnalysisProxyService.java` + `cd astrostudysrv/astrostudy && mvn install && cd ../astrostudyboot && mvn package`（无聚合 pom 坑要 cd 模块），重启后端。本地跑 jest（应 522 绿）。**未发布，停在手测**。
+
+---
+
+## （开发中·未 bump app 版，停在手测）· AI 导出/挂载完善 + AI 分析增强 + 分至样式按钮
+
+- **性质：前端多处 + 后端 `AIAnalysisProxyService.java` 加性改造（2F 视觉）→ Windows 同步前端 `.js` + 重建前端包 + 重编 jar。** 机制细节见 [`ai-export-mount-completeness-and-analysis-enhancements.md`](ai-export-mount-completeness-and-analysis-enhancements.md)。
+- **纯前端（同步 `.js` + `npm run build && npm run build:file`）**：
+  - 分至样式按钮：`pages/index.js`（`<JieQiChartsMain>` 补 `chartStyle`）+ `components/jieqi/JieQiChartsMain.js`（`<AstroChartMain>` 补 `chartStyle`+`dispatch`）。
+  - 七政四余导出补段：`components/guolao/GuoLaoChartMain.js`（`buildGuolaoSnapshotTextV2` 加 `[政余格局]/[相位]`）+ `utils/aiExport.js`（guolao 预设段 + **`AI_EXPORT_SETTINGS_VERSION` 22→23**）。
+  - 4 占数补挂载：`utils/techniqueMountSettings.js`（wuzhao/taixuan/jingjue/shenyishu 注册 sectionsOnly）+ `utils/aiAnalysisContext.js`（并入 `ANALYSIS_CASE_TECHNIQUES`+标签）+ 测试 `techniqueMountSettings.test.js`（`SECTIONS_ONLY` 同步）。**otherbu/fengshui/jieqi 未纳入**（不在 `CASE_TYPE_OPTIONS`，无事盘存储）。
+  - AI 分析 `components/aianalysis/AIAnalysisMain.js`（+ `utils/aiAnalysisStore.js` bundle schema、`utils/aiAnalysisContext.js listAllAnalysisTechniqueOptions`）：2C 新接口自动拉模型、2D 任意用户消息编辑分支、2E 组合模板（技法/资料/设置自动套）、2B 停止序列+惩罚、2G JSON 模式、2F 图片按钮+预览+`images` 发送。
+- **后端（必重编 jar）2F 视觉**：`astrostudysrv/.../AIAnalysisProxyService.java` **加性**改造（纯文本路径字节不变、零回归）——`getMessageList` 保留 `images`；新增 `imageUrlList/toOpenAIVisionMessages/anthropicImageBlock`；`buildOpenAIChatBody` 用 `toOpenAIVisionMessages`；`buildAnthropicBody` 加图片块 + 放开「仅图无文」。**Windows 同步这段 Java + 重编 jar**（Windows 若用同一 Spring 后端则直接同步；构建坑见下）。
+- **构建坑（Windows 也适用）**：① `astrostudysrv` **无聚合 pom**，`mvn -pl <模块>` 会「Could not find project in reactor」→ 必 `cd 模块目录` 单独 `mvn`（astrostudy 先 `install`，再 astrostudyboot `package`）。② `umi-test ... | tail` 退出码来自 `tail`、掩盖测试失败 → 核验用 `> log; echo $?`。
+- **Windows 行动**：同步上述前端全部 `.js` + 重建前端包；同步 `AIAnalysisProxyService.java` 2F 改造 + 重编 jar；本地跑 jest（应 522 全绿）。**未发布、停在手测——待 macOS 端拍板发版再同步发布动作。**
+
+---
+
 ## v2.6.2（待发）· Issue 收尾：Mac #11 紫微补自化 + Mac #10 Java 假阴性 + Win #18 排查交接
 
 - **性质：纯前端一处 + Mac 启动脚本一处，无 Java/jar 改动 → Windows 同步前端 `.js` + 重建前端包即可，无需重编 jar。**

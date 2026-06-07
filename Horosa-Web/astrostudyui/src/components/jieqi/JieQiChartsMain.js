@@ -1470,9 +1470,11 @@ export class JieQiChartsMain extends Component{
 							value={chart}
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
-							lotsDisplay={this.props.lotsDisplay}	
+							lotsDisplay={this.props.lotsDisplay}
 							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 							showAstroMeaning={this.props.showAstroMeaning}
+							chartStyle={this.props.chartStyle}
+							dispatch={this.props.dispatch}
 						/>) : null}
 				</TabPane>
 

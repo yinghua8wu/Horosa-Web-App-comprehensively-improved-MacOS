@@ -581,6 +581,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	                        lotsDisplay={lotsDisplay}
 	                        showPlanetHouseInfo={showPlanetHouseInfo}
 	                        showAstroMeaning={showAstroMeaning}
+	                        chartStyle={chartStyle}
 	                        hook={predictHook.jieqichart}
 	                        dispatch={dispatch}
 	                    />

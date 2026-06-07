@@ -1,11 +1,14 @@
 import React from 'react';
+import { Input as AntdInput, Modal as AntdModal } from 'antd';
 import {
+	Alert,
 	Badge,
 	Checkbox,
 	Collapse,
 	Dropdown,
 	Empty,
 	Form,
+	InputNumber,
 	Popconfirm,
 	Popover,
 	Slider,
@@ -24,6 +27,12 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+// 仅引「common」子集（~50KB gzipped 含 js/ts/py/java/go/rust/sh/sql/json/yaml/xml/html/css/md/c/cpp/cs/php/rb/swift/kotlin 等），不引全语言。
+import hljs from 'highlight.js/lib/common';
+import 'highlight.js/styles/atom-one-dark.css';
+// LaTeX 数学公式渲染（$...$ 行内 / $$...$$ 块级）。
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import styles from './AIAnalysisMain.less';
 import MonacoEditor from './MonacoField';
 import XQIcon from '../xq-icons';
@@ -75,6 +84,7 @@ import {
 	getAnalysisTechniqueContexts,
 	listAnalysisSources,
 	listAnalysisTechniqueOptions,
+	listAllAnalysisTechniqueOptions,
 } from '../../utils/aiAnalysisContext';
 import {
 	getTechniqueSettingsSchema,
@@ -139,6 +149,7 @@ import {
 	splitProviderModels,
 	THINKING_LEVELS,
 	applyThinkingLevel,
+	estimateUsageCost,
 	isReasoningModel,
 } from '../../utils/aiAnalysisProviders';
 
@@ -454,6 +465,83 @@ function compareByName(list){
 	return (list || []).slice(0).sort((a, b)=>`${a.name || ''}`.localeCompare(`${b.name || ''}`, 'zh-Hans-CN'));
 }
 
+// 错误分类：把上游异常拆成「类别 + 简短中文 + 可重试」三段，给消息底部 Alert 用。
+function classifyStreamError(rawMsg){
+	const txt = `${rawMsg || ''}`;
+	const lower = txt.toLowerCase();
+	const m = lower.match(/(?:status|http|code|error)[^\d]{0,8}(\d{3})/);
+	const status = m ? parseInt(m[1], 10) : 0;
+	let category = 'server';
+	let hint = '请稍后重试，或检查模型/参数。';
+	let retriable = true;
+	if(status === 401 || status === 403 || /api[\s_-]?key|unauthor|invalid[\s_-]?key/.test(lower)){
+		category = 'auth'; hint = '凭证问题——请到「设置」检查 API Key / Base URL。'; retriable = false;
+	}else if(status === 429 || /rate\s*limit|too many requests|quota/.test(lower)){
+		category = 'rate'; hint = '上游限流——稍候再试（建议降低并发或换模型）。'; retriable = true;
+	}else if(status === 400 || /not\s*support|unsupported|invalid\s*model|invalid\s*param|response_format/.test(lower)){
+		category = 'model'; hint = '参数/模型问题——检查模型选择、思考档或 JSON/停止序列等参数。'; retriable = false;
+	}else if(/network|fetch|ECONN|ETIMEDOUT|timeout|aborted|disconnect/.test(lower)){
+		category = 'network'; hint = '网络问题——检查 baseUrl 可达性 / 代理 / 防火墙。'; retriable = true;
+	}else if(status >= 500 && status < 600){
+		category = 'server'; hint = '上游服务异常——稍后重试。'; retriable = true;
+	}
+	return { category, status, message: txt.slice(0, 400), hint, retriable };
+}
+
+// 异步输入框 — 替代 window.prompt（Tauri/桌面壳 不支持原生 prompt）。
+// 返回 Promise<string|null>：用户点「确定」返回输入值（含空串），点「取消」/关闭返回 null。
+function asyncInput({ title = '请输入', defaultValue = '', placeholder = '', multiline = false, okText = '确定', cancelText = '取消', maxLength } = {}){
+	return new Promise((resolve)=>{
+		let current = `${defaultValue || ''}`;
+		const modal = AntdModal.confirm({
+			title,
+			icon: null,
+			okText,
+			cancelText,
+			centered: true,
+			width: multiline ? 560 : 420,
+			content: React.createElement(AntdInput.Group, { compact: false },
+				multiline
+					? React.createElement(AntdInput.TextArea, {
+						defaultValue: current,
+						placeholder,
+						autoSize: { minRows: 3, maxRows: 12 },
+						autoFocus: true,
+						maxLength,
+						onChange: (e)=>{ current = e.target.value; },
+						onPressEnter: (e)=>{ if(!e.shiftKey){ e.preventDefault(); modal.destroy(); resolve(current); } },
+					})
+					: React.createElement(AntdInput, {
+						defaultValue: current,
+						placeholder,
+						autoFocus: true,
+						maxLength,
+						onChange: (e)=>{ current = e.target.value; },
+						onPressEnter: ()=>{ modal.destroy(); resolve(current); },
+					})
+			),
+			onOk: ()=>{ resolve(current); },
+			onCancel: ()=>{ resolve(null); },
+		});
+	});
+}
+
+// 异步确认 — 替代 window.confirm。返回 Promise<boolean>。
+function asyncConfirm({ title = '确认操作？', content = '', okText = '确定', cancelText = '取消', okType = 'primary', danger = false } = {}){
+	return new Promise((resolve)=>{
+		AntdModal.confirm({
+			title,
+			content,
+			okText,
+			cancelText,
+			centered: true,
+			okType: danger ? 'danger' : okType,
+			onOk: ()=>resolve(true),
+			onCancel: ()=>resolve(false),
+		});
+	});
+}
+
 function buildConversationTitle(prompt, source){
 	const trimmed = `${prompt || ''}`.trim();
 	if(source && source.title){
@@ -596,6 +684,46 @@ marked.setOptions({
 	mangle: false,
 });
 
+// 自定义 code 渲染：包一层 .codeBlock，左上加语言徽章，右上加复制按钮（事件委托）。
+// 复制按钮按钮内容用 data-copy-target 关联紧邻的 <pre><code>；点击在容器级捕获（renderAssistantBubble useEffect）。
+// 注：不在此处做语法高亮；高亮在挂载后由 hljs.highlightElement 单独跑（streaming 中不跑、避免抖动）。
+const mdRenderer = new marked.Renderer();
+const origCode = mdRenderer.code.bind(mdRenderer);
+mdRenderer.code = function(code, infostring, escaped){
+	const html = origCode(code, infostring, escaped);
+	const langRaw = (infostring || '').trim().split(/\s+/)[0] || '';
+	const langLabel = langRaw ? `<span class="xq-code-lang">${langRaw}</span>` : '';
+	// 复制按钮的可访问 hint；onClick 由事件委托捕获。
+	const copyBtn = `<button type="button" class="xq-code-copy" title="复制" aria-label="复制代码">复制</button>`;
+	return `<div class="xq-code-block">${langLabel}${copyBtn}${html}</div>`;
+};
+marked.use({ renderer: mdRenderer });
+
+// 在 Markdown 之前把 LaTeX 数学预渲染为 HTML（避免 $...$ 被 marked 当作普通文本处理）。
+// 支持 $$...$$（块）+ $...$（行内）+ \[...\] + \(...\)，行内式不允许跨行；用占位符隔离避免被 marked 改造。
+function preRenderLatex(src){
+	const placeholders = [];
+	const escape = (s)=>s.replace(/[&<>]/g, (c)=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+	const renderOne = (tex, displayMode)=>{
+		try{
+			const html = katex.renderToString(tex, { displayMode, throwOnError: false, output: 'html' });
+			placeholders.push(html);
+			return ` KATEX${placeholders.length - 1} `;
+		}catch(_){ return escape(tex); }
+	};
+	let s = src;
+	// 块级 $$...$$（多行）
+	s = s.replace(/\$\$([\s\S]+?)\$\$/g, (_, t)=>renderOne(t.trim(), true));
+	// 块级 \[...\]
+	s = s.replace(/\\\[([\s\S]+?)\\\]/g, (_, t)=>renderOne(t.trim(), true));
+	// 行内 \(...\)
+	s = s.replace(/\\\(([\s\S]+?)\\\)/g, (_, t)=>renderOne(t.trim(), false));
+	// 行内 $...$（不跨行，不与 ${...} 模板字面量冲突——保守要求两侧紧邻非空白字符）。
+	s = s.replace(/\$([^\s$][^$\n]*?[^\s$])\$/g, (_, t)=>renderOne(t.trim(), false));
+	s = s.replace(/\$([^\s$\n])\$/g, (_, t)=>renderOne(t.trim(), false));
+	return { source: s, placeholders };
+}
+
 // 把 AI 输出的 Markdown 渲染为安全 HTML（GFM：标题/列表/表格/代码/引用/链接），再交给气泡渲染。
 function renderMarkdownToHtml(text){
 	const raw = `${text || ''}`;
@@ -603,8 +731,10 @@ function renderMarkdownToHtml(text){
 		return '';
 	}
 	try{
-		const html = marked.parse(raw);
-		return DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] });
+		const pre = preRenderLatex(raw);
+		const html = marked.parse(pre.source);
+		const restored = html.replace(/ KATEX(\d+) /g, (_, idx)=>pre.placeholders[Number(idx)] || '');
+		return DOMPurify.sanitize(restored, { ADD_ATTR: ['target', 'rel', 'class', 'type', 'title', 'aria-label', 'style'], ADD_TAGS: ['math', 'mrow', 'mi', 'mn', 'mo', 'msup', 'msub', 'mfrac', 'mtext', 'annotation', 'semantics'] });
 	}catch(e){
 		console.warn('markdown render failed', e);
 		// 解析失败时退回纯文本(经 DOMPurify 中和),至少不丢内容
@@ -754,14 +884,30 @@ function AIAnalysisMain(props){
 	const [chatTemperature, setChatTemperature] = React.useState(defaultUi.chatTemperature === undefined ? null : defaultUi.chatTemperature);
 	const [chatTopP, setChatTopP] = React.useState(defaultUi.chatTopP === undefined ? null : defaultUi.chatTopP);
 	const [thinkingLevel, setThinkingLevel] = React.useState(defaultUi.thinkingLevel || 'off');
+	// 2B/2G：停止序列 / 频率·存在惩罚 / JSON 输出模式（仅对 OpenAI 兼容接口下发，停止序列对 Anthropic 自动映射）。
+	const [stopSequences, setStopSequences] = React.useState(defaultUi.stopSequences || '');
+	const [frequencyPenalty, setFrequencyPenalty] = React.useState(defaultUi.frequencyPenalty === undefined ? null : defaultUi.frequencyPenalty);
+	const [presencePenalty, setPresencePenalty] = React.useState(defaultUi.presencePenalty === undefined ? null : defaultUi.presencePenalty);
+	const [jsonMode, setJsonMode] = React.useState(!!defaultUi.jsonMode);
 	// C: 测试连接状态机——key = 当前 modelSelection 指纹。切模型/接口后 key 失配 → chip 自动回灰「点击测试」;
 	// 在当前选择下测试成功/失败 → 置绿「测试成功」/ 红「测试失败」。不再读 profile.healthStatus(避免历史诊断残留绿)。
 	const [connState, setConnState] = React.useState({ key: '', status: 'idle' });
 	const [referenceIds, setReferenceIds] = React.useState(defaultUi.referenceIds || []);
 	const [sourceContext, setSourceContext] = React.useState(null);
 	const [selectedTechniqueKeys, setSelectedTechniqueKeys] = React.useState(defaultUi.selectedTechniqueKeys || []);
+	// 组合包待挂载技法：套用组合时若尚未选案例，先缓存于此，待选定 source 后由 effect 取交集落入 selectedTechniqueKeys。
+	const [pendingBundleTechniqueKeys, setPendingBundleTechniqueKeys] = React.useState([]);
 	const [techniqueContexts, setTechniqueContexts] = React.useState([]);
 	const [prompt, setPrompt] = React.useState('');
+	// 2F：待发送图片（多媒体输入），元素 {url: dataURL, name}；随用户消息以 images 字段发往后端（仅视觉模型有效）。
+	const [pendingImages, setPendingImages] = React.useState([]);
+	const imageInputRef = React.useRef(null);
+	// 对话栏拖入图片高亮态。
+	const [composerDragOver, setComposerDragOver] = React.useState(false);
+	// 资料 pane 全区拖拽计数（防 dragLeave 误闪）：用 ref 而非函数静态，避免重渲染丢失。
+	const materialDragCounterRef = React.useRef(0);
+	// 组件挂载状态：异步流程末段写 state 前先看本 ref，避免 unmount 后 setState 警告。
+	const isMountedRef = React.useRef(true);
 	const [sessionSystemPrompt, setSessionSystemPrompt] = React.useState(defaultUi.sessionSystemPrompt || '');
 	const [mountDrawerOpen, setMountDrawerOpen] = React.useState(false);
 	// AI 挂载「每技法设置」：会话级覆盖 {[key]:options}（仅本次，未点「设为同类默认」不持久）。默认空 → 走默认路径。
@@ -803,6 +949,23 @@ function AIAnalysisMain(props){
 	const [selectedHistoryIds, setSelectedHistoryIds] = React.useState([]);
 	const [materialKeyword, setMaterialKeyword] = React.useState('');
 	const [selectedFolderId, setSelectedFolderId] = React.useState('');
+	const [materialView, setMaterialView] = React.useState(defaultUi.materialView || 'grid');
+	// 组合包「预览影响」弹层。
+	const [bundlePreview, setBundlePreview] = React.useState(null);
+	// 资料 pane 全区拖拽态 + 上传进度（取代旧的小 Dragger 区 + window.prompt 阻塞）。
+	const [materialPaneDragOver, setMaterialPaneDragOver] = React.useState(false);
+	const [materialIngestQueue, setMaterialIngestQueue] = React.useState([]); // [{name, status:'parsing|importing|done|skip|error', err?}]
+	// 资料 folder 管理 Drawer。
+	const [folderDrawerOpen, setFolderDrawerOpen] = React.useState(false);
+	const [folderDraftName, setFolderDraftName] = React.useState('');
+	// Provider 列表密度切换 + 测试连接进行中态。
+	const [providerListDense, setProviderListDense] = React.useState(!!defaultUi.providerListDense);
+	// 模板版本 diff Modal。
+	const [versionDiffState, setVersionDiffState] = React.useState(null); // {template, leftId, rightId}
+	// AI 生成的示例提问缓存（sourceKey → [3 prompts]）；空 source 与失败时退化为静态。
+	const [aiExamplePromptsBySource, setAiExamplePromptsBySource] = React.useState({});
+	const [aiExamplesLoading, setAiExamplesLoading] = React.useState(false);
+	const aiExamplesFetchKeyRef = React.useRef('');
 	const [materialSort, setMaterialSort] = React.useState('updated');
 	const [templateKeyword, setTemplateKeyword] = React.useState('');
 	const [settingKeyword, setSettingKeyword] = React.useState('');
@@ -825,7 +988,10 @@ function AIAnalysisMain(props){
 	const abortRef = React.useRef(null);
 	const streamBufferRef = React.useRef('');
 	const streamReasoningBufferRef = React.useRef(''); // #16:DeepSeek reasoner 思考过程(独立于答案,仅展示/存档,绝不回灌 messages)
+	const streamUsageRef = React.useRef(null); // 2A：本次流的 usage 计量(末帧到达后由 SSE usage 事件填充)
 	const chatLogRef = React.useRef(null);
+	// 「自动跟随」开关：用户上滚 >40px 后置 false（暂停自动滚到底）；回到底部置 true。
+	const [autoFollow, setAutoFollow] = React.useState(true);
 	const backupRestoreInputRef = React.useRef(null);
 	const desktopFileInputRef = React.useRef(null);
 	const desktopFolderInputRef = React.useRef(null);
@@ -1294,6 +1460,82 @@ function AIAnalysisMain(props){
 		}
 	}, [activeSource, techniqueOptions, selectedTechniqueKeys]);
 
+	// AI 生成的示例提问：只在 landing(无消息) 且有可用 Provider 时跑一次；按 (sourceId + provider + model) 缓存。
+	// 失败/取消/无 provider → 静默退到静态示例。所有 setState 都通过 cancelled 守门避免组件卸载后写入。
+	React.useEffect(()=>{
+		const sourceKey = activeSource ? `${activeSource.sourceType}:${activeSource.id}` : 'none';
+		const sel = parseModelSelection(modelSelection || '');
+		const profile = activeProviderProfile;
+		const provKey = profile ? `${profile.id || ''}-${sel.model || ''}` : '';
+		const fetchKey = `${sourceKey}::${provKey}`;
+		if(aiExamplePromptsBySource[fetchKey] || aiExamplesFetchKeyRef.current === fetchKey){
+			return undefined;
+		}
+		if(!profile || !sel.model || !(profile.apiKey || profile.providerType === 'ollama')){
+			return undefined;
+		}
+		// 已挂载消息时不必生成示例（用户已经在对话中）。
+		if(messages.length > 0){
+			return undefined;
+		}
+		aiExamplesFetchKeyRef.current = fetchKey;
+		let cancelled = false;
+		(async ()=>{
+			try{
+				setAiExamplesLoading(true);
+				const sourceHint = activeSource
+					? `当前案例：${activeSource.title}，类型=${activeSource.sourceType === 'chart' ? '命盘' : '事盘'}。`
+					: '用户尚未选择案例（命盘/事盘）。';
+				const sys = '你是星阙（Horosa）的占星/术数 AI 助手。根据当前案例上下文，给出 3 条用户可能想问的简短示例提问，每条 8-18 个汉字，覆盖差异化角度（如运势/格局/择时/吉凶等）。只输出 JSON 数组，例如：["...","...","..."]。不要加任何前后缀文字。';
+				const usr = `${sourceHint}\n请给出 3 条示例提问。仅返回 JSON 数组。`;
+				const opts = applyThinkingLevel({ ...(profile.providerOptions || {}) }, 'off', profile.providerType, sel.model);
+				const rsp = await requestAIAnalysisChat({
+					providerType: profile.providerType,
+					apiKey: profile.apiKey,
+					baseUrl: profile.baseUrl,
+					model: sel.model,
+					providerOptions: { ...(opts || {}), requestTimeoutMs: 20000 }, // 20s 上限，慢就不展示
+					messages: [
+						{ role: 'system', content: sys },
+						{ role: 'user', content: usr },
+					],
+				});
+				if(cancelled){ return; }
+				const text = rsp && rsp.Result && rsp.Result.content ? `${rsp.Result.content}`.trim() : '';
+				let arr = null;
+				try{
+					const m = text.match(/\[[\s\S]*\]/);
+					if(m){ arr = JSON.parse(m[0]); }
+				}catch(_){ arr = null; }
+				if(Array.isArray(arr)){
+					const clean = arr.map((s)=>`${s || ''}`.trim()).filter((s)=>s && s.length <= 50).slice(0, 3);
+					if(clean.length >= 2){
+						setAiExamplePromptsBySource((prev)=>({ ...prev, [fetchKey]: clean }));
+					}
+				}
+			}catch(e){
+				// 静默失败：保持静态示例。
+			}finally{
+				if(!cancelled){ setAiExamplesLoading(false); }
+			}
+		})();
+		return ()=>{
+			cancelled = true;
+		};
+	}, [activeSource ? `${activeSource.sourceType}:${activeSource.id}` : 'none', modelSelection, messages.length, activeProviderProfile]);
+
+	// 组合包待挂载技法落地：选定 source 后，把 pending 技法与该 source 支持集取交集，合并入已选技法。
+	React.useEffect(()=>{
+		if(activeSource && pendingBundleTechniqueKeys.length){
+			const allowed = new Set(techniqueOptions.map((item)=>item.value));
+			const next = pendingBundleTechniqueKeys.filter((item)=>allowed.has(item));
+			if(next.length){
+				setSelectedTechniqueKeys((prev)=>uniqueTextList(prev.concat(next)));
+			}
+			setPendingBundleTechniqueKeys([]);
+		}
+	}, [activeSource, techniqueOptions, pendingBundleTechniqueKeys]);
+
 	React.useEffect(()=>{
 		if(!activeSource || !activeTechniqueKeys.length){
 			setTechniqueContexts([]);
@@ -1359,9 +1601,61 @@ function AIAnalysisMain(props){
 
 	React.useEffect(()=>{
 		const el = chatLogRef.current;
-		if(el){
+		if(el && autoFollow){
 			el.scrollTop = el.scrollHeight;
 		}
+	}, [visibleMessages, autoFollow]);
+
+	// 监听用户滚动：上滚 >40px 自动暂停跟随；回到底部恢复跟随。
+	React.useEffect(()=>{
+		const el = chatLogRef.current;
+		if(!el){ return undefined; }
+		const onScroll = ()=>{
+			const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+			setAutoFollow(distFromBottom < 40);
+		};
+		el.addEventListener('scroll', onScroll, { passive: true });
+		return ()=>{ el.removeEventListener('scroll', onScroll); };
+	}, []);
+
+	// 跟踪组件挂载状态，供异步流程安全 setState。
+	React.useEffect(()=>{
+		isMountedRef.current = true;
+		return ()=>{ isMountedRef.current = false; };
+	}, []);
+
+	// 代码块「复制按钮」事件委托（容器级，一次）：点击 .xq-code-copy → 复制紧邻 <pre><code> 的纯文本。
+	React.useEffect(()=>{
+		const el = chatLogRef.current;
+		if(!el){ return undefined; }
+		const onClick = (e)=>{
+			const btn = e.target && e.target.closest ? e.target.closest('.xq-code-copy') : null;
+			if(!btn){ return; }
+			const wrap = btn.closest('.xq-code-block');
+			const code = wrap ? wrap.querySelector('pre code') : null;
+			const text = code ? code.textContent || '' : '';
+			if(!text){ return; }
+			try{
+				navigator.clipboard.writeText(text).then(()=>{
+					message.success('已复制代码', 1);
+					btn.classList.add('xq-code-copy--ok');
+					setTimeout(()=>btn.classList.remove('xq-code-copy--ok'), 1200);
+				}, ()=>{ message.error('复制失败', 1.5); });
+			}catch(_){ message.error('复制失败', 1.5); }
+		};
+		el.addEventListener('click', onClick);
+		return ()=>{ el.removeEventListener('click', onClick); };
+	}, []);
+
+	// 代码块语法高亮：visibleMessages 变化后，对未高亮过的 <pre><code> 跑 hljs.highlightElement。
+	// 流式期间也跑（每次新片段后增量补色），出错静默回退；不会改 textContent，复制功能不受影响。
+	React.useEffect(()=>{
+		const el = chatLogRef.current;
+		if(!el){ return; }
+		const nodes = el.querySelectorAll('pre > code:not(.hljs)');
+		nodes.forEach((node)=>{
+			try{ hljs.highlightElement(node); }catch(_){ /* 静默 */ }
+		});
 	}, [visibleMessages]);
 
 	const applyProviderPresetToForm = React.useCallback((providerType)=>{
@@ -1602,6 +1896,63 @@ function AIAnalysisMain(props){
 		return saved;
 	}
 
+	// AI 自动起名：用一个独立的非流式微调用，让 AI 根据「用户首问 + AI 首回」总结一个 6-14 字标题。
+	// 成功：覆盖 title + 置 titleAutoNamed=true；失败：退到「截首回前 16 字」兜底，仍置 titleAutoNamed=true（防再触发）。
+	// 不阻塞主对话流程；组件卸载时 isMountedRef 守门防 setState 警告；重命名/再次手动改名后 titleManuallyEdited=true 永不再触发。
+	async function generateAndApplyAutoTitle({ conversation, profile, model, userPrompt, aiReply }){
+		const fallbackTitle = ()=>{
+			const cleaned = `${aiReply || ''}`
+				.replace(/^\s*[#>*\-\d\.\s]+/, '')
+				.replace(/\s+/g, ' ')
+				.trim();
+			if(!cleaned){ return null; }
+			return cleaned.length > 16 ? cleaned.slice(0, 16) + '…' : cleaned;
+		};
+		let titleFromAI = null;
+		try{
+			if(!profile || !model){ throw new Error('no_provider'); }
+			const sys = '你是对话标题生成器。根据用户问题和 AI 第一次回复，给出一个 6-14 个汉字的简短中文对话标题，能让用户在历史列表里一眼看出主题。仅返回标题文本本身，不要加引号、标点结尾、序号、表情、或任何前后缀。';
+			const usrText = `用户问题：${(userPrompt || '').slice(0, 600)}\n\nAI 回复（前 400 字）：${(aiReply || '').slice(0, 400)}\n\n请生成标题：`;
+			const opts = applyThinkingLevel({ ...(profile.providerOptions || {}) }, 'off', profile.providerType, model);
+			const rsp = await requestAIAnalysisChat({
+				providerType: profile.providerType,
+				apiKey: profile.apiKey,
+				baseUrl: profile.baseUrl,
+				model,
+				providerOptions: { ...(opts || {}), requestTimeoutMs: 15000 },
+				messages: [
+					{ role: 'system', content: sys },
+					{ role: 'user', content: usrText },
+				],
+			});
+			const raw = rsp && rsp.Result && rsp.Result.content ? `${rsp.Result.content}` : '';
+			// 清洗：去引号/换行/「标题：」/Markdown 修饰/末尾标点
+			let t = raw.trim();
+			t = t.replace(/^["'"「『《【\s]+|["'"」』》】\s]+$/g, '');
+			t = t.replace(/^标题[:：\s]*/, '');
+			t = t.replace(/^[#>*\-\d\.\s]+/, '');
+			t = t.replace(/[\s\n\r]+/g, ' ').trim();
+			t = t.replace(/[。.!！?？,，;；:：]+$/, '');
+			if(t.length >= 4 && t.length <= 30){
+				titleFromAI = t;
+			}
+		}catch(_){
+			// 静默失败：fallback 兜底
+		}
+		const finalTitle = titleFromAI || fallbackTitle();
+		if(!finalTitle){ return; }
+		if(!isMountedRef.current){ return; }
+		try{
+			await updateConversationMeta(conversation, {
+				title: finalTitle,
+				titleAutoNamed: true,
+				titleSource: titleFromAI ? 'ai' : 'fallback',
+			});
+		}catch(e){
+			console.warn('autoTitle apply failed', e);
+		}
+	}
+
 	async function streamReply({
 		conversation,
 		profile,
@@ -1621,6 +1972,7 @@ function AIAnalysisMain(props){
 		});
 		streamBufferRef.current = '';
 		streamReasoningBufferRef.current = '';
+		streamUsageRef.current = null;
 		if(appendAssistant){
 			setMessages((prev)=>{
 				const exists = prev.some((item)=>item.id === assistantMessage.id);
@@ -1636,6 +1988,21 @@ function AIAnalysisMain(props){
 		const chatProviderOptions = applyThinkingLevel({ ...(profile.providerOptions || {}) }, thinkingLevel, profile.providerType, model);
 		if(!isReasoningModel(model) && chatTemperature != null){ chatProviderOptions.temperature = chatTemperature; }
 		if(chatTopP != null){ chatProviderOptions.top_p = chatTopP; }
+		// 2B/2G：停止序列 / 频率·存在惩罚 / JSON 模式——按接口家族下发（透传由后端 buildProviderBodyOptions 完成，无需改 jar）。
+		const protoFamily = profile.protocolFamily || getProviderProtocolFamily(profile.providerType);
+		const stopList = `${stopSequences || ''}`.split(/[\n,，]/g).map((s)=>s.trim()).filter(Boolean);
+		if(stopList.length){
+			if(protoFamily === 'anthropic'){ chatProviderOptions.stop_sequences = stopList; }
+			else if(protoFamily === 'openai'){ chatProviderOptions.stop = stopList; }
+		}
+		if(protoFamily === 'openai' && !isReasoningModel(model)){
+			if(typeof frequencyPenalty === 'number'){ chatProviderOptions.frequency_penalty = frequencyPenalty; }
+			if(typeof presencePenalty === 'number'){ chatProviderOptions.presence_penalty = presencePenalty; }
+		}
+		if(jsonMode){
+			if(protoFamily === 'openai'){ chatProviderOptions.response_format = { type: 'json_object' }; }
+			else if(protoFamily === 'gemini'){ chatProviderOptions.response_format = { type: 'json_object' }; /* 后端会把它翻成 generationConfig.responseMimeType */ }
+		}
 		try{
 			await requestAIAnalysisChatStream({
 				providerType: profile.providerType,
@@ -1678,33 +2045,57 @@ function AIAnalysisMain(props){
 							streamStatus: 'streaming',
 							updatedAt: new Date().toISOString(),
 						} : item));
+					}else if(event.type === 'usage'){
+						// 2A：后端按家族解析后的统一 usage 事件 {input_tokens, output_tokens, total_tokens}。
+						if(event.json && typeof event.json === 'object'){
+							streamUsageRef.current = event.json;
+						}
 					}else if(event.type === 'error'){
 						streamError = (event.json && event.json.message) ? `${event.json.message}` : (event.data || '上游服务返回错误');
 					}
 				},
 			});
 			const finalContent = `${streamBufferRef.current || ''}`.trim();
-			const resolvedContent = finalContent || (streamError ? `⚠️ ${streamError}` : '模型未返回可用内容');
+			// 错误不再拼进 content（破坏 markdown），改为 errorInfo 字段；content 为空时给暗灰占位。
+			const resolvedContent = finalContent || (streamError ? '' : '模型未返回可用内容');
+			const errorInfo = (!finalContent && streamError) ? classifyStreamError(streamError) : null;
+			const usage = streamUsageRef.current ? { ...streamUsageRef.current, model, providerType: profile.providerType } : undefined;
 			const saved = await saveConversationMessage({
 				...assistantMessage,
 				content: resolvedContent,
 				reasoning: `${streamReasoningBufferRef.current || ''}`.trim() || undefined,
 				streamStatus: (!finalContent && streamError) ? 'error' : 'done',
+				errorInfo,
+				usage,
 				updatedAt: new Date().toISOString(),
 			});
 			setMessages((prev)=>prev.map((item)=>item.id === saved.id ? saved : item));
-			await updateConversationMeta(conversation, {
-				lastMessageAt: saved.updatedAt,
-			});
+			// 首回 AI 完整后自动命名：仅落基础 meta；真正的 AI 起名通过 generateAndApplyAutoTitle 异步另发一轮微调用，
+			// 完成后再更新 title。失败时再退化到「截首回 N 字」兜底（避免一直叫「未命名对话」）。
+			await updateConversationMeta(conversation, { lastMessageAt: saved.updatedAt });
+			if(!conversation.titleAutoNamed && !conversation.titleManuallyEdited && finalContent && finalContent.length > 4){
+				// 取用户问题（messages 数组里最后一条 user 的 content）作为命名依据。
+				const lastUserPrompt = (()=>{
+					for(let i = chatMessages.length - 1; i >= 0; i--){
+						const m = chatMessages[i];
+						if(m && m.role === 'user' && m.content){ return `${m.content}`; }
+					}
+					return '';
+				})();
+				// 非阻塞触发，不 await——streamReply 不被卡住。
+				generateAndApplyAutoTitle({ conversation, profile, model, userPrompt: lastUserPrompt, aiReply: finalContent });
+			}
 			return saved;
 		}catch(e){
 			const aborted = e && e.name === 'AbortError';
 			const failMessage = streamError || (e && e.message ? `${e.message}` : '') || '生成失败。';
+			const errorInfo = aborted ? null : classifyStreamError(failMessage);
 			const saved = await saveConversationMessage({
 				...assistantMessage,
-				content: streamBufferRef.current || (aborted ? '已停止生成。' : `⚠️ ${failMessage}`),
+				content: streamBufferRef.current || (aborted ? '已停止生成。' : ''),
 				reasoning: `${streamReasoningBufferRef.current || ''}`.trim() || undefined,
 				streamStatus: aborted ? 'aborted' : 'error',
+				errorInfo,
 				updatedAt: new Date().toISOString(),
 			});
 			setMessages((prev)=>prev.map((item)=>item.id === saved.id ? saved : item));
@@ -1766,12 +2157,41 @@ function AIAnalysisMain(props){
 		};
 	}
 
+	// 2F：选择图片（多媒体输入）→ 读为 dataURL 暂存，随下一条消息发送。
+	function handlePickImages(fileList){
+		const files = Array.from(fileList || []).filter((f)=>f && /^image\//.test(f.type || ''));
+		if(!files.length){
+			return;
+		}
+		// 10MB / 张 上限：base64 编码膨胀 ~33%、conversation message 持久化进 IndexedDB 太大会卡。
+		const MAX_BYTES = 10 * 1024 * 1024;
+		const oversize = files.filter((f)=>f.size > MAX_BYTES);
+		if(oversize.length){
+			message.warning(`${oversize.length} 张图片超过 10MB，已跳过`);
+		}
+		const accepted = files.filter((f)=>f.size <= MAX_BYTES);
+		accepted.forEach((file)=>{
+			const reader = new FileReader();
+			reader.onload = ()=>{
+				if(!isMountedRef.current) return;
+				const url = `${reader.result || ''}`;
+				if(url){
+					setPendingImages((prev)=>prev.concat({ url, name: file.name || 'image' }));
+				}
+			};
+			reader.onerror = ()=>{ if(isMountedRef.current){ message.error(`图片读取失败：${file.name || '未知'}`); } };
+			reader.onabort = ()=>{ /* 静默 */ };
+			try{ reader.readAsDataURL(file); }catch(e){ if(isMountedRef.current){ message.error(`图片读取失败：${(e && e.message) || ''}`); } }
+		});
+	}
+
 	async function handleSend(){
 		if(sending){
 			return;
 		}
 		const trimmed = `${prompt || ''}`.trim();
-		if(!trimmed){
+		const sendImages = pendingImages.map((p)=>p.url).filter(Boolean);
+		if(!trimmed && !sendImages.length){
 			message.warning('请输入要分析的问题');
 			return;
 		}
@@ -1793,10 +2213,12 @@ function AIAnalysisMain(props){
 				conversationId: conversation.id,
 				role: 'user',
 				content: trimmed,
+				images: sendImages.length ? sendImages : undefined,
 				streamStatus: 'done',
 			});
 			setMessages((prev)=>prev.concat(userMessage));
 			setPrompt('');
+			setPendingImages([]);
 			await streamReply({
 				conversation,
 				profile,
@@ -1809,6 +2231,7 @@ function AIAnalysisMain(props){
 				].concat(visibleMessages.concat(userMessage).map((item)=>({
 					role: item.role,
 					content: item.content,
+					images: Array.isArray(item.images) && item.images.length ? item.images : undefined,
 				}))),
 			});
 		}catch(e){
@@ -1865,7 +2288,7 @@ function AIAnalysisMain(props){
 	}
 
 	async function handleRenameConversation(conversation){
-		const nextTitle = window.prompt('请输入新的对话标题', conversation.title || '');
+		const nextTitle = await asyncInput({ title: '重命名对话', defaultValue: conversation.title || '', placeholder: '输入新的对话标题', maxLength: 60 });
 		if(nextTitle === null){
 			return;
 		}
@@ -1874,7 +2297,7 @@ function AIAnalysisMain(props){
 			message.warning('标题不能为空');
 			return;
 		}
-		await updateConversationMeta(conversation, { title });
+		await updateConversationMeta(conversation, { title, titleManuallyEdited: true });
 		message.success('标题已更新');
 	}
 
@@ -2086,7 +2509,12 @@ function AIAnalysisMain(props){
 		const parsed = await parseMaterialFile(fileLike);
 		const duplicate = materials.find((item)=>item.fileHash && parsed.fileHash && item.fileHash === parsed.fileHash);
 		if(duplicate){
-			const action = window.prompt(`发现重复资料「${duplicate.name}」，输入 keep 保留两份，overwrite 覆盖原记录，skip 跳过`, 'skip');
+			const action = await asyncInput({
+				title: '发现重复资料',
+				defaultValue: 'skip',
+				placeholder: '输入 keep / overwrite / skip',
+				multiline: false,
+			});
 			if(action === 'overwrite'){
 				await putStoreRecord(AI_ANALYSIS_STORES.materials, {
 					...duplicate,
@@ -2155,6 +2583,131 @@ function AIAnalysisMain(props){
 			message.error('资料导入失败');
 			return false;
 		}
+	}
+
+	// 资料 folder CRUD（落 store + 局部刷状态，避免整 workspace 重载）。
+	async function handleCreateFolder(){
+		const name = `${folderDraftName || ''}`.trim();
+		if(!name){ message.warning('请填写文件夹名称'); return; }
+		try{
+			const saved = await putStoreRecord(AI_ANALYSIS_STORES.materialFolders, { name }, 'mfolder');
+			setMaterialFolders((prev)=>compareByName(prev.concat(saved)));
+			setFolderDraftName('');
+			message.success(`已新建文件夹「${saved.name}」`);
+		}catch(e){ console.error(e); message.error('新建失败'); }
+	}
+	async function handleRenameFolder(folder){
+		const nextName = await asyncInput({ title: '重命名文件夹', defaultValue: folder.name || '', placeholder: '输入新文件夹名称', maxLength: 40 });
+		if(nextName === null) return;
+		const name = `${nextName || ''}`.trim();
+		if(!name){ message.warning('名称不能为空'); return; }
+		try{
+			const saved = await putStoreRecord(AI_ANALYSIS_STORES.materialFolders, { ...folder, name }, 'mfolder');
+			setMaterialFolders((prev)=>compareByName(prev.map((it)=>it.id === saved.id ? saved : it)));
+			message.success('已重命名');
+		}catch(e){ console.error(e); message.error('重命名失败'); }
+	}
+	async function handleDeleteFolder(folder){
+		const inside = materials.filter((m)=>m.folderId === folder.id);
+		const ok = await asyncConfirm({
+			title: `删除文件夹「${folder.name}」？`,
+			content: `内含 ${inside.length} 份资料将自动移到「未分类」。`,
+			okText: '删除',
+			cancelText: '取消',
+			danger: true,
+		});
+		if(!ok) return;
+		try{
+			// 先把资料移出，避免外键悬空。
+			for(const m of inside){
+				await putStoreRecord(AI_ANALYSIS_STORES.materials, { ...m, folderId: null }, 'material');
+			}
+			await deleteStoreRecord(AI_ANALYSIS_STORES.materialFolders, folder.id);
+			setMaterialFolders((prev)=>prev.filter((it)=>it.id !== folder.id));
+			if(inside.length){ await loadWorkspace({ keepConversation: true }); }
+			if(selectedFolderId === folder.id) setSelectedFolderId('');
+			message.success('已删除');
+		}catch(e){ console.error(e); message.error('删除失败'); }
+	}
+	async function handleMoveMaterial(material, folderId){
+		try{
+			const saved = await putStoreRecord(AI_ANALYSIS_STORES.materials, { ...material, folderId: folderId || null }, 'material');
+			await loadWorkspace({ keepConversation: true });
+			message.success(folderId ? '已移动' : '已移到「未分类」');
+			return saved;
+		}catch(e){ console.error(e); message.error('移动失败'); }
+	}
+
+	// 非阻塞批量导入：用队列驱动进度条 + 对重复文件「全部跳过/全部覆盖/逐条」一次决策（不再 window.prompt 反复弹）。
+	async function ingestFiles(fileList, options = {}){
+		const files = Array.from(fileList || []).filter((f)=>f && f.name);
+		if(!files.length) return;
+		// 初始化队列；统一过 safeSetQ 守门，组件 unmount 后绝不 setState。
+		const safeSetQ = (updater)=>{ if(isMountedRef.current){ setMaterialIngestQueue(updater); } };
+		const queue = files.map((f)=>({ id: `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, name: f.name, size: f.size || 0, status: 'parsing' }));
+		safeSetQ((prev)=>prev.concat(queue));
+		const dupePolicy = options.dupePolicy || 'ask'; // 'ask' | 'skip' | 'overwrite' | 'keep'
+		let askedAll = null; // 设置后剩余所有重复都按此处理
+		let ok = 0;
+		for(let i = 0; i < files.length; i++){
+			if(!isMountedRef.current){ break; } // unmount 后立刻退出循环。
+			const f = files[i];
+			const qid = queue[i].id;
+			try{
+				safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'parsing' } : q));
+				const parsed = await parseMaterialFile(f);
+				if(!isMountedRef.current){ break; }
+				const duplicate = materials.find((m)=>m.fileHash && parsed.fileHash && m.fileHash === parsed.fileHash);
+				let action = askedAll || (duplicate ? (dupePolicy === 'ask' ? null : dupePolicy) : 'import');
+				if(duplicate && !action){
+					// 异步弹层：覆盖 / 跳过 / 全部覆盖 / 全部跳过（用 asyncConfirm 不行——需要多按钮，改用自定义 Modal）。
+					const decision = await new Promise((resolve)=>{
+						let resolved = false;
+						let modalRef = null;
+						const finish = (v)=>{ if(resolved) return; resolved = true; try{ if(modalRef) modalRef.destroy(); }catch(_){} resolve(v); };
+						modalRef = AntdModal.confirm({
+							title: `发现重复资料「${(duplicate && duplicate.name) || '未命名'}」`,
+							icon: null,
+							content: '后续操作：',
+							centered: true,
+							width: 460,
+							okText: '覆盖',
+							cancelText: '跳过',
+							onOk: ()=>finish('overwrite'),
+							onCancel: ()=>finish('skip'),
+							footer: ()=>(
+								<div style={{ display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap' }}>
+									<button onClick={()=>finish('skip')} className="ant-btn ant-btn-default">跳过</button>
+									<button onClick={()=>{ askedAll = 'skip'; finish('skip'); }} className="ant-btn ant-btn-default">全部跳过</button>
+									<button onClick={()=>finish('overwrite')} className="ant-btn ant-btn-primary">覆盖</button>
+									<button onClick={()=>{ askedAll = 'overwrite'; finish('overwrite'); }} className="ant-btn ant-btn-primary">全部覆盖</button>
+								</div>
+							),
+						});
+					});
+					if(!isMountedRef.current){ break; }
+					action = decision;
+				}
+				safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'importing' } : q));
+				if(action === 'overwrite' && duplicate){
+					await putStoreRecord(AI_ANALYSIS_STORES.materials, { ...duplicate, ...parsed, id: duplicate.id, name: parsed.name, searchText: buildMaterialSearchText(parsed) }, 'material');
+					ok++;
+				}else if(action === 'skip' && duplicate){
+					safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'skip' } : q));
+					continue;
+				}else{
+					await saveImportedMaterial(parsed);
+					ok++;
+				}
+				safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'done' } : q));
+			}catch(e){
+				console.error(e);
+				safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'error', err: (e && e.message) || '导入失败' } : q));
+			}
+		}
+		if(ok && isMountedRef.current){ try{ await loadWorkspace({ keepConversation: true }); message.success(`已导入 ${ok} 份资料`); }catch(_){} }
+		// 2 秒后清队列。
+		setTimeout(()=>{ if(isMountedRef.current){ setMaterialIngestQueue([]); } }, 2400);
 	}
 
 	async function handleDesktopFilePick(){
@@ -2311,8 +2864,14 @@ function AIAnalysisMain(props){
 			message.success('未发现重复资料');
 			return;
 		}
-		const confirm = window.confirm(`检测到 ${duplicates.length} 份重复资料，是否删除重复项？`);
-		if(!confirm){
+		const ok = await asyncConfirm({
+			title: `检测到 ${duplicates.length} 份重复资料`,
+			content: '是否删除重复项？（保留首份，删除后续）',
+			okText: '删除重复项',
+			cancelText: '取消',
+			danger: true,
+		});
+		if(!ok){
 			return;
 		}
 		for(let i=0; i<duplicates.length; i++){
@@ -2404,6 +2963,10 @@ function AIAnalysisMain(props){
 			defaultEmbeddingModel: bundle ? bundle.defaultEmbeddingModel : '',
 			defaultSystemPrompt: bundle ? bundle.defaultSystemPrompt : '',
 			defaultRetrievalMode: bundle ? bundle.defaultRetrievalMode || 'auto' : 'auto',
+			defaultTechniqueKeys: bundle ? (bundle.defaultTechniqueKeys || []) : [],
+			defaultChatTemperature: bundle && bundle.defaultChatTemperature != null ? bundle.defaultChatTemperature : null,
+			defaultChatTopP: bundle && bundle.defaultChatTopP != null ? bundle.defaultChatTopP : null,
+			defaultThinkingLevel: bundle ? (bundle.defaultThinkingLevel || '') : '',
 		});
 		setBundleModalOpen(true);
 	}
@@ -2422,6 +2985,10 @@ function AIAnalysisMain(props){
 			defaultEmbeddingModel: values.defaultEmbeddingModel || null,
 			defaultSystemPrompt: values.defaultSystemPrompt || '',
 			defaultRetrievalMode: values.defaultRetrievalMode || 'auto',
+			defaultTechniqueKeys: values.defaultTechniqueKeys || [],
+			defaultChatTemperature: (values.defaultChatTemperature === undefined || values.defaultChatTemperature === null || values.defaultChatTemperature === '') ? null : values.defaultChatTemperature,
+			defaultChatTopP: (values.defaultChatTopP === undefined || values.defaultChatTopP === null || values.defaultChatTopP === '') ? null : values.defaultChatTopP,
+			defaultThinkingLevel: values.defaultThinkingLevel || '',
 		}, 'bundle');
 		setBundles((prev)=>sortByUpdatedDesc(prev.some((item)=>item.id === saved.id) ? prev.map((item)=>item.id === saved.id ? saved : item) : [saved].concat(prev)));
 		setBundleModalOpen(false);
@@ -2445,6 +3012,13 @@ function AIAnalysisMain(props){
 		if(bundle.defaultSystemPrompt){
 			setSessionSystemPrompt(bundle.defaultSystemPrompt);
 		}
+		// 组合包：缓存待挂载技法（待选案例后 effect 取交集落地）+ 套用生成设置。
+		if(Array.isArray(bundle.defaultTechniqueKeys) && bundle.defaultTechniqueKeys.length){
+			setPendingBundleTechniqueKeys(bundle.defaultTechniqueKeys.slice(0));
+		}
+		if(bundle.defaultChatTemperature != null){ setChatTemperature(bundle.defaultChatTemperature); saveUiPrefs({ chatTemperature: bundle.defaultChatTemperature }); }
+		if(bundle.defaultChatTopP != null){ setChatTopP(bundle.defaultChatTopP); saveUiPrefs({ chatTopP: bundle.defaultChatTopP }); }
+		if(bundle.defaultThinkingLevel){ setThinkingLevel(bundle.defaultThinkingLevel); saveUiPrefs({ thinkingLevel: bundle.defaultThinkingLevel }); }
 		setInnerTab('analysis');
 		message.success(`已应用组合：${bundle.name}`);
 	}
@@ -2495,8 +3069,13 @@ function AIAnalysisMain(props){
 		setProviderProfiles((prev)=>sortByUpdatedDesc(prev.some((item)=>item.id === saved.id) ? prev.map((item)=>item.id === saved.id ? saved : item) : [saved].concat(prev)));
 		setProviderModalOpen(false);
 		setProviderAdvancedOpen(false);
+		const wasNewProvider = !editingProvider || !editingProvider.id;
 		setEditingProvider(null);
 		message.success('接口配置已保存');
+		// 新建接口后自动拉取模型列表（仅新建；编辑沿用既有列表，避免覆盖手填）。非阻塞、内部已 try/catch。
+		if(wasNewProvider && (`${saved.apiKey || ''}`.trim() || `${saved.baseUrl || ''}`.trim())){
+			fetchModelsAndEmbeddings(saved);
+		}
 	}
 
 	async function deleteProvider(profileId){
@@ -2578,6 +3157,7 @@ function AIAnalysisMain(props){
 		}
 		const connKey = modelSelection;   // C: 把本次测试绑定到「当前选择」指纹,切模型/接口后即失配回灰
 		setConnState({ key: connKey, status: 'testing' });
+		const startMs = Date.now();
 		try{
 			const rsp = ensureServiceResponse(await requestAIAnalysisChat({
 				providerType: profile.providerType,
@@ -2593,19 +3173,22 @@ function AIAnalysisMain(props){
 				],
 			}), '测试连接失败');
 			const text = rsp && rsp.Result && rsp.Result.content ? rsp.Result.content : '';
+			const latencyMs = Date.now() - startMs;
 			message.success(text ? `测试成功：${text.slice(0, 24)}` : '测试成功');
-			setConnState({ key: connKey, status: 'healthy' });
+			setConnState({ key: connKey, status: 'healthy', latencyMs });
 		}catch(e){
 			// v2.2.1 (Mac #8):后端错误是 URL 编码的原始串,直接抛给用户既看不懂又吓人。
 			// 解码 + 对「未登录/未配置凭据」的 401 给出可操作的提示,而不是裸 401 dump。
 			let raw = e && e.message ? e.message : '';
 			try{ raw = decodeURIComponent(raw); }catch(_){ /* keep raw */ }
+			const latencyMs = Date.now() - startMs;
+			const classified = classifyStreamError(raw);
 			if(/No cookie auth credentials|need\.login|401|Unauthorized/i.test(raw)){
 				message.error('未检测到有效凭据：使用内置 AI 需先登录 horosa 账号；若使用自己的供应商，请在「配置 API」中填入正确的 Key 与 Base URL 后重试。');
 			}else{
 				message.error(raw ? `测试连接失败：${raw.slice(0, 200)}` : '测试连接失败');
 			}
-			setConnState({ key: connKey, status: 'error' });
+			setConnState({ key: connKey, status: 'error', latencyMs, error: { ...classified, raw } });
 		}
 	}
 
@@ -2761,25 +3344,23 @@ function AIAnalysisMain(props){
 		}
 	}
 
-	async function handleEditLastUserAndBranch(){
+	// 编辑「指定」用户消息并基于此创建分支（2D：任意用户消息可编辑重发，不止最后一条）。
+	async function handleEditMessageAndBranch(targetMessage){
 		if(!activeConversation){
 			message.warning('请先打开一段对话');
 			return;
 		}
-		const list = await listConversationMessages(activeConversation.id);
-		let lastUserIndex = -1;
-		for(let i=list.length - 1; i>=0; i--){
-			if(list[i].role === 'user'){
-				lastUserIndex = i;
-				break;
-			}
-		}
-		if(lastUserIndex < 0){
-			message.warning('没有找到上一条用户消息');
+		if(!targetMessage || targetMessage.role !== 'user'){
 			return;
 		}
-		const lastUser = list[lastUserIndex];
-		const nextText = window.prompt('编辑上一条用户消息，并基于此创建分支对话', lastUser.content || '');
+		const list = await listConversationMessages(activeConversation.id);
+		const targetIndex = list.findIndex((item)=>item.id === targetMessage.id);
+		if(targetIndex < 0){
+			message.warning('没有找到该用户消息');
+			return;
+		}
+		const targetUser = list[targetIndex];
+		const nextText = await asyncInput({ title: '编辑该用户消息并基于此分支', defaultValue: targetUser.content || '', placeholder: '修改后回车发送，或点确定', multiline: true });
 		if(nextText === null){
 			return;
 		}
@@ -2802,11 +3383,11 @@ function AIAnalysisMain(props){
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		}, 'conv');
-		const branchMessages = list.slice(0, lastUserIndex).concat({
-			...lastUser,
+		const branchMessages = list.slice(0, targetIndex).concat({
+			...targetUser,
 			id: null,
 			content: trimmed,
-			editedFromMessageId: lastUser.id,
+			editedFromMessageId: targetUser.id,
 			conversationId: branchConversation.id,
 		});
 		await replaceConversationMessages(branchConversation.id, branchMessages);
@@ -2826,12 +3407,33 @@ function AIAnalysisMain(props){
 					content: item.content,
 				}))),
 			});
-			message.success('已创建分支对话');
+			message.success('已基于编辑创建分支对话');
 		}catch(e){
 			message.error('分支对话生成失败');
 		}finally{
 			setSending(false);
 		}
+	}
+
+	// 「编辑上一条并分支」工具条入口：定位最后一条用户消息，委托给 handleEditMessageAndBranch。
+	async function handleEditLastUserAndBranch(){
+		if(!activeConversation){
+			message.warning('请先打开一段对话');
+			return;
+		}
+		const list = await listConversationMessages(activeConversation.id);
+		let lastUser = null;
+		for(let i=list.length - 1; i>=0; i--){
+			if(list[i].role === 'user'){
+				lastUser = list[i];
+				break;
+			}
+		}
+		if(!lastUser){
+			message.warning('没有找到上一条用户消息');
+			return;
+		}
+		await handleEditMessageAndBranch(lastUser);
 	}
 
 	async function handleBranchFromMessage(messageRecord){
@@ -2879,24 +3481,33 @@ function AIAnalysisMain(props){
 			text = '测试中…';
 		}else if(tested === 'healthy'){
 			toneClass = styles.connOk;
-			text = '测试成功';
+			text = connState.latencyMs ? `测试成功 · ${connState.latencyMs}ms` : '测试成功';
 		}else if(tested === 'error'){
 			toneClass = styles.connErr;
 			text = '测试失败';
 		}
+		const tip = !profile ? '尚未配置接口，点击去配置' :
+			tested === 'error' && connState.error ? (
+				<div style={{ maxWidth: 320 }}>
+					<div style={{ fontWeight: 600, marginBottom: 4 }}>{connState.error.hint}</div>
+					<div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', wordBreak: 'break-word' }}>{connState.error.raw || connState.error.message}</div>
+					{connState.latencyMs ? <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>耗时 {connState.latencyMs}ms</div> : null}
+				</div>
+			) : (tested === 'healthy' && connState.latencyMs ? `连通性测试 · ${connState.latencyMs}ms` : '点击测试与该接口的连通性');
 		return (
-			<button
-				type="button"
-				className={`${styles.connChip} ${toneClass}`}
-				title={profile ? '点击测试与该接口的连通性' : '尚未配置接口，点击去配置'}
-				onClick={()=>{
-					if(!profile){ openProviderEditor(null); return; }
-					testProfileChat(profile, parseModelSelection(modelSelection).model);
-				}}
-			>
-				<span className={styles.connDot} />
-				<span>{text}</span>
-			</button>
+			<Tooltip title={tip} mouseEnterDelay={0.3} placement="bottom">
+				<button
+					type="button"
+					className={`${styles.connChip} ${toneClass}`}
+					onClick={()=>{
+						if(!profile){ openProviderEditor(null); return; }
+						testProfileChat(profile, parseModelSelection(modelSelection).model);
+					}}
+				>
+					<span className={styles.connDot} />
+					<span>{text}</span>
+				</button>
+			</Tooltip>
 		);
 	}
 
@@ -3453,17 +4064,167 @@ function AIAnalysisMain(props){
 		);
 	}
 
+	// 挂载状态条：紧跟在 composer 上方显示，让用户随时看到「当前要发什么」。
+	function renderContextBanner(){
+		const tCnt = activeTechniqueKeys ? activeTechniqueKeys.length : 0;
+		const refCnt = referenceIds ? referenceIds.length : 0;
+		if(!activeSource){
+			return (
+				<div className={styles.contextBanner + ' ' + styles.contextBannerEmpty}>
+					未挂载案例 · <a onClick={()=>setMountDrawerOpen(true)}>选择案例</a>
+				</div>
+			);
+		}
+		return (
+			<div className={styles.contextBanner}>
+				<span className={styles.contextBannerLabel}>当前挂载：</span>
+				<span className={styles.contextBannerItem} title={activeSource.title}>{activeSource.sourceType === 'chart' ? '📊' : '📋'} {activeSource.title}</span>
+				{tCnt > 0 ? <span className={styles.contextBannerItem}>🧮 {tCnt} 技法</span> : null}
+				{refCnt > 0 ? <span className={styles.contextBannerItem}>📚 {refCnt} 资料/组合</span> : null}
+				<a className={styles.contextBannerEdit} onClick={()=>setMountDrawerOpen(true)}>编辑</a>
+			</div>
+		);
+	}
+
+	// 模板版本 diff：line-level Myers/LCS（小快简单实现，超过 1500 行截断）。
+	function diffLines(a, b){
+		const aLines = (a || '').split('\n').slice(0, 1500);
+		const bLines = (b || '').split('\n').slice(0, 1500);
+		const m = aLines.length, n = bLines.length;
+		const dp = Array.from({ length: m + 1 }, ()=>new Uint16Array(n + 1));
+		for(let i = 1; i <= m; i++){
+			for(let j = 1; j <= n; j++){
+				dp[i][j] = aLines[i - 1] === bLines[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+			}
+		}
+		const out = [];
+		let i = m, j = n;
+		while(i > 0 && j > 0){
+			if(aLines[i - 1] === bLines[j - 1]){ out.push({ t: 'eq', a: aLines[i - 1] }); i--; j--; }
+			else if(dp[i - 1][j] >= dp[i][j - 1]){ out.push({ t: 'del', a: aLines[i - 1] }); i--; }
+			else { out.push({ t: 'add', a: bLines[j - 1] }); j--; }
+		}
+		while(i > 0){ out.push({ t: 'del', a: aLines[--i] }); }
+		while(j > 0){ out.push({ t: 'add', a: bLines[--j] }); }
+		return out.reverse();
+	}
+	function renderTemplateVersionDiff(){
+		if(!versionDiffState) return null;
+		const { template, leftId, rightId } = versionDiffState;
+		if(!template) return <Empty description="模板已不存在" />;
+		const allVs = templateVersions.filter((v)=>v.templateId === template.id).sort((a,b)=>(b.versionNumber||0)-(a.versionNumber||0));
+		if(allVs.length < 2) return <Empty description="该模板版本不足两个，无法对比" />;
+		const left = allVs.find((v)=>v.id === leftId) || allVs[1];
+		const right = allVs.find((v)=>v.id === rightId) || allVs[0];
+		const snapText = (v)=>{
+			if(!v) return '';
+			const s = v.snapshot || {};
+			return JSON.stringify({
+				format: s.format, instructionText: s.instructionText, jsonSchema: s.jsonSchema,
+				exampleInput: s.exampleInput, exampleOutput: s.exampleOutput,
+			}, null, 2);
+		};
+		const leftText = snapText(left);
+		const rightText = snapText(right);
+		const diff = diffLines(leftText, rightText);
+		return (
+			<div>
+				<div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
+					<span>选版本：</span>
+					<Select size="small" value={leftId} style={{ width: 120 }} onChange={(v)=>setVersionDiffState((s)=>({ ...s, leftId: v }))}>
+						{allVs.map((v)=><Select.Option key={v.id} value={v.id}>V{v.versionNumber}</Select.Option>)}
+					</Select>
+					<span style={{ color: 'var(--horosa-text-soft)' }}>→</span>
+					<Select size="small" value={rightId} style={{ width: 120 }} onChange={(v)=>setVersionDiffState((s)=>({ ...s, rightId: v }))}>
+						{allVs.map((v)=><Select.Option key={v.id} value={v.id}>V{v.versionNumber}</Select.Option>)}
+					</Select>
+					<span style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>共 {diff.length} 行变更，增 {diff.filter((d)=>d.t==='add').length} / 删 {diff.filter((d)=>d.t==='del').length} / 同 {diff.filter((d)=>d.t==='eq').length}</span>
+				</div>
+				<div className={styles.templateDiffWrap}>
+					<div className={styles.templateDiffCol}>
+						<h4>V{(left && left.versionNumber) || '?'}</h4>
+						<div className={styles.templateDiffBox}>
+							{diff.filter((d)=>d.t !== 'add').map((d, i)=>(
+								<div key={i} className={d.t === 'del' ? styles.templateDiffDel : ''}>{d.a || ' '}</div>
+							))}
+						</div>
+					</div>
+					<div className={styles.templateDiffCol}>
+						<h4>V{(right && right.versionNumber) || '?'}</h4>
+						<div className={styles.templateDiffBox}>
+							{diff.filter((d)=>d.t !== 'del').map((d, i)=>(
+								<div key={i} className={d.t === 'add' ? styles.templateDiffAdd : ''}>{d.a || ' '}</div>
+							))}
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// 落地页示例提问 chip：按 source 类型动态。点击只填入 prompt，不自动发送。
+	function renderLandingExamples(){
+		const sourceKey = activeSource ? `${activeSource.sourceType}:${activeSource.id}` : 'none';
+		const sel = parseModelSelection(modelSelection || '');
+		const fetchKey = `${sourceKey}::${activeProviderProfile ? `${activeProviderProfile.id || ''}-${sel.model || ''}` : ''}`;
+		const ai = aiExamplePromptsBySource[fetchKey];
+		const staticExamples = activeSource && activeSource.sourceType === 'case'
+			? ['这张事盘的吉凶判断', '应期与方位提示', '用神/格局分析']
+			: activeSource
+				? ['分析这张命盘的财运', '解读流年运势走向', '婚恋与配偶宫剖析']
+				: ['先帮我说明这套AI分析的用法', '介绍一下星阙都支持哪些术数', '我想分析命盘，下一步该怎么做'];
+		const examples = (ai && ai.length) ? ai : staticExamples;
+		return (
+			<div className={styles.landingExamples}>
+				{examples.map((txt)=>(
+					<Tag key={txt} className={styles.landingExampleChip} onClick={()=>setPrompt(txt)}>{txt}</Tag>
+				))}
+				{aiExamplesLoading && !ai ? (
+					<span className={styles.landingExamplesHint}>AI 生成示例中…</span>
+				) : (ai ? (
+					<span className={styles.landingExamplesHint}>· AI 根据案例生成</span>
+				) : null)}
+			</div>
+		);
+	}
+
 	// 主流 Chat 式气泡输入：空态居中、活动态停靠底部，两处共用同一气泡。
 	function renderComposer(){
-		const canSend = !sending && !!`${prompt || ''}`.trim();
+		const canSend = !sending && (!!`${prompt || ''}`.trim() || pendingImages.length > 0);
+		const onDragOver = (e)=>{
+			if(e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') >= 0){
+				e.preventDefault();
+				setComposerDragOver(true);
+			}
+		};
+		const onDragLeave = (e)=>{
+			if(e.target === e.currentTarget){ setComposerDragOver(false); }
+		};
+		const onDrop = (e)=>{
+			e.preventDefault();
+			setComposerDragOver(false);
+			const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []).filter((f)=>/^image\//.test(f.type || ''));
+			if(files.length){ handlePickImages(files); }
+		};
+		const onPaste = (e)=>{
+			const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
+			const files = items.filter((it)=>it.kind === 'file' && /^image\//.test(it.type)).map((it)=>it.getAsFile()).filter(Boolean);
+			if(files.length){ handlePickImages(files); /* 不阻止默认：让文本粘贴照常 */ }
+		};
 		return (
-			<div className={styles.composerBubble}>
+			<div
+				className={[styles.composerBubble, composerDragOver ? styles.composerBubbleDragOver : ''].filter(Boolean).join(' ')}
+				onDragOver={onDragOver}
+				onDragLeave={onDragLeave}
+				onDrop={onDrop}
+				onPaste={onPaste}
+			>
 				<TextArea
 					value={prompt}
 					autoSize={{ minRows: 1, maxRows: 8 }}
 					bordered={false}
 					className={styles.composerInput}
-					placeholder="输入你的分析问题…会自动带上案例、资料、组合与模版约束"
+					placeholder="输入你的分析问题…会自动带上案例、资料、组合与模版约束（可拖拽/粘贴图片）"
 					onChange={(e)=>setPrompt(e.target.value)}
 					onPressEnter={(e)=>{
 						if(!e.shiftKey){
@@ -3474,12 +4235,24 @@ function AIAnalysisMain(props){
 						}
 					}}
 				/>
+				{pendingImages.length ? (
+					<div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '6px 4px' }}>
+						{pendingImages.map((img, idx)=>(
+							<div key={idx} style={{ position: 'relative' }}>
+								<img src={img.url} alt={img.name} style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--horosa-border, #d9d9d9)' }} />
+								<span onClick={()=>setPendingImages((prev)=>prev.filter((_, i)=>i !== idx))} style={{ position: 'absolute', top: -6, right: -6, cursor: 'pointer', background: 'rgba(0,0,0,0.6)', color: '#fff', borderRadius: '50%', width: 16, height: 16, lineHeight: '16px', textAlign: 'center', fontSize: 11 }}>×</span>
+							</div>
+						))}
+					</div>
+				) : null}
 				<div className={styles.composerBar}>
 					<Space size={2} className={styles.composerTools}>
 						<Tooltip title="新对话"><Button size="small" type="text" icon={<XQIcon name="plus" />} onClick={resetConversationDraft} /></Tooltip>
 						<Tooltip title="重新生成"><Button size="small" type="text" icon={<XQIcon name="sync" />} onClick={handleRegenerateLastReply} disabled={!activeConversation || sending} /></Tooltip>
 						<Tooltip title="编辑上一条并分支"><Button size="small" type="text" icon={<XQIcon name="edit" />} onClick={handleEditLastUserAndBranch} disabled={!activeConversation || sending} /></Tooltip>
 						<Tooltip title="刷新案例"><Button size="small" type="text" icon={<XQIcon name="refresh" />} onClick={()=>setSources(listAnalysisSources())} /></Tooltip>
+						<Tooltip title="添加图片（多媒体输入，仅视觉模型有效）"><Button size="small" type="text" icon={<XQIcon name="import" />} onClick={()=>{ if(imageInputRef.current){ imageInputRef.current.click(); } }} disabled={sending} /></Tooltip>
+						<input ref={imageInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e)=>{ handlePickImages(e.target.files); e.target.value = ''; }} />
 						{sending ? <Tooltip title="停止生成"><Button size="small" type="text" danger icon={<XQIcon name="stop" />} onClick={handleStopStreaming} /></Tooltip> : null}
 					</Space>
 					<div className={styles.composerSend}>
@@ -3566,6 +4339,16 @@ function AIAnalysisMain(props){
 											<Slider min={0} max={1} step={0.05} value={chatTopP == null ? 1 : chatTopP}
 												onChange={(v)=>{ setChatTopP(v); saveUiPrefs({ chatTopP: v }); }} />
 										</div>
+										<div style={{ marginTop: 8 }}>
+											<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>停止序列</span></div>
+											<Input size="small" placeholder="逗号/换行分隔，可留空" value={stopSequences} onChange={(e)=>{ setStopSequences(e.target.value); saveUiPrefs({ stopSequences: e.target.value }); }} />
+										</div>
+										<div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+											<div style={{ flex: 1 }}><div>频率惩罚</div><InputNumber size="small" min={-2} max={2} step={0.1} placeholder="默认" style={{ width: '100%' }} value={frequencyPenalty} onChange={(v)=>{ setFrequencyPenalty(v); saveUiPrefs({ frequencyPenalty: v }); }} /></div>
+											<div style={{ flex: 1 }}><div>存在惩罚</div><InputNumber size="small" min={-2} max={2} step={0.1} placeholder="默认" style={{ width: '100%' }} value={presencePenalty} onChange={(v)=>{ setPresencePenalty(v); saveUiPrefs({ presencePenalty: v }); }} /></div>
+										</div>
+										<div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>JSON 输出模式</span><Switch size="small" checked={!!jsonMode} onChange={(v)=>{ setJsonMode(v); saveUiPrefs({ jsonMode: v }); }} /></div>
+										<div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginTop: 6 }}>停止序列/惩罚/JSON 仅对 OpenAI 兼容接口生效；停止序列对 Anthropic 自动映射。</div>
 									</div>
 								)}
 							>
@@ -3629,17 +4412,46 @@ function AIAnalysisMain(props){
 								<div className={styles.chatLandingInner}>
 									<div className={styles.chatLandingTitle}>开始你的分析</div>
 									<div className={styles.chatLandingHint}>选择案例与模型，输入问题即可开始流式分析对话。</div>
-									{renderComposer()}
+									{renderLandingExamples()}
+										{renderContextBanner()}
+										{renderComposer()}
 								</div>
 							</div>
 						) : (
 							<React.Fragment>
+								<div className={styles.chatLogShell}>
+								{!autoFollow && visibleMessages.length ? (
+									<Button
+										className={styles.scrollToLatestBtn}
+										size="small"
+										shape="round"
+										icon={<XQIcon name="chevronDown" />}
+										onClick={()=>{
+											const el = chatLogRef.current;
+											if(el){ el.scrollTop = el.scrollHeight; }
+											setAutoFollow(true);
+										}}
+									>跳到最新</Button>
+								) : null}
 								<div className={styles.chatLog} ref={chatLogRef}>
 									<div className={styles.chatThread}>
 										{activeConversation ? (
 											<div className={styles.chatThreadHead}>
 												<span className={styles.chatThreadTitle}>{activeConversation.title}</span>
 												{activeConversation.updatedAt ? <Text type="secondary">{buildTimestampLabel(activeConversation.updatedAt)}</Text> : null}
+												<Dropdown
+													trigger={['click']}
+													menu={{
+														items: [
+															{ key: 'md', label: 'Markdown' },
+															{ key: 'json', label: 'JSON' },
+															{ key: 'docx', label: 'Word' },
+														],
+														onClick: ({ key })=>exportConversation(activeConversation, key),
+													}}
+												>
+													<Button size="small" type="text" className={styles.chatThreadExportBtn} icon={<XQIcon name="download" />}>导出 ▾</Button>
+												</Dropdown>
 											</div>
 										) : null}
 										{visibleMessages.map((item)=>(
@@ -3658,21 +4470,59 @@ function AIAnalysisMain(props){
 														{item.streamStatus === 'aborted' ? ' · 已停止' : ''}
 													</div>
 													<Space size={4}>
+														{item.role === 'user' ? (<Tooltip title="编辑该消息并基于此分支"><Button size="small" type="link" onClick={()=>handleEditMessageAndBranch(item)} disabled={sending}>编辑</Button></Tooltip>) : null}
 														<Tooltip title="从此轮次分支">
 															<Button size="small" type="link" onClick={()=>handleBranchFromMessage(item)}>分支</Button>
 														</Tooltip>
 													</Space>
 												</div>
 												{item.role === 'assistant' && item.reasoning ? (
-													<Collapse ghost className={styles.reasoningCollapse} defaultActiveKey={(item.streamStatus === 'streaming' && !item.content) ? ['r'] : []}>
-														<Collapse.Panel key="r" header={(item.streamStatus === 'streaming' && !item.content) ? '思考中…' : '思考过程'}>
+													<Collapse
+														ghost
+														className={styles.reasoningCollapse}
+														// 流式期间且尚无正文 → 开（让用户看到「思考中…」）；其余状态 → 默认折叠（包含「流完后」自动折）。
+														// 给 key 加 streamStatus，确保从 streaming→done 切换时重挂载，触发新的 defaultActiveKey 规则。
+														key={`${item.id}-${item.streamStatus || 'done'}`}
+														defaultActiveKey={(item.streamStatus === 'streaming' && !item.content) ? ['r'] : []}
+													>
+														<Collapse.Panel
+															key="r"
+															header={(item.streamStatus === 'streaming' && !item.content) ? '思考中…' : '思考过程'}
+															extra={(
+																<Tooltip title="复制思考">
+																	<Button
+																		size="small"
+																		type="text"
+																		icon={<XQIcon name="copy" />}
+																		onClick={(e)=>{
+																			e.stopPropagation();
+																			try{
+																				navigator.clipboard.writeText(item.reasoning || '').then(()=>message.success('已复制思考', 1));
+																			}catch(_){ message.error('复制失败', 1.5); }
+																		}}
+																	/>
+																</Tooltip>
+															)}
+														>
 															<div style={{ whiteSpace: 'pre-wrap', color: 'var(--horosa-text-soft, #8a8f99)', fontSize: 12, lineHeight: 1.7 }}>{item.reasoning}</div>
 														</Collapse.Panel>
 													</Collapse>
 												) : null}
 												{item.role === 'user'
-													? <div className={styles.messageText}>{item.content}</div>
+													? <div className={styles.messageText}>{item.content}{Array.isArray(item.images) && item.images.length ? (<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: item.content ? 6 : 0 }}>{item.images.map((u, i)=>(<img key={i} src={u} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 4, border: "1px solid var(--horosa-border, #d9d9d9)" }} />))}</div>) : null}</div>
 													: <div className={styles.markdownBody} dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(item.content) }} />}
+												{item.role === 'assistant' && item.errorInfo ? (
+													<Alert
+														type={item.errorInfo.category === 'auth' || item.errorInfo.category === 'model' ? 'warning' : 'error'}
+														showIcon
+														className={styles.messageErrorAlert}
+														message={<span>{item.errorInfo.hint}</span>}
+														description={<div style={{ fontSize: 11, color: 'var(--horosa-text-soft)', wordBreak: 'break-word' }}>{item.errorInfo.message}</div>}
+														action={item.errorInfo.retriable ? (
+															<Button size="small" onClick={()=>handleRegenerateMessage(item)} disabled={sending}>重试</Button>
+														) : null}
+													/>
+												) : null}
 												{item.role === 'assistant' && item.streamStatus !== 'streaming' && item.content ? (
 													<div className={styles.messageActions}>
 														<Tooltip title="复制全文">
@@ -3681,14 +4531,25 @@ function AIAnalysisMain(props){
 														<Tooltip title="重新生成">
 															<Button size="small" type="text" className={styles.messageActionBtn} icon={<XQIcon name="sync" />} onClick={()=>handleRegenerateMessage(item)} disabled={sending} />
 														</Tooltip>
+														{item.usage && (item.usage.input_tokens || item.usage.output_tokens) ? (()=>{
+															const u = item.usage;
+															const cost = estimateUsageCost(u.model, u.input_tokens, u.output_tokens);
+															return (
+																<Tooltip title={`输入 ${u.input_tokens || 0} · 输出 ${u.output_tokens || 0}${cost ? ` · 估算 $${cost.cost.toFixed(4)}（价目会漂移）` : ''}`}>
+																	<span className={styles.messageUsage}>↑ {u.input_tokens || 0} ↓ {u.output_tokens || 0}{cost ? ` · $${cost.cost.toFixed(4)}` : ''}</span>
+																</Tooltip>
+															);
+														})() : null}
 													</div>
 												) : null}
 											</div>
 										))}
 									</div>
 								</div>
+								</div>
 								<div className={styles.composerDock}>
 									<div className={styles.chatThread}>
+										{renderContextBanner()}
 										{renderComposer()}
 									</div>
 								</div>
@@ -3752,24 +4613,32 @@ function AIAnalysisMain(props){
 				</div>
 				<div className={styles.paneBody}>
 					<div className={styles.historyTableWrap}>
+						{filteredConversations.length === 0 ? (
+							<div className={styles.historyEmpty}>
+								<Empty description="暂无历史对话" />
+							</div>
+						) : (
 						<Table
 							rowKey="id"
 							size="small"
 							className={styles.historyTable}
+							tableLayout="fixed"
 							rowSelection={{
 								selectedRowKeys: selectedHistoryIds,
 								onChange: (keys)=>setSelectedHistoryIds(keys),
+								columnWidth: 44,
 							}}
 							dataSource={filteredConversations}
-							scroll={{ y: Math.max(height - 340, 260), x: 'max-content' }}
-							pagination={{ pageSize: 8 }}
+							scroll={{ y: Math.max(height - 220, 320) }}
+							pagination={{ pageSize: 15, showSizeChanger: true, pageSizeOptions: ['10','15','30','50'], size: 'small' }}
 							columns={[
 								{
 									title: '标题',
 									dataIndex: 'title',
+									ellipsis: { showTitle: true },
 									render: (value, record)=>(
 										<div className={styles.tableTitleCell}>
-											<span>{value || '未命名对话'}</span>
+											<span className={styles.tableTitleText} title={value || '未命名对话'}>{value || '未命名对话'}</span>
 											{record.favorite ? <Tag color="gold">收藏</Tag> : null}
 											{record.archived ? <Tag>归档</Tag> : null}
 										</div>
@@ -3777,36 +4646,53 @@ function AIAnalysisMain(props){
 								},
 								{
 									title: '案例',
+									width: 180,
+									ellipsis: { showTitle: true },
 									render: (_, record)=>record.sourceRef && record.sourceRef.title ? record.sourceRef.title : '未绑定',
 								},
 								{
 									title: 'Provider / 模型',
+									width: 200,
+									ellipsis: { showTitle: true },
 									render: (_, record)=>record.providerName ? `${record.providerName} / ${record.model || ''}` : (record.model || '未设置'),
 								},
 								{
 									title: '更新时间',
+									width: 150,
 									render: (_, record)=>buildTimestampLabel(record.updatedAt),
 								},
 								{
 									title: '操作',
+									width: 380,
 									render: (_, record)=>(
 										<Space size={4} wrap>
 											<Button size="small" type="primary" onClick={()=>openConversation(record)}>打开</Button>
 											<Button size="small" onClick={()=>handleRenameConversation(record)}>重命名</Button>
 											<Button size="small" onClick={()=>handleDuplicateConversation(record)}>复制</Button>
-											<Button size="small" onClick={()=>handleToggleConversationFlag(record, 'favorite')} icon={<XQIcon name="star" />}>{record.favorite ? '取消收藏' : '收藏'}</Button>
+											<Tooltip title={record.favorite ? '取消收藏' : '收藏'}><Button size="small" onClick={()=>handleToggleConversationFlag(record, 'favorite')} icon={<XQIcon name="star" />} /></Tooltip>
 											<Button size="small" onClick={()=>handleToggleConversationFlag(record, 'archived')}>{record.archived ? '取消归档' : '归档'}</Button>
-											<Button size="small" onClick={()=>exportConversation(record, 'md')}>Markdown</Button>
-											<Button size="small" onClick={()=>exportConversation(record, 'json')}>JSON</Button>
-											<Button size="small" onClick={()=>exportConversation(record, 'docx')}>Word</Button>
+											<Dropdown
+												trigger={['click']}
+												menu={{
+													items: [
+														{ key: 'md', label: 'Markdown' },
+														{ key: 'json', label: 'JSON' },
+														{ key: 'docx', label: 'Word' },
+													],
+													onClick: ({ key })=>exportConversation(record, key),
+												}}
+											>
+												<Button size="small">导出 ▾</Button>
+											</Dropdown>
 											<Popconfirm title="确定删除这段历史吗？" onConfirm={()=>handleDeleteConversation(record.id)}>
-												<Button size="small" danger icon={<XQIcon name="delete" />}>删除</Button>
+												<Button size="small" danger icon={<XQIcon name="delete" />} />
 											</Popconfirm>
 										</Space>
 									),
 								},
 							]}
 						/>
+						)}
 					</div>
 				</div>
 			</div>
@@ -3814,8 +4700,32 @@ function AIAnalysisMain(props){
 	}
 
 	function renderMaterialsPane(){
+		// 全 pane 拖拽：用 React ref 计数，避免 dragLeave 误闪。组件内 ref，热重载/多实例下不会乱串。
+		const onDragEnter = (e)=>{
+			if(e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') >= 0){
+				materialDragCounterRef.current++;
+				setMaterialPaneDragOver(true);
+			}
+		};
+		const onDragOver = (e)=>{
+			if(e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') >= 0){
+				e.preventDefault();
+				e.dataTransfer.dropEffect = 'copy';
+			}
+		};
+		const onDragLeave = ()=>{
+			materialDragCounterRef.current = Math.max(0, materialDragCounterRef.current - 1);
+			if(materialDragCounterRef.current === 0){ setMaterialPaneDragOver(false); }
+		};
+		const onDrop = (e)=>{
+			e.preventDefault();
+			materialDragCounterRef.current = 0;
+			setMaterialPaneDragOver(false);
+			const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+			if(files.length){ ingestFiles(files); }
+		};
 		return (
-			<div className={styles.paneShell}>
+			<div className={styles.paneShell} onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
 				<div className={styles.paneHeader}>
 					<div className={styles.materialTop}>
 						<Search
@@ -3836,22 +4746,33 @@ function AIAnalysisMain(props){
 							<Select.Option value="name">按名称</Select.Option>
 							<Select.Option value="size">按大小</Select.Option>
 						</Select>
+						<Select value={materialView} style={{ width: 110 }} onChange={(v)=>{ setMaterialView(v); saveUiPrefs({ materialView: v }); }}>
+							<Select.Option value="grid">卡片视图</Select.Option>
+							<Select.Option value="list">列表视图</Select.Option>
+						</Select>
 						<Space wrap>
 							<Button icon={<XQIcon name="plus" />} type="primary" onClick={()=>openMaterialEditor(null)}>新建资料</Button>
+							<Upload showUploadList={false} multiple beforeUpload={(file, fileList)=>{ /* 一次性接收整批 */ if(fileList[0] === file){ ingestFiles(fileList); } return false; }} accept=".txt,.md,.markdown,.doc,.docx,.pdf">
+								<Button icon={<XQIcon name="import" />}>选文件上传</Button>
+							</Upload>
+							<Button icon={<XQIcon name="folder" />} onClick={()=>setFolderDrawerOpen(true)}>管理文件夹</Button>
 							<Button icon={<XQIcon name="sync" />} onClick={dedupeMaterials}>去重</Button>
-							{desktopBridge ? <Button icon={<XQIcon name="import" />} onClick={handleDesktopFilePick}>桌面选文件</Button> : null}
-							{desktopBridge ? <Button icon={<XQIcon name="folder" />} onClick={handleDesktopFolderImport}>导入文件夹</Button> : null}
+							{desktopBridge ? <Button onClick={handleDesktopFilePick}>桌面选文件</Button> : null}
+							{desktopBridge ? <Button onClick={handleDesktopFolderImport}>导入目录</Button> : null}
 						</Space>
 					</div>
-					<Card size="small" bordered={false} className={styles.uploadCard}>
-						<Dragger multiple showUploadList={false} beforeUpload={handleUploadMaterial} accept=".txt,.md,.markdown,.doc,.docx,.pdf">
-							<p className="ant-upload-drag-icon">
-								<XQIcon name="folder" />
-							</p>
-							<p className="ant-upload-text">拖动或点击上传资料文件</p>
-							<p className={styles.uploadHint}>支持 TXT / Markdown / DOC / DOCX / PDF，大文件会自动切块供 RAG 检索。</p>
-						</Dragger>
-					</Card>
+					<div className={styles.materialHint}>
+						<XQIcon name="folder" /> 把文件直接拖到本面即上传（也可点「选文件上传」）。支持 TXT / Markdown / DOC / DOCX / PDF。
+					</div>
+					{materialIngestQueue.length ? (
+						<div className={styles.materialIngestBar}>
+							{materialIngestQueue.map((q)=>(
+								<Tag key={q.id} color={q.status === 'done' ? 'green' : q.status === 'error' ? 'red' : q.status === 'skip' ? 'default' : 'blue'}>
+									{q.name} · {q.status === 'parsing' ? '解析中…' : q.status === 'importing' ? '导入中…' : q.status === 'done' ? '完成' : q.status === 'skip' ? '已跳过' : `失败${q.err ? '：' + q.err : ''}`}
+								</Tag>
+							))}
+						</div>
+					) : null}
 				</div>
 				<div className={styles.paneBody}>
 					<div className={styles.materialScroll}>
@@ -3868,6 +4789,51 @@ function AIAnalysisMain(props){
 							<div className={styles.materialEmpty}>
 								<Empty description="暂无资料" />
 							</div>
+						) : materialView === 'list' ? (
+							<Table
+								rowKey="id"
+								size="small"
+								tableLayout="fixed"
+								dataSource={filteredMaterials}
+								pagination={{ pageSize: 20, size: 'small', showSizeChanger: true, pageSizeOptions: ['10','20','50','100'] }}
+								columns={[
+									{ title: '名称', dataIndex: 'name', ellipsis: { showTitle: true }, render: (v)=>v || '未命名' },
+									{ title: '类型', width: 90, render: (_, it)=>it.kind || 'note' },
+									{ title: '文件夹', width: 140, ellipsis: true, render: (_, it)=>(it.folderId ? (materialFolders.find((folder)=>folder.id === it.folderId)?.name || '未知') : '未分类') },
+									{ title: '标签', width: 180, ellipsis: true, render: (_, it)=>(it.tags || []).join('、') || '无' },
+									{ title: '更新时间', width: 150, render: (_, it)=>buildTimestampLabel(it.updatedAt) },
+									{ title: '操作', width: 380, render: (_, it)=>(
+										<Space size={4} wrap>
+											<Button size="small" onClick={()=>openMaterialEditor(it)} icon={<XQIcon name="edit" />} />
+											<Button size="small" onClick={()=>setReferenceIds((prev)=>uniqueTextList(prev.concat(`material:${it.id}`)))}>加参考</Button>
+											<Dropdown trigger={['click']} menu={{
+												items: [
+													{ key: '', label: '未分类' },
+													...materialFolders.map((f)=>({ key: f.id, label: f.name })),
+												],
+												onClick: ({ key })=>handleMoveMaterial(it, key),
+											}}>
+												<Button size="small">移动 ▾</Button>
+											</Dropdown>
+											<Dropdown trigger={['click']} menu={{
+												items: [
+													{ key: 'orig', label: '原文件' },
+													{ key: 'text', label: '提取文本' },
+												],
+												onClick: ({ key })=>{ if(key === 'orig') exportMaterialOriginal(it); else exportMaterialText(it); },
+											}}>
+												<Button size="small">导出 ▾</Button>
+											</Dropdown>
+											<Upload showUploadList={false} beforeUpload={(file)=>handleReplaceMaterial(it, file)}>
+												<Button size="small">替换</Button>
+											</Upload>
+											<Popconfirm title="确定删除这份资料吗？" onConfirm={()=>deleteMaterial(it.id)}>
+												<Button size="small" danger icon={<XQIcon name="delete" />} />
+											</Popconfirm>
+										</Space>
+									) },
+								]}
+							/>
 						) : (
 							<div className={styles.materialGrid}>
 								{filteredMaterials.map((item)=>(
@@ -3885,6 +4851,15 @@ function AIAnalysisMain(props){
 									<div className={styles.cardActions}>
 										<Button size="small" onClick={()=>openMaterialEditor(item)} icon={<XQIcon name="edit" />}>编辑</Button>
 										<Button size="small" onClick={()=>setReferenceIds((prev)=>uniqueTextList(prev.concat(`material:${item.id}`)))}>加入参考</Button>
+										<Dropdown trigger={['click']} menu={{
+											items: [
+												{ key: '', label: '未分类' },
+												...materialFolders.map((f)=>({ key: f.id, label: f.name })),
+											],
+											onClick: ({ key })=>handleMoveMaterial(item, key),
+										}}>
+											<Button size="small">移动到 ▾</Button>
+										</Dropdown>
 										<Button size="small" icon={<XQIcon name="download" />} onClick={()=>exportMaterialOriginal(item)}>原文件</Button>
 										<Button size="small" onClick={()=>exportMaterialText(item)}>提取文本</Button>
 										<Upload showUploadList={false} beforeUpload={(file)=>handleReplaceMaterial(item, file)}>
@@ -3900,6 +4875,15 @@ function AIAnalysisMain(props){
 						)}
 					</div>
 				</div>
+			{materialPaneDragOver ? (
+				<div className={styles.materialDropOverlay}>
+					<div className={styles.materialDropOverlayInner}>
+						<div style={{ fontSize: 40, marginBottom: 8 }}>📁</div>
+						<div style={{ fontSize: 16, fontWeight: 600 }}>放下即上传</div>
+						<div className={styles.materialDropOverlayHint}>支持 TXT / Markdown / DOC / DOCX / PDF</div>
+					</div>
+				</div>
+			) : null}
 			</div>
 		);
 	}
@@ -3949,6 +4933,12 @@ function AIAnalysisMain(props){
 											setPreviewTemplate(item);
 											setPreviewDrawerOpen(true);
 										}}>预览</Button>
+										{templateVersions.filter((v)=>v.templateId === item.id).length >= 2 ? (
+											<Button size="small" onClick={()=>{
+												const vs = templateVersions.filter((v)=>v.templateId === item.id).sort((a,b)=>(b.versionNumber||0)-(a.versionNumber||0));
+												setVersionDiffState({ template: item, leftId: vs[1].id, rightId: vs[0].id });
+											}}>版本对比</Button>
+										) : null}
 										<Popconfirm title="确定删除这个模版吗？" onConfirm={()=>deleteTemplate(item.id)}>
 											<Button size="small" danger icon={<XQIcon name="delete" />}>删除</Button>
 										</Popconfirm>
@@ -3976,6 +4966,7 @@ function AIAnalysisMain(props){
 									<div className={styles.cardActions}>
 										<Button size="small" onClick={()=>openBundleEditor(item)} icon={<XQIcon name="edit" />}>编辑</Button>
 										<Button size="small" onClick={()=>applyBundle(item)}>一键应用</Button>
+										<Button size="small" onClick={()=>setBundlePreview(item)}>预览</Button>
 										<Button size="small" onClick={()=>setReferenceIds((prev)=>uniqueTextList(prev.concat(`bundle:${item.id}`)))}>加入参考</Button>
 										<Popconfirm title="确定删除这个组合吗？" onConfirm={()=>deleteBundle(item.id)}>
 											<Button size="small" danger icon={<XQIcon name="delete" />}>删除</Button>
@@ -4011,6 +5002,10 @@ function AIAnalysisMain(props){
 						/>
 						<Space>
 							<Button icon={<XQIcon name="plus" />} type="primary" onClick={()=>openProviderEditor(null)}>新增接口配置</Button>
+							<Select size="middle" value={providerListDense ? 'dense' : 'card'} style={{ width: 110 }} onChange={(v)=>{ const d = v === 'dense'; setProviderListDense(d); saveUiPrefs({ providerListDense: d }); }}>
+								<Select.Option value="card">卡片视图</Select.Option>
+								<Select.Option value="dense">紧凑列表</Select.Option>
+							</Select>
 							<Button icon={<XQIcon name="export" />} onClick={handleExportWorkspaceBackup}>导出备份</Button>
 							<Button icon={<XQIcon name="import" />} onClick={handleRestoreWorkspaceBackup}>恢复备份</Button>
 						</Space>
@@ -4021,6 +5016,34 @@ function AIAnalysisMain(props){
 				</div>
 				<div className={styles.paneBody}>
 					<div className={styles.paneScroll}>
+						{providerListDense ? (
+							<Table
+								rowKey="id"
+								size="small"
+								tableLayout="fixed"
+								className={styles.providerDenseTable}
+								dataSource={filteredProfiles}
+								pagination={false}
+								columns={[
+									{ title: '配置名称', dataIndex: 'name', ellipsis: true, render: (v)=>v || '未命名配置' },
+									{ title: '类型', width: 110, render: (_, it)=>getProviderDisplayName(it.providerType) },
+									{ title: 'Base URL', width: 220, ellipsis: { showTitle: true }, render: (_, it)=>it.baseUrl || '默认' },
+									{ title: '模型数', width: 80, render: (_, it)=>normalizeProfileChatModels(it).length },
+									{ title: '状态', width: 100, render: (_, it)=><Tag color={it.healthStatus === 'healthy' ? 'green' : it.healthStatus === 'error' ? 'red' : 'default'}>{it.healthStatus || 'unknown'}</Tag> },
+									{ title: '操作', width: 280, render: (_, it)=>(
+										<Space size={4} wrap>
+											<Button size="small" type="link" onClick={()=>openProviderEditor(it)}>编辑</Button>
+											<Button size="small" type="link" onClick={()=>fetchModelsAndEmbeddings(it)}>拉模型</Button>
+											<Button size="small" type="link" onClick={()=>testProfileChat(it)}>测试</Button>
+											<Button size="small" type="link" onClick={()=>runProviderDiagnostics(it)}>诊断</Button>
+											<Popconfirm title="确定删除这条接口配置吗？" onConfirm={()=>deleteProvider(it.id)}>
+												<Button size="small" type="link" danger>删除</Button>
+											</Popconfirm>
+										</Space>
+									) },
+								]}
+							/>
+						) : (
 						<div className={styles.settingsGrid}>
 							{filteredProfiles.length === 0 ? <Empty description="暂无接口配置" /> : filteredProfiles.map((item)=>(
 						<Card key={item.id} size="small" title={item.name || '未命名配置'} bordered={false}>
@@ -4054,6 +5077,7 @@ function AIAnalysisMain(props){
 						</Card>
 							))}
 						</div>
+						)}
 					</div>
 				</div>
 			</div>
@@ -4173,40 +5197,175 @@ function AIAnalysisMain(props){
 					<Form.Item shouldUpdate noStyle>
 						{({ getFieldValue })=>{
 							const format = getFieldValue('format');
+							const body = `${getFieldValue('instructionText') || ''}\n${getFieldValue('jsonSchema') || ''}\n${getFieldValue('exampleInput') || ''}\n${getFieldValue('exampleOutput') || ''}`;
+							const KNOWN_VARS = ['user_prompt', 'source_context', 'retrieved_context', 'conversation_history', 'system_prompt'];
+							const usedVars = Array.from(new Set((body.match(/\{\{\s*([\w.]+)\s*\}\}/g) || []).map((m)=>m.replace(/[\{\}\s]/g, ''))));
+							const unknownVars = usedVars.filter((v)=>KNOWN_VARS.indexOf(v) < 0 && v.indexOf('.') < 0);
+							let schemaErr = null;
 							if(format === 'json'){
-								return (
-									<>
-										<Form.Item name="instructionText" label="说明文字">
-											<TextArea rows={3} placeholder="可选，用于说明模型应该如何输出 JSON" />
-										</Form.Item>
-										<Form.Item name="jsonSchema" label="JSON Schema" rules={[{ required: true, message: '请输入 JSON Schema' }]}>
-											<MonacoEditor height="240px" defaultLanguage="json" beforeMount={configureMonaco} />
-										</Form.Item>
-										<Form.Item name="exampleInput" label="示例输入">
-											<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
-										</Form.Item>
-										<Form.Item name="exampleOutput" label="示例输出">
-											<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
-										</Form.Item>
-									</>
-								);
+								const raw = `${getFieldValue('jsonSchema') || ''}`.trim();
+								if(raw){
+									try{ JSON.parse(raw); }catch(e){ schemaErr = e && e.message ? e.message : '无法解析 JSON Schema'; }
+								}
 							}
 							return (
-								<>
-									<Form.Item name="instructionText" label="模版内容" rules={[{ required: true, message: '请输入模版内容' }]}>
-										<TextArea rows={10} placeholder="支持 {{user_prompt}} / {{source_context}} / {{retrieved_context}} / {{conversation_history}} / {{system_prompt}}" />
-									</Form.Item>
-									<Form.Item name="exampleInput" label="示例输入">
-										<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
-									</Form.Item>
-									<Form.Item name="exampleOutput" label="示例输出">
-										<TextArea rows={6} />
-									</Form.Item>
-								</>
+								<div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 16 }}>
+									<div>
+										{format === 'json' ? (
+											<>
+												<Form.Item name="instructionText" label="说明文字">
+													<TextArea rows={3} placeholder="可选，用于说明模型应该如何输出 JSON" />
+												</Form.Item>
+												<Form.Item name="jsonSchema" label="JSON Schema" rules={[{ required: true, message: '请输入 JSON Schema' }]}>
+													<MonacoEditor height="240px" defaultLanguage="json" beforeMount={configureMonaco} />
+												</Form.Item>
+												<Form.Item name="exampleInput" label="示例输入">
+													<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
+												</Form.Item>
+												<Form.Item name="exampleOutput" label="示例输出">
+													<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
+												</Form.Item>
+											</>
+										) : (
+											<>
+												<Form.Item name="instructionText" label="模版内容" rules={[{ required: true, message: '请输入模版内容' }]}>
+													<TextArea rows={10} placeholder="支持 {{user_prompt}} / {{source_context}} / {{retrieved_context}} / {{conversation_history}} / {{system_prompt}}" />
+												</Form.Item>
+												<Form.Item name="exampleInput" label="示例输入">
+													<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
+												</Form.Item>
+												<Form.Item name="exampleOutput" label="示例输出">
+													<TextArea rows={6} />
+												</Form.Item>
+											</>
+										)}
+									</div>
+									<div>
+										<div style={{ fontSize: 12, color: 'var(--horosa-text-soft)', marginBottom: 6 }}>变量推断（已用 {usedVars.length} 个）</div>
+										<div className={styles.templateVarSidebar}>
+											{usedVars.length === 0 ? (
+												<div style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>未检测到 {`{{变量}}`}。常用：<br />user_prompt · source_context · retrieved_context · conversation_history · system_prompt</div>
+											) : usedVars.map((v)=>(
+												<div key={v} className={styles.templateVarItem + ' ' + (KNOWN_VARS.indexOf(v) < 0 && v.indexOf('.') < 0 ? styles.templateVarItemMissing : '')}>
+													<span>{'{{'}{v}{'}}'}</span>
+													{KNOWN_VARS.indexOf(v) < 0 && v.indexOf('.') < 0 ? <Tooltip title="不在已知变量列表中——发送时可能解析不到"><span style={{ fontSize: 10 }}>?</span></Tooltip> : null}
+												</div>
+											))}
+											{unknownVars.length ? <div style={{ marginTop: 8, fontSize: 11, color: 'var(--horosa-warning, #faad14)' }}>未知变量：{unknownVars.join(', ')}</div> : null}
+										</div>
+										{format === 'json' ? (
+											<>
+												<div style={{ marginTop: 12, fontSize: 12, color: 'var(--horosa-text-soft)' }}>JSON Schema 校验</div>
+												<div className={styles.templateVarSidebar} style={{ marginTop: 6 }}>
+													{schemaErr ? (
+														<div style={{ color: 'var(--horosa-error, #ff4d4f)' }}>❌ {schemaErr}</div>
+													) : (
+														<div style={{ color: 'var(--horosa-success, #52c41a)' }}>✓ Schema 解析通过</div>
+													)}
+												</div>
+											</>
+										) : null}
+									</div>
+								</div>
 							);
 						}}
 					</Form.Item>
 				</Form>
+			</Modal>
+
+			<Modal
+				title={bundlePreview ? `组合预览 · ${bundlePreview.name}` : ''}
+				open={!!bundlePreview}
+				width={560}
+				footer={(
+					<Space>
+						<Button onClick={()=>setBundlePreview(null)}>关闭</Button>
+						<Button type="primary" onClick={()=>{ applyBundle(bundlePreview); setBundlePreview(null); }}>立即应用</Button>
+					</Space>
+				)}
+				onCancel={()=>setBundlePreview(null)}
+			>
+				{bundlePreview ? (()=>{
+					const b = bundlePreview;
+					const techs = Array.isArray(b.defaultTechniqueKeys) ? b.defaultTechniqueKeys : [];
+					const mats = Array.isArray(b.defaultMaterialIds) && b.defaultMaterialIds.length ? b.defaultMaterialIds : (Array.isArray(b.materialIds) ? b.materialIds : []);
+					const allowed = activeSource ? new Set(listAnalysisTechniqueOptions(activeSource).map((it)=>it.value)) : null;
+					const fitTechs = allowed ? techs.filter((k)=>allowed.has(k)) : techs;
+					const skipTechs = allowed ? techs.filter((k)=>!allowed.has(k)) : [];
+					const matNames = mats.map((id)=>{
+						const m = materials.find((x)=>x.id === id);
+						return m ? m.name : `(已删除资料 ${id.slice(0,6)})`;
+					});
+					const techLabel = (k)=>(listAllAnalysisTechniqueOptions().find((it)=>it.value === k) || {}).label || k;
+					return (
+						<div>
+							<p style={{ color: 'var(--horosa-text-soft)' }}>套用此组合后，将自动设置以下配置：</p>
+							<ul style={{ paddingLeft: 20, lineHeight: 1.9 }}>
+								<li><b>系统提示：</b>{b.defaultSystemPrompt ? <span>已设置（{(b.defaultSystemPrompt || '').slice(0, 50)}…）</span> : '不覆盖'}</li>
+								<li><b>默认模型：</b>{b.defaultModel ? `${b.defaultProviderProfileId ? '指定接口·' : ''}${b.defaultModel}` : '不覆盖'}</li>
+								<li><b>默认温度：</b>{b.defaultChatTemperature != null ? b.defaultChatTemperature : '不覆盖'}</li>
+								<li><b>默认 top_p：</b>{b.defaultChatTopP != null ? b.defaultChatTopP : '不覆盖'}</li>
+								<li><b>默认思考档：</b>{b.defaultThinkingLevel || '不覆盖'}</li>
+								<li><b>默认检索策略：</b>{b.defaultRetrievalMode || 'auto'}</li>
+								<li><b>挂载资料 ({matNames.length})：</b>{matNames.length ? matNames.join('、') : '无'}</li>
+								<li><b>挂载技法 ({techs.length})：</b>
+									{techs.length === 0 ? '无' : (
+										<div>
+											<div style={{ marginTop: 4 }}>{fitTechs.length ? <span>当前案例可挂载 {fitTechs.length} 项：{fitTechs.map(techLabel).join('、')}</span> : <span style={{ color: 'var(--horosa-text-soft)' }}>当前案例下无可挂载（待你选定支持此组的案例）</span>}</div>
+											{skipTechs.length ? <div style={{ marginTop: 4, color: 'var(--horosa-text-soft)' }}>跳过 {skipTechs.length} 项（不适用当前案例类型）：{skipTechs.map(techLabel).join('、')}</div> : null}
+										</div>
+									)}
+								</li>
+							</ul>
+							<p style={{ marginTop: 12, color: 'var(--horosa-text-soft)', fontSize: 12 }}>
+								{activeSource ? '已选案例：' + activeSource.title : '尚未选定案例——选定后会按交集自动挂载支持的技法。'}
+							</p>
+						</div>
+					);
+				})() : null}
+			</Modal>
+
+			<Drawer
+				title="管理文件夹"
+				open={folderDrawerOpen}
+				onClose={()=>setFolderDrawerOpen(false)}
+				width={420}
+			>
+				<div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+					<Input value={folderDraftName} placeholder="新文件夹名称" onChange={(e)=>setFolderDraftName(e.target.value)} onPressEnter={handleCreateFolder} style={{ flex: 1 }} />
+					<Button type="primary" onClick={handleCreateFolder} icon={<XQIcon name="plus" />}>新建</Button>
+				</div>
+				{materialFolders.length === 0 ? (
+					<Empty description="还没有文件夹" />
+				) : (
+					<div>
+						{materialFolders.map((folder)=>{
+							const cnt = materials.filter((m)=>m.folderId === folder.id).length;
+							return (
+								<div key={folder.id} className={styles.folderRow}>
+									<XQIcon name="folder" />
+									<span className={styles.folderRowName}>{folder.name}</span>
+									<span style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>{cnt} 份</span>
+									<Button size="small" type="link" onClick={()=>handleRenameFolder(folder)}>重命名</Button>
+									<Button size="small" type="link" danger onClick={()=>handleDeleteFolder(folder)}>删除</Button>
+								</div>
+							);
+						})}
+					</div>
+				)}
+				<div style={{ marginTop: 14, fontSize: 12, color: 'var(--horosa-text-soft)' }}>
+					资料的「移动到…」请在资料列表/卡片操作里点选。
+				</div>
+			</Drawer>
+
+			<Modal
+				title="模板版本对比"
+				open={!!versionDiffState}
+				width={960}
+				footer={null}
+				onCancel={()=>setVersionDiffState(null)}
+			>
+				{versionDiffState ? renderTemplateVersionDiff() : null}
 			</Modal>
 
 			<Modal
@@ -4254,6 +5413,23 @@ function AIAnalysisMain(props){
 						<Select>
 							{RETRIEVAL_OPTIONS.map((item)=><Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>)}
 						</Select>
+					</Form.Item>
+					<Form.Item name="defaultTechniqueKeys" label="默认挂载技法（套用后按所选案例自动挂载）">
+						<Select mode="multiple" allowClear showSearch optionFilterProp="children" placeholder="可多选：套用组合并选定案例后自动挂载">
+							{listAllAnalysisTechniqueOptions().map((item)=>(
+								<Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
+							))}
+						</Select>
+					</Form.Item>
+					<Form.Item label="默认生成参数（留空＝沿用当前设置、不覆盖）">
+						<Space size={12} wrap>
+							<span>温度</span>
+							<Form.Item name="defaultChatTemperature" noStyle><InputNumber min={0} max={2} step={0.1} placeholder="不覆盖" style={{ width: 110 }} /></Form.Item>
+							<span>top_p</span>
+							<Form.Item name="defaultChatTopP" noStyle><InputNumber min={0} max={1} step={0.05} placeholder="不覆盖" style={{ width: 110 }} /></Form.Item>
+							<span>思考档</span>
+							<Form.Item name="defaultThinkingLevel" noStyle><Select allowClear placeholder="不覆盖" style={{ width: 130 }}>{THINKING_LEVELS.map((t)=><Select.Option key={t.value} value={t.value}>{t.label}</Select.Option>)}</Select></Form.Item>
+						</Space>
 					</Form.Item>
 				</Form>
 			</Modal>
@@ -4360,8 +5536,29 @@ function AIAnalysisMain(props){
 							))}
 						</Select>
 					</Form.Item>
-					<Form.Item name="apiKey" label="API Key">
-						<Input type="password" placeholder="留空表示不设置" />
+					<Form.Item shouldUpdate={(prev, cur)=>prev.providerType !== cur.providerType} noStyle>
+						{({ getFieldValue })=>{
+							const pt = getFieldValue('providerType') || '';
+							const ph = pt === 'anthropic' ? 'sk-ant-...' :
+								(pt === 'openai' || pt === 'deepseek' || pt === 'openrouter' || pt === 'groq' || pt === 'siliconflow') ? 'sk-...' :
+								pt === 'ollama' ? '可留空（本地服务）' : '留空表示不设置';
+							return (
+								<Form.Item name="apiKey" label="API Key">
+									<AntdInput.Password
+										placeholder={ph}
+										autoComplete="off"
+										onChange={(e)=>{
+											const v = `${e.target.value || ''}`;
+											const cleaned = v.replace(/[\s\n\r]+$/, '').replace(/^\s+/, '');
+											if(cleaned !== v){
+												// 防被粘贴 .env 时拖入的换行/空白污染。
+												providerForm.setFieldsValue({ apiKey: cleaned });
+											}
+										}}
+									/>
+								</Form.Item>
+							);
+						}}
 					</Form.Item>
 					<Form.Item name="baseUrl" label="Base URL">
 						<Input />
@@ -4384,24 +5581,32 @@ function AIAnalysisMain(props){
 					</div>
 					{providerAdvancedOpen ? (
 						<div className={styles.providerAdvancedPanel}>
-							<Form.Item name="manualModels" label="聊天模型列表">
-								<TextArea rows={4} />
-							</Form.Item>
-							<Form.Item name="embeddingModels" label="Embedding 模型列表">
-								<TextArea rows={3} />
-							</Form.Item>
-							<Form.Item name="requestTimeoutMs" label="请求超时（毫秒）">
-								<Input />
-							</Form.Item>
-							<Form.Item name="extraHeadersText" label="额外请求头（JSON 对象）">
-								<MonacoEditor height="140px" defaultLanguage="json" beforeMount={configureMonaco} />
-							</Form.Item>
-							<Form.Item name="extraBodyText" label="额外请求体（JSON 对象）">
-								<MonacoEditor height="140px" defaultLanguage="json" beforeMount={configureMonaco} />
-							</Form.Item>
-							<Form.Item name="providerOptionsText" label="补充高级参数（JSON）">
-								<MonacoEditor height="160px" defaultLanguage="json" beforeMount={configureMonaco} />
-							</Form.Item>
+							<Collapse ghost defaultActiveKey={['models']}>
+								<Collapse.Panel key="models" header="模型清单 / 请求调优" forceRender>
+									<Form.Item name="manualModels" label="聊天模型列表">
+										<TextArea rows={4} />
+									</Form.Item>
+									<Form.Item name="embeddingModels" label="Embedding 模型列表">
+										<TextArea rows={3} />
+									</Form.Item>
+									<Form.Item name="requestTimeoutMs" label="请求超时（毫秒）">
+										<Input />
+									</Form.Item>
+								</Collapse.Panel>
+								<Collapse.Panel key="auth" header="鉴权定制（自定义请求头）" forceRender>
+									<Form.Item name="extraHeadersText" label="额外请求头（JSON 对象）">
+										<MonacoEditor height="140px" defaultLanguage="json" beforeMount={configureMonaco} />
+									</Form.Item>
+								</Collapse.Panel>
+								<Collapse.Panel key="body" header="请求体覆盖（额外字段 / 厂家私有参数）" forceRender>
+									<Form.Item name="extraBodyText" label="额外请求体（JSON 对象）">
+										<MonacoEditor height="140px" defaultLanguage="json" beforeMount={configureMonaco} />
+									</Form.Item>
+									<Form.Item name="providerOptionsText" label="补充高级参数（JSON）">
+										<MonacoEditor height="160px" defaultLanguage="json" beforeMount={configureMonaco} />
+									</Form.Item>
+								</Collapse.Panel>
+							</Collapse>
 						</div>
 					) : null}
 					<Form.Item shouldUpdate noStyle>

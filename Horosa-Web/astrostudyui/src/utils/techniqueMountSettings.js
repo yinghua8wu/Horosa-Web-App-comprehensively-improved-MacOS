@@ -628,6 +628,13 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	sixyao: { kind: 'sectionsOnly', reason: '六爻为摇钱/报数起卦的确定性结果，仅可调纳入内容、不可改卦象。' },
 	tongshefa: { kind: 'sectionsOnly', reason: '统摄法基于已起卦象的确定性结果，仅可调纳入内容、不可重算。' },
 	mundane: { kind: 'sectionsOnly', reason: '世俗盘类型多样、按事件时刻确定，仅可调纳入内容、不按时间重算。' },
+	// 报数/揲蓍 等确定性起卦术（均已在 CASE_TYPE_OPTIONS 可存为事盘 + saveModuleAISnapshot 存模块快照）：
+	// 此前可存事盘却挂不上，补登记 sectionsOnly（挂载走缓存、不重算），与 sixyao/tongshefa/mundane 同范式。
+	// 注：otherbu(骰子,随机)/fengshui(风水)/jieqi(节气盘) 暂不在 CASE_TYPE_OPTIONS（无事盘存储），不在此补挂载——见 windows/AGENTS 交接。
+	wuzhao: { kind: 'sectionsOnly', reason: '五兆为揲蓍/报数确定性起卦，仅可勾选纳入内容、不重算。' },
+	taixuan: { kind: 'sectionsOnly', reason: '太玄筮法为揲蓍/报数确定性起卦，仅可勾选纳入内容、不重算。' },
+	jingjue: { kind: 'sectionsOnly', reason: '荆诀为报数确定性起课，仅可勾选纳入内容、不重算。' },
+	shenyishu: { kind: 'sectionsOnly', reason: '神易数为报数确定性起盘，仅可勾选纳入内容、不重算。' },
 };
 
 // 星运系里「参数固定 = 现状」的纯推运技法：无可调重算项，但仍登记（显式 emptySchema）让自检无遗漏、UI 显示「仅内容勾选」。

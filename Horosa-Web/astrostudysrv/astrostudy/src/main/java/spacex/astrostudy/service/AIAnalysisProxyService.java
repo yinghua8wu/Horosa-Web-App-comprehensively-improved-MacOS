@@ -410,6 +410,11 @@ public class AIAnalysisProxyService {
 				if(!StringUtility.isNullOrEmpty(delta)) {
 					sendEvent(channel, "delta", buildMap("delta", delta));
 				}
+				// 2A：末帧（或独立 usage 帧）通常带 usage；统一打成 "usage" SSE 事件下发。
+				Map<String, Object> usage = extractOpenAIUsage(payload);
+				if(usage != null) {
+					sendEvent(channel, "usage", usage);
+				}
 			});
 		});
 	}
@@ -437,6 +442,11 @@ public class AIAnalysisProxyService {
 						sendEvent(channel, "delta", buildMap("delta", c.toString()));
 					}
 				}
+				// 2A：done=true 的末帧带 prompt_eval_count + eval_count。
+				Map<String, Object> usage = extractOllamaUsage(payload);
+				if(usage != null) {
+					sendEvent(channel, "usage", usage);
+				}
 			});
 		});
 	}
@@ -450,7 +460,20 @@ public class AIAnalysisProxyService {
 		if(messages != null) {
 			for(Map<String, Object> m : messages) {
 				if(m == null) { continue; }
-				norm.add(buildMap("role", stringVal(m, "role"), "content", stringVal(m, "content")));
+				Map<String, Object> nm = new LinkedHashMap<String, Object>();
+				nm.put("role", stringVal(m, "role"));
+				nm.put("content", stringVal(m, "content"));
+				// 2B：Ollama 视觉模型（llava 等）的 message.images 是 base64 列表（不带 data:image/...; 前缀）。
+				List<String> imgs = imageUrlList(m.get("images"));
+				if(!imgs.isEmpty()) {
+					List<String> b64 = new ArrayList<String>();
+					for(String u : imgs) {
+						String s = u.startsWith("data:") ? u.substring(u.indexOf(',') + 1) : u;
+						if(!s.isEmpty()) { b64.add(s); }
+					}
+					if(!b64.isEmpty()) { nm.put("images", b64); }
+				}
+				norm.add(nm);
 			}
 		}
 		body.put("messages", norm);
@@ -459,6 +482,16 @@ public class AIAnalysisProxyService {
 		opts.put("temperature", numVal(params.get("temperature"), 0.7));
 		if(params.get("maxTokens") != null) { opts.put("num_predict", intVal(params.get("maxTokens"), 1024)); }
 		Map<String, Object> prov = buildProviderBodyOptions(params);
+		// 2B：把 OpenAI 兼容形参 stop 映射到 Ollama options.stop。
+		Object stopVal = prov.remove("stop");
+		List<String> stops = anthropicStopList(stopVal);
+		if(!stops.isEmpty()) { opts.put("stop", stops); }
+		// Ollama 不支持 response_format / 惩罚 / 思考档 → 丢弃以避免 400。
+		prov.remove("response_format");
+		prov.remove("frequency_penalty");
+		prov.remove("presence_penalty");
+		prov.remove("thinking");
+		prov.remove("thinkingConfig");
 		for(Map.Entry<String, Object> e : prov.entrySet()) {
 			if("keep_alive".equals(e.getKey())) { body.put("keep_alive", e.getValue()); }
 			else { opts.put(e.getKey(), e.getValue()); } // num_ctx/num_predict/top_k/top_p/repeat_penalty
@@ -540,6 +573,11 @@ public class AIAnalysisProxyService {
 				if(!StringUtility.isNullOrEmpty(delta)) {
 					sendEvent(channel, "delta", buildMap("delta", delta));
 				}
+				// 2A：Anthropic 在 message_start.message.usage 给输入 token；message_delta.usage 累加输出。
+				Map<String, Object> usage = extractAnthropicUsage(eventName, payload);
+				if(usage != null) {
+					sendEvent(channel, "usage", usage);
+				}
 			});
 		});
 	}
@@ -559,6 +597,11 @@ public class AIAnalysisProxyService {
 				String delta = extractGeminiContent(payload);
 				if(!StringUtility.isNullOrEmpty(delta)) {
 					sendEvent(channel, "delta", buildMap("delta", delta));
+				}
+				// 2A：Gemini 在末尾的 chunk 通常会带 usageMetadata。
+				Map<String, Object> usage = extractGeminiUsage(payload);
+				if(usage != null) {
+					sendEvent(channel, "usage", usage);
 				}
 			});
 		});
@@ -780,10 +823,94 @@ public class AIAnalysisProxyService {
 				Map<String, Object> next = new LinkedHashMap<String, Object>();
 				next.put("role", stringFromAny(map.get("role")));
 				next.put("content", stringFromAny(map.get("content")));
+				// 2F：保留图片（多媒体输入）→ 由各家 body 构造多模态内容；纯文本消息无 images 字段、行为不变。
+				List<String> imgs = imageUrlList(map.get("images"));
+				if(!imgs.isEmpty()) { next.put("images", imgs); }
 				result.add(next);
 			}
 		}
 		return result;
+	}
+
+	// 2F：解析消息里的图片地址列表（dataURL 或 http(s)）；非法/空 → 空列表（纯文本路径不受影响）。
+	@SuppressWarnings("rawtypes")
+	static List<String> imageUrlList(Object obj){
+		List<String> out = new ArrayList<String>();
+		if(!(obj instanceof List)) {
+			return out;
+		}
+		for(Object item : (List)obj) {
+			String url = stringFromAny(item).trim();
+			if(url.startsWith("data:image/") || url.startsWith("http://") || url.startsWith("https://")) {
+				out.add(url);
+			}
+		}
+		return out;
+	}
+
+	// 2F：把含图片的消息转成 OpenAI 视觉多模态 content 数组；无图片的消息保持 {role,content} 原样（零回归）。
+	@SuppressWarnings("rawtypes")
+	static List<Map<String, Object>> toOpenAIVisionMessages(List<Map<String, Object>> messages){
+		List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+		for(Map<String, Object> one : messages) {
+			Object imagesObj = one.get("images");
+			if(!(imagesObj instanceof List) || ((List)imagesObj).isEmpty()) {
+				Map<String, Object> copy = new LinkedHashMap<String, Object>();
+				copy.put("role", one.get("role"));
+				copy.put("content", one.get("content"));
+				out.add(copy);
+				continue;
+			}
+			List<Map<String, Object>> parts = new ArrayList<Map<String, Object>>();
+			String text = stringVal(one, "content");
+			if(!StringUtility.isNullOrEmpty(text)) {
+				Map<String, Object> tp = new LinkedHashMap<String, Object>();
+				tp.put("type", "text");
+				tp.put("text", text);
+				parts.add(tp);
+			}
+			for(Object u : (List)imagesObj) {
+				Map<String, Object> ip = new LinkedHashMap<String, Object>();
+				ip.put("type", "image_url");
+				Map<String, Object> iu = new LinkedHashMap<String, Object>();
+				iu.put("url", stringFromAny(u));
+				ip.put("image_url", iu);
+				parts.add(ip);
+			}
+			Map<String, Object> msg = new LinkedHashMap<String, Object>();
+			msg.put("role", one.get("role"));
+			msg.put("content", parts);
+			out.add(msg);
+		}
+		return out;
+	}
+
+	// 2F：Anthropic 图片块（dataURL→base64 source；http(s)→url source）；无法解析 → null（跳过）。
+	static Map<String, Object> anthropicImageBlock(String url){
+		if(url == null) {
+			return null;
+		}
+		String u = url.trim();
+		Map<String, Object> block = new LinkedHashMap<String, Object>();
+		block.put("type", "image");
+		Map<String, Object> source = new LinkedHashMap<String, Object>();
+		if(u.startsWith("data:")) {
+			int comma = u.indexOf(',');
+			int semi = u.indexOf(';');
+			if(comma < 0 || semi < 6) {
+				return null;
+			}
+			source.put("type", "base64");
+			source.put("media_type", u.substring(5, semi));
+			source.put("data", u.substring(comma + 1));
+		} else if(u.startsWith("http://") || u.startsWith("https://")) {
+			source.put("type", "url");
+			source.put("url", u);
+		} else {
+			return null;
+		}
+		block.put("source", source);
+		return block;
 	}
 
 	static String extractOpenAIContent(Map<String, Object> payload){
@@ -990,7 +1117,9 @@ public class AIAnalysisProxyService {
 		}
 		return m.startsWith("gpt-5") || m.startsWith("gpt5")
 			|| m.startsWith("gpt-6") || m.startsWith("gpt6")
-			|| m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4") || m.startsWith("o5");
+			|| m.startsWith("gpt-7") || m.startsWith("gpt7")
+			|| m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")
+			|| m.startsWith("o5") || m.startsWith("o6") || m.startsWith("o7");
 	}
 
 	// 广义「推理模型」:除 OpenAI o/gpt-5 系外,还含 DeepSeek reasoner / *-r1 / 通用 reasoning|thinking 命名,
@@ -1034,13 +1163,19 @@ public class AIAnalysisProxyService {
 	static Map<String, Object> buildOpenAIChatBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
 		Map<String, Object> requestBody = new LinkedHashMap<String, Object>();
 		requestBody.put("model", model);
-		requestBody.put("messages", messages);
+		requestBody.put("messages", toOpenAIVisionMessages(messages)); // 2F：含图片消息转多模态 content；纯文本原样
 		boolean openAIReasoning = isOpenAIReasoningModel(model); // 仅 OpenAI o/gpt-5 系:用 max_completion_tokens
 		boolean reasoning = isReasoningModel(model);             // 广义推理模型(含 deepseek-reasoner/*-r1):不下发采样参数
 		if(!reasoning) {
 			requestBody.put("temperature", numVal(params.get("temperature"), 0.7));
 		}
 		requestBody.put("stream", stream);
+		// 2A：流式请求开 stream_options.include_usage，OpenAI 系会在末帧把 usage 一起带回；非 OpenAI 兼容端口收到不识别字段一般忽略。
+		if(stream) {
+			Map<String, Object> streamOptions = new LinkedHashMap<String, Object>();
+			streamOptions.put("include_usage", true);
+			requestBody.put("stream_options", streamOptions);
+		}
 		int maxTokens = intVal(params.get("maxTokens"), 0);
 		if(maxTokens > 0) {
 			requestBody.put(openAIReasoning ? "max_completion_tokens" : "max_tokens", maxTokens);
@@ -1051,6 +1186,87 @@ public class AIAnalysisProxyService {
 		}
 		requestBody.putAll(prov);
 		return requestBody;
+	}
+
+	// 2A：从 OpenAI 兼容响应 payload 抽 usage（聊天的 usage 通常出现在 stream 末帧 / 非 stream 顶层）。
+	@SuppressWarnings("rawtypes")
+	static Map<String, Object> extractOpenAIUsage(Map<String, Object> payload){
+		if(payload == null) { return null; }
+		Object u = payload.get("usage");
+		if(!(u instanceof Map)) { return null; }
+		Map mu = (Map) u;
+		Map<String, Object> out = new LinkedHashMap<String, Object>();
+		long inT = numLong(mu.get("prompt_tokens"));
+		long outT = numLong(mu.get("completion_tokens"));
+		long total = numLong(mu.get("total_tokens"));
+		if(inT > 0) { out.put("input_tokens", inT); }
+		if(outT > 0) { out.put("output_tokens", outT); }
+		if(total > 0) { out.put("total_tokens", total); }
+		if(out.isEmpty()) { return null; }
+		return out;
+	}
+
+	static long numLong(Object v){
+		if(v == null) { return 0L; }
+		if(v instanceof Number) { return ((Number)v).longValue(); }
+		try { return Long.parseLong(String.valueOf(v).trim()); } catch(Exception ignore) { return 0L; }
+	}
+
+	// 2A：Anthropic 流。message_start.message.usage 给输入；message_delta.usage 累加输出（output_tokens）。
+	@SuppressWarnings("rawtypes")
+	static Map<String, Object> extractAnthropicUsage(String eventName, Map<String, Object> payload){
+		if(payload == null) { return null; }
+		Object usageObj = null;
+		if("message_start".equals(eventName)) {
+			Object msg = payload.get("message");
+			if(msg instanceof Map) { usageObj = ((Map)msg).get("usage"); }
+		} else if("message_delta".equals(eventName) || "message_stop".equals(eventName)) {
+			usageObj = payload.get("usage");
+		}
+		if(!(usageObj instanceof Map)) { return null; }
+		Map mu = (Map) usageObj;
+		Map<String, Object> out = new LinkedHashMap<String, Object>();
+		long inT = numLong(mu.get("input_tokens"));
+		long outT = numLong(mu.get("output_tokens"));
+		if(inT > 0) { out.put("input_tokens", inT); }
+		if(outT > 0) { out.put("output_tokens", outT); }
+		if(out.isEmpty()) { return null; }
+		if(out.containsKey("input_tokens") && out.containsKey("output_tokens")) {
+			out.put("total_tokens", inT + outT);
+		}
+		return out;
+	}
+
+	// 2A：Gemini 流。末 chunk 通常带 usageMetadata: {promptTokenCount, candidatesTokenCount, totalTokenCount}.
+	@SuppressWarnings("rawtypes")
+	static Map<String, Object> extractGeminiUsage(Map<String, Object> payload){
+		if(payload == null) { return null; }
+		Object u = payload.get("usageMetadata");
+		if(!(u instanceof Map)) { return null; }
+		Map mu = (Map) u;
+		Map<String, Object> out = new LinkedHashMap<String, Object>();
+		long inT = numLong(mu.get("promptTokenCount"));
+		long outT = numLong(mu.get("candidatesTokenCount"));
+		long total = numLong(mu.get("totalTokenCount"));
+		if(inT > 0) { out.put("input_tokens", inT); }
+		if(outT > 0) { out.put("output_tokens", outT); }
+		if(total > 0) { out.put("total_tokens", total); }
+		if(out.isEmpty()) { return null; }
+		return out;
+	}
+
+	// 2A：Ollama 原生。done=true 的末帧带 prompt_eval_count + eval_count.
+	@SuppressWarnings("rawtypes")
+	static Map<String, Object> extractOllamaUsage(Map<String, Object> payload){
+		if(payload == null) { return null; }
+		long inT = numLong(payload.get("prompt_eval_count"));
+		long outT = numLong(payload.get("eval_count"));
+		if(inT <= 0 && outT <= 0) { return null; }
+		Map<String, Object> out = new LinkedHashMap<String, Object>();
+		if(inT > 0) { out.put("input_tokens", inT); }
+		if(outT > 0) { out.put("output_tokens", outT); }
+		out.put("total_tokens", inT + outT);
+		return out;
 	}
 
 	private static Map<String, Object> buildAnthropicBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
@@ -1064,7 +1280,8 @@ public class AIAnalysisProxyService {
 		for(Map<String, Object> one : messages) {
 			String role = stringVal(one, "role");
 			String content = stringVal(one, "content");
-			if(StringUtility.isNullOrEmpty(content)) {
+			List<String> imgs = imageUrlList(one.get("images")); // 2F：多媒体输入
+			if(StringUtility.isNullOrEmpty(content) && imgs.isEmpty()) {
 				continue;
 			}
 			if("system".equals(role)) {
@@ -1076,17 +1293,59 @@ public class AIAnalysisProxyService {
 			// v2.2.1 (Mac #9):Anthropic /v1/messages 的 content 块必须带 type:"text",
 			// 否则上游报 "messages.content: missing field `type`"(503)。
 			// 旧代码复用了 Gemini 用的 buildTextPart(只有 text 字段)→ Anthropic 对话与测试连接全失败。
-			item.put("content", Arrays.asList(buildAnthropicTextPart(content)));
+			List<Object> blocks = new ArrayList<Object>();
+			if(!StringUtility.isNullOrEmpty(content)) {
+				blocks.add(buildAnthropicTextPart(content));
+			}
+			for(String u : imgs) { // 2F：附图块（base64/url source）
+				Map<String, Object> ib = anthropicImageBlock(u);
+				if(ib != null) { blocks.add(ib); }
+			}
+			if(blocks.isEmpty()) {
+				blocks.add(buildAnthropicTextPart(content));
+			}
+			item.put("content", blocks);
 			normalized.add(item);
 		}
 		if(!systemParts.isEmpty()) {
 			body.put("system", String.join("\n\n", systemParts));
 		}
-		body.putAll(buildProviderBodyOptions(params));
+		Map<String, Object> aprov = buildProviderBodyOptions(params);
+		// 2B/2G/2H：Anthropic 显式映射停止序列、思考档。
+		Object stopVal = aprov.remove("stop");
+		List<String> stopList = anthropicStopList(stopVal);
+		Object stopSeqVal = aprov.remove("stop_sequences");
+		List<String> existingStopSeqs = anthropicStopList(stopSeqVal);
+		if(!existingStopSeqs.isEmpty()) { stopList.addAll(existingStopSeqs); }
+		if(!stopList.isEmpty()) { body.put("stop_sequences", stopList); }
+		Object thinkingObj = aprov.remove("thinking");
+		if(thinkingObj instanceof Map) { body.put("thinking", thinkingObj); }
+		// 频率/存在惩罚、response_format 都不是 Anthropic 字段，直接丢弃避免 400。
+		aprov.remove("frequency_penalty");
+		aprov.remove("presence_penalty");
+		aprov.remove("response_format");
+		body.putAll(aprov);
 		body.put("messages", normalized);
 		return body;
 	}
 
+	// 2B/2G：把 stop 字段（字符串/列表）归一化为 Anthropic/Gemini 的 stop_sequences 列表。
+	@SuppressWarnings("rawtypes")
+	static List<String> anthropicStopList(Object stopVal){
+		List<String> out = new ArrayList<String>();
+		if(stopVal instanceof List) {
+			for(Object o : (List)stopVal) {
+				String t = String.valueOf(o == null ? "" : o).trim();
+				if(!t.isEmpty()) { out.add(t); }
+			}
+		} else if(stopVal != null) {
+			String t = String.valueOf(stopVal).trim();
+			if(!t.isEmpty()) { out.add(t); }
+		}
+		return out;
+	}
+
+	@SuppressWarnings({"rawtypes","unchecked"})
 	private static Map<String, Object> buildGeminiBody(Map<String, Object> params, List<Map<String, Object>> messages){
 		Map<String, Object> body = new LinkedHashMap<String, Object>();
 		List<Map<String, Object>> normalized = new ArrayList<Map<String, Object>>();
@@ -1094,7 +1353,8 @@ public class AIAnalysisProxyService {
 		for(Map<String, Object> one : messages) {
 			String role = stringVal(one, "role");
 			String content = stringVal(one, "content");
-			if(StringUtility.isNullOrEmpty(content)) {
+			List<String> imgs = imageUrlList(one.get("images")); // 2B：多媒体输入
+			if(StringUtility.isNullOrEmpty(content) && imgs.isEmpty()) {
 				continue;
 			}
 			if("system".equals(role)) {
@@ -1103,7 +1363,18 @@ public class AIAnalysisProxyService {
 			}
 			Map<String, Object> item = new LinkedHashMap<String, Object>();
 			item.put("role", "assistant".equals(role) ? "model" : "user");
-			item.put("parts", Arrays.asList(buildTextPart(content)));
+			List<Object> parts = new ArrayList<Object>();
+			if(!StringUtility.isNullOrEmpty(content)) {
+				parts.add(buildTextPart(content));
+			}
+			for(String u : imgs) {
+				Map<String, Object> p = geminiImagePart(u);
+				if(p != null) { parts.add(p); }
+			}
+			if(parts.isEmpty()) {
+				parts.add(buildTextPart(content));
+			}
+			item.put("parts", parts);
 			normalized.add(item);
 		}
 		body.put("contents", normalized);
@@ -1112,8 +1383,72 @@ public class AIAnalysisProxyService {
 			instruction.put("parts", Arrays.asList(buildTextPart(String.join("\n\n", systemParts))));
 			body.put("systemInstruction", instruction);
 		}
-		body.putAll(buildProviderBodyOptions(params));
+		// 2B/2G/2H：把扁平的 providerOptions 拍进 Gemini 的 generationConfig（OpenAI 形参数自动映射）。
+		Map<String, Object> gprov = buildProviderBodyOptions(params);
+		Map<String, Object> genCfgIn = gprov.get("generationConfig") instanceof Map ? (Map<String, Object>) gprov.remove("generationConfig") : null;
+		Map<String, Object> generationConfig = new LinkedHashMap<String, Object>();
+		// 温度参数
+		Object t = numVal(params.get("temperature"), 0.7);
+		generationConfig.put("temperature", t);
+		Object tp = gprov.remove("top_p");
+		if(tp != null) { generationConfig.put("topP", tp); }
+		Object tk = gprov.remove("top_k");
+		if(tk != null) { generationConfig.put("topK", tk); }
+		int gMax = intVal(params.get("maxTokens"), 0);
+		if(gMax > 0) { generationConfig.put("maxOutputTokens", gMax); }
+		// stop → stopSequences
+		List<String> stops = anthropicStopList(gprov.remove("stop"));
+		List<String> existingStops = anthropicStopList(gprov.remove("stopSequences"));
+		if(!existingStops.isEmpty()) { stops.addAll(existingStops); }
+		if(!stops.isEmpty()) { generationConfig.put("stopSequences", stops); }
+		// response_format → responseMimeType
+		Object rf = gprov.remove("response_format");
+		if(rf instanceof Map) {
+			String typ = String.valueOf(((Map)rf).get("type")).toLowerCase();
+			if("json_object".equals(typ) || "json".equals(typ)) {
+				generationConfig.put("responseMimeType", "application/json");
+			}
+		}
+		// thinkingConfig（直接放入 generationConfig）
+		Object thinkingCfg = gprov.remove("thinkingConfig");
+		if(thinkingCfg instanceof Map) { generationConfig.put("thinkingConfig", thinkingCfg); }
+		else {
+			Object th = gprov.remove("thinking");
+			if(th instanceof Map) { generationConfig.put("thinkingConfig", th); }
+		}
+		// 让 frontend 已有的 generationConfig 覆盖（最高优先）。
+		if(genCfgIn != null) { generationConfig.putAll(genCfgIn); }
+		// 频率/存在惩罚：Gemini 无对应字段，丢弃。
+		gprov.remove("frequency_penalty");
+		gprov.remove("presence_penalty");
+		body.put("generationConfig", generationConfig);
+		body.putAll(gprov);
 		return body;
+	}
+
+	// 2B：Gemini 视觉 part：dataURL → inlineData; http(s) URL → fileData。失败 → null。
+	static Map<String, Object> geminiImagePart(String url){
+		if(url == null) { return null; }
+		String u = url.trim();
+		if(u.startsWith("data:")) {
+			int comma = u.indexOf(',');
+			int semi = u.indexOf(';');
+			if(comma < 0 || semi < 6) { return null; }
+			Map<String, Object> inline = new LinkedHashMap<String, Object>();
+			inline.put("mimeType", u.substring(5, semi));
+			inline.put("data", u.substring(comma + 1));
+			Map<String, Object> part = new LinkedHashMap<String, Object>();
+			part.put("inlineData", inline);
+			return part;
+		} else if(u.startsWith("http://") || u.startsWith("https://")) {
+			Map<String, Object> fileData = new LinkedHashMap<String, Object>();
+			fileData.put("mimeType", "image/png"); // 占位；具体 mime 由 Gemini 端探测
+			fileData.put("fileUri", u);
+			Map<String, Object> part = new LinkedHashMap<String, Object>();
+			part.put("fileData", fileData);
+			return part;
+		}
+		return null;
 	}
 
 	private static Map<String, Object> buildTextPart(String content){

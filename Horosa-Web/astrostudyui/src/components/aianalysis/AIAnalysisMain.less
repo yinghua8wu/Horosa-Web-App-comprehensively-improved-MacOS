@@ -386,6 +386,203 @@
 	box-shadow: 0 4px 18px rgba(47, 125, 241, 0.12);
 }
 
+// 拖拽图片高亮：虚线 + 强调色，提示用户「放手即上传」。
+.composerBubbleDragOver {
+	border: 2px dashed var(--horosa-accent, #5b8def) !important;
+	background: rgba(91, 141, 239, 0.06);
+}
+
+// 挂载状态条：紧贴 composer 上方。
+.contextBanner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 8px 0 6px;
+	padding: 6px 10px;
+	font-size: 12px;
+	color: var(--horosa-text-soft, #8a8f99);
+	background: var(--horosa-panel-soft, rgba(255, 255, 255, 0.04));
+	border: 1px solid var(--horosa-border, rgba(255, 255, 255, 0.08));
+	border-radius: 6px;
+}
+.contextBannerEmpty {
+	color: var(--horosa-text-soft, #8a8f99);
+	font-style: italic;
+}
+.contextBannerLabel {
+	color: var(--horosa-text-soft, #8a8f99);
+}
+.contextBannerItem {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	background: var(--horosa-bg, rgba(0, 0, 0, 0.2));
+	border-radius: 4px;
+	color: var(--horosa-text, #d0d3da);
+	max-width: 220px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.contextBannerEdit {
+	margin-left: auto;
+	cursor: pointer;
+	color: var(--horosa-accent, #5b8def);
+}
+.contextBannerEdit:hover { text-decoration: underline; }
+
+// 落地页示例提问 chip：可点击填入 prompt。
+.landingExamples {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 8px;
+	margin: 18px 0 12px;
+}
+.landingExampleChip {
+	cursor: pointer;
+	padding: 4px 12px !important;
+	font-size: 13px;
+	border-radius: 18px !important;
+	background: var(--horosa-panel-soft, rgba(91, 141, 239, 0.08)) !important;
+	border: 1px solid var(--horosa-border, rgba(91, 141, 239, 0.18)) !important;
+	color: var(--horosa-text, #d0d3da) !important;
+	transition: all 0.15s;
+}
+.landingExampleChip:hover {
+	background: var(--horosa-accent, #5b8def) !important;
+	color: #fff !important;
+	border-color: var(--horosa-accent, #5b8def) !important;
+}
+.landingExamplesHint {
+	font-size: 11px;
+	color: var(--horosa-text-soft, #8a8f99);
+	margin-left: 4px;
+	align-self: center;
+}
+
+.chatThreadExportBtn {
+	margin-left: auto !important;
+	font-size: 12px !important;
+}
+
+.messageErrorAlert {
+	margin-top: 8px;
+	font-size: 12px;
+}
+
+.messageUsage {
+	font-size: 11px;
+	color: var(--horosa-text-soft, #8a8f99);
+	margin-left: auto;
+	padding-right: 6px;
+	cursor: default;
+	white-space: nowrap;
+}
+
+// 资料 pane 全区拖拽：浮层 + 提示。
+.materialHint {
+	font-size: 12px;
+	color: var(--horosa-text-soft, #8a8f99);
+	margin: 4px 0 8px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.materialIngestBar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 8px;
+	background: var(--horosa-panel-soft, rgba(255,255,255,0.04));
+	border-radius: 6px;
+	margin-bottom: 8px;
+}
+.materialDropOverlay {
+	position: absolute;
+	inset: 0;
+	background: rgba(91, 141, 239, 0.10);
+	border: 3px dashed var(--horosa-accent, #5b8def);
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 50;
+	pointer-events: none;
+}
+.materialDropOverlayInner {
+	text-align: center;
+	color: var(--horosa-accent-strong, #4070d0);
+	background: var(--horosa-panel, rgba(255,255,255,0.95));
+	padding: 24px 36px;
+	border-radius: 12px;
+	box-shadow: 0 10px 36px rgba(0,0,0,0.25);
+}
+.materialDropOverlayHint {
+	font-size: 12px;
+	color: var(--horosa-text-soft, #8a8f99);
+	margin-top: 6px;
+}
+// 给 paneShell 加 relative 以承载 overlay 绝对定位。
+.paneShell { position: relative; }
+
+// folder drawer 列表 + provider 紧凑表格 + 模板变量侧栏 + 版本 diff
+.folderRow {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 6px;
+}
+.folderRow:hover { background: var(--horosa-panel-soft, rgba(255,255,255,0.04)); }
+.folderRowName { flex: 1; }
+
+.providerDenseTable :global(.ant-table-tbody > tr > td),
+.providerDenseTable :global(.ant-table-thead > tr > th) {
+	padding: 6px 10px !important;
+}
+
+.templateVarSidebar {
+	border: 1px solid var(--horosa-border, rgba(255,255,255,0.08));
+	border-radius: 6px;
+	padding: 10px 12px;
+	background: var(--horosa-panel-soft, rgba(255,255,255,0.03));
+	max-height: 280px;
+	overflow: auto;
+}
+.templateVarItem {
+	display: flex;
+	gap: 8px;
+	padding: 3px 0;
+	font-family: var(--horosa-mono, monospace);
+	font-size: 12px;
+	align-items: center;
+}
+.templateVarItemMissing { color: var(--horosa-warning, #faad14); }
+
+.templateDiffWrap {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+}
+.templateDiffCol h4 { margin: 0 0 6px; font-size: 12px; color: var(--horosa-text-soft); }
+.templateDiffBox {
+	border: 1px solid var(--horosa-border, rgba(255,255,255,0.08));
+	border-radius: 6px;
+	padding: 8px;
+	max-height: 420px;
+	overflow: auto;
+	font-family: var(--horosa-mono, monospace);
+	font-size: 12px;
+	line-height: 1.55;
+	white-space: pre-wrap;
+	background: var(--horosa-panel-soft, rgba(0,0,0,0.18));
+}
+.templateDiffAdd { background: rgba(82, 196, 26, 0.18); }
+.templateDiffDel { background: rgba(255, 77, 79, 0.18); text-decoration: line-through; }
+
 .composerInput.composerInput {
 	background: transparent !important;
 	border: none !important;
@@ -518,6 +715,30 @@
 	overflow: auto;
 	padding-right: 4px;
 	min-height: 0;
+}
+
+// 包裹 chatLog 的外壳，给「跳到最新」浮动按钮提供定位上下文。
+.chatLogShell {
+	position: relative;
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.scrollToLatestBtn {
+	position: absolute;
+	right: 18px;
+	bottom: 12px;
+	z-index: 5;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+	background: var(--horosa-panel, rgba(0, 0, 0, 0.6)) !important;
+	color: var(--horosa-text, #d0d3da) !important;
+	border: 1px solid var(--horosa-border, rgba(255, 255, 255, 0.12)) !important;
+}
+.scrollToLatestBtn:hover {
+	background: var(--horosa-accent, #5b8def) !important;
+	color: #fff !important;
 }
 
 .composer {
@@ -711,6 +932,57 @@
 	border: none;
 	background: transparent;
 	font-size: 0.86em;
+}
+
+// 代码块包装：左上语言徽章、右上复制按钮（hover 才显）。
+.markdownBody :global(.xq-code-block) {
+	position: relative;
+}
+.markdownBody :global(.xq-code-block) > pre {
+	padding-top: 28px;
+}
+.markdownBody :global(.xq-code-block .xq-code-lang) {
+	position: absolute;
+	top: 6px;
+	left: 10px;
+	font-size: 11px;
+	font-family: var(--horosa-mono, monospace);
+	color: var(--horosa-text-soft, #8a8f99);
+	background: rgba(0, 0, 0, 0.18);
+	padding: 1px 8px;
+	border-radius: 4px;
+	user-select: none;
+	pointer-events: none;
+}
+.markdownBody :global(.xq-code-block .xq-code-copy) {
+	position: absolute;
+	top: 6px;
+	right: 8px;
+	height: 22px;
+	padding: 0 10px;
+	font-size: 11px;
+	background: rgba(0, 0, 0, 0.24);
+	color: var(--horosa-text-soft, #d0d3da);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 4px;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.15s ease;
+}
+.markdownBody :global(.xq-code-block):hover :global(.xq-code-copy) {
+	opacity: 1;
+}
+.markdownBody :global(.xq-code-block .xq-code-copy:hover) {
+	background: var(--horosa-accent, #5b8def);
+	color: #fff;
+}
+.markdownBody :global(.xq-code-block .xq-code-copy--ok) {
+	background: var(--horosa-success, #52c41a) !important;
+	color: #fff !important;
+	opacity: 1 !important;
+}
+.markdownBody :global(.xq-code-block .xq-code-copy--ok)::before {
+	content: '✓ ';
 }
 
 .markdownBody table {
@@ -979,21 +1251,104 @@
 	height: 100%;
 	min-height: 0;
 	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
-.historyTableWrap :global(.ant-table-wrapper) {
+.historyTableWrap :global(.ant-table-wrapper),
+.historyTableWrap :global(.ant-spin-nested-loading),
+.historyTableWrap :global(.ant-spin-container) {
 	height: 100%;
+	min-height: 0;
+}
+
+// 紧凑表头：默认 ant 头部 padding 16+16=32+22 行高约 91→ 压到 ~36–40。
+.historyTable :global(.ant-table-thead > tr > th) {
+	padding: 8px 12px !important;
+	white-space: nowrap;
+	font-weight: 600;
+	line-height: 22px;
+}
+
+// 关键：ant Table 启用 scroll.y 时会在 thead 末尾插一个隐藏的 .ant-table-cell-scrollbar（默认 padding-bottom 82px 用于对齐滚动条），
+// 它会把整行高度撑到 ~91px。压掉它的 padding，整行回归 ~38px。
+.historyTable :global(.ant-table-thead > tr > th.ant-table-cell-scrollbar) {
+	padding: 0 !important;
+	border: 0 !important;
+	width: 0 !important;
 }
 
 .historyTable :global(.ant-table-tbody > tr > td) {
 	vertical-align: top;
+	padding: 8px 12px !important;
+}
+
+// Table 容器：让 ant-table 适度自适应高度。但 inner <table> 不再强制 100%，
+// 否则单行数据会被垂直居中拉伸（实测 bug：1 行被推到 body 中央）。
+.historyTable :global(.ant-table),
+.historyTable :global(.ant-table-container) {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+.historyTable :global(.ant-table-container) > :global(.ant-table-header) {
+	flex: 0 0 auto;
+}
+.historyTable :global(.ant-table-container) > :global(.ant-table-body),
+.historyTable :global(.ant-table-container) > :global(.ant-table-content) {
+	flex: 1 1 auto;
+	overflow-y: auto;
+}
+
+// 空状态：本组件已用「外层条件渲染」展示居中 Empty，因此不再为 ant 内置 placeholder
+// 强制 height:100%。这样占位（如果偶然出现）保持原始高度，数据行也不会被拉伸。
+.historyTable :global(.ant-table-placeholder > td) {
+	padding: 24px 12px !important;
+	background: transparent;
+	text-align: center;
+}
+
+// 历史空状态容器：撑满 wrap、上下居中（与 materials pane 同范式）。
+.historyEmpty {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 240px;
 }
 
 .tableTitleCell {
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	align-items: center;
 	gap: 6px;
+	min-width: 0;
+}
+
+.tableTitleText {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+// 导出下拉菜单：紧凑列出 Markdown/JSON/Word。
+.historyExportMenu {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 4px;
+	background: var(--horosa-panel, #1a1f2a);
+	border: 1px solid var(--horosa-border, rgba(255,255,255,0.08));
+	border-radius: 6px;
+	min-width: 110px;
+	box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+}
+
+.historyExportMenu > button {
+	justify-content: flex-start;
+	text-align: left;
 }
 
 .materialGrid,

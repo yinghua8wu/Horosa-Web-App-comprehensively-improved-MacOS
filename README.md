@@ -9,12 +9,12 @@
 **把占星与中国术数，收进一个原生 macOS 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native macOS workstation*
 
-[![Version](https://img.shields.io/badge/version-2.6.2-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
+[![Version](https://img.shields.io/badge/version-2.6.3-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.2/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -33,7 +33,7 @@
 
 > Regular users grab the offline installer and open it like any finished macOS app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.2/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合：Apple Silicon · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -91,14 +91,18 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.6.2 beta
+## 本次更新 · What's New in v2.6.3 beta
 
-这一版收尾用户反馈的 issue:为紫微 AI 挂载补**宫干自化**,并修复部分 Mac 上的「java 运行时找不到」误报——所有技法的命盘计算与 v2.6.1 一致:
+这一版集中对**AI 分析**做深度打磨:聊天体验、设置、后端 Provider 矩阵都补齐,配套修了一批让用户能感知的 bug。所有技法的命盘计算与 v2.6.2 一致:
 
-- **紫微 · AI 挂载补宫干自化** —— 宫位总览里每颗星标出「自化禄 / 权 / 科 / 忌」(飞星核心,按所选四化流派自动取值);生年四化、流年 / 大限 / 流月等运限挂载此前已具备,一并同步到 AI 导出 / 导出设置 / AI 挂载 / 命盘事盘储存。
-- **修复 · 部分 Mac「java 运行时找不到」误报** —— 少数未装 Xcode 命令行工具的 Mac 上,启动时的 java 探测会误判而报「后端启动失败」,实际内置 java 完好;本版改为直接探测、去掉多余依赖,未装命令行工具也能正常启动。
+- **AI 分析 · 聊天体验** —— 代码块复制+语法高亮、上滚暂停自动滚动+「跳到最新」浮动按钮、推理面板流完自动折叠+「复制思考」、对话栏拖拽/粘贴图片、「当前挂载」状态条、首回**真 AI 生成 6-14 字短标题**(不再截开头废话)、活动对话内导出 Markdown/JSON/Word、错误改 Alert+重试按钮、Markdown 渲染补 LaTeX 数学公式。
+- **AI 分析 · 设置与接口** —— API Key 用 Password 输入框(粘贴去空白)、连接 chip 显示延迟与失败详情、Provider「高级」三段折叠、Provider 列表「卡片/紧凑」切换、新 Provider 保存后自动拉模型列表。
+- **AI 分析 · 资料/模版/组合** —— 资料全 pane 拖拽上传+非阻塞批量队列进度+重复文件一次性决策、卡片/列表切换、新增文件夹管理 Drawer+「移动到」、模板编辑变量推断侧栏+JSON Schema 实时校验、模板版本 diff 弹层、组合包「应用预览」。
+- **AI 分析 · 后端补齐(已重编 jar)** —— 用量/费用计量(SSE 新 `usage` 事件,四家 Provider 全覆盖,消息底显 token 与估算成本);Gemini 视觉补齐;Anthropic/Gemini/Ollama 停止序列/JSON 模式/思考档**显式映射**而非透传;reasoning 模型识别同步 gpt-5/6/7、o1/3/4/5/6/7。
+- **导出/挂载** —— 七政四余补「政余格局/相位」段;五兆/太玄筮法/荆诀/神易数补 AI 挂载;「分至」星盘样式按钮失效修复。
+- **稳定性** —— 消除 Tauri 桌面壳下 `window.prompt/confirm/alert` 引发的崩溃(全 7 处改用 Modal 异步替代);修若干 Dropdown 内存泄漏;资料批量导入末段卸载安全;图片上传 onerror+10MB/张上限。
 
-> v2.6.2 wraps up reported issues: Zi Wei's AI mount now includes **palace-stem self-transformation (自化)**, and a false "java runtime not found" error on some Macs is fixed — every technique's chart computation is identical to v2.6.1. In the palace overview, each star now shows its 自化 (self-transformation of 禄/权/科/忌, a core flying-star reading derived from the palace's own stem under your chosen 四化 school); birth-year transformations and the annual/major-period/monthly mount layers were already present, and all of it syncs to AI export / export settings / AI mount / chart storage. The startup fix: on Macs without Xcode Command Line Tools the java probe could misfire and report "backend start failed" even though the bundled java was fine — it now checks java directly with no extra dependency, so the app starts even without the Command Line Tools. See the [v2.6.2 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2) for the full log (offline `.pkg`, app zip, runtime package and manifest aligned to `2.6.2 / 2.6.2-runtime1`).
+> v2.6.3 is a deep polish pass on **AI Analysis**: chat experience, settings, and the backend provider matrix are all rounded out, with a wave of user-visible bug fixes. Every technique's chart computation is identical to v2.6.2. Highlights — chat: code-block copy + syntax highlighting, auto-scroll pause + "jump to latest", auto-collapse reasoning + "copy thinking", drag/paste images straight into the composer, a "current mount" status bar, **true AI-generated 6-14 char short titles** for new conversations (no more truncated intro fluff), in-conversation Markdown/JSON/Word export, errors as Alert + retry, LaTeX math via KaTeX. Settings & providers: Password API-key input (whitespace-stripping paste), connection chip with latency and failure detail tooltip, three-group provider "advanced" panel, provider list card/dense switch, auto model-list fetch on save. Materials/templates/bundles: full-pane drag upload with non-blocking batch progress and one-time duplicate decision, card/list switch, folder management drawer with "Move to…", template variable inference + live JSON Schema validation, template version diff modal, bundle "apply preview". Backend (jar rebuilt): usage/cost metering via new `usage` SSE event across OpenAI/Anthropic/Gemini/Ollama, full Gemini vision, explicit stop sequences / JSON mode / thinking-level mapping for Anthropic/Gemini/Ollama, reasoning-model detection synced front-and-back across gpt-5/6/7 and o1/3/4/5/6/7. Export/mount: Qizheng Siyu gains "patterns" and "aspects" sections; Wuzhao / Taixuan / Jingjue / Shenyishu now mountable; the "Fenzhi" chart style buttons that did nothing are fixed. Stability: removed the "Unhandled Rejection: prompt() is not supported" crash under Tauri (all 7 native `window.prompt/confirm/alert` calls replaced by Modal async dialogs); fixed several `<Dropdown overlay>` memory leaks; ingest-files batch is unmount-safe; image upload has onerror handling and a 10 MB/image cap. Notarized offline `.pkg`, app zip, runtime archive and manifest are aligned to `2.6.3 / 2.6.3-runtime1`. See the [v2.6.3 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3) for the full log.
 
 ## 技术构成 · Under the Hood
 

@@ -1714,7 +1714,55 @@ function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields){
 	lines.push('');
 	lines.push('[大限]');
 	lines.push(buildGuolaoLimitSection(chart, fields, params) || '无');
+	lines.push('');
+	lines.push('[政余格局]');
+	lines.push(buildGuolaoPatternSection(result, fields, params) || '无');
+	lines.push('');
+	lines.push('[相位]');
+	lines.push(buildGuolaoAspectSection(result) || '无');
 	return lines.join('\n').trim();
+}
+
+// AI 快照·政余格局段（右栏「格局」面板已显示但此前未导出）：复用盘面同源 buildLocalMoiraPatterns
+// （styleSource=moira-dsl-local-evaluated，本地已评估、非屏蔽态），喜/忌/察看分组与右栏一致；异常降级「无」，不影响既有段。
+function buildGuolaoPatternSection(result, fields, params){
+	try{
+		const godRows = buildGodRowsFromChart(result, fields);
+		const patterns = buildLocalMoiraPatterns(result, fields, params, godRows) || [];
+		if(!patterns.length){
+			return '无';
+		}
+		const fmt = (list)=>list.map((it)=>`${it.name}（${it.detail || it.dsl || ''}）`).join('；');
+		const good = patterns.filter((it)=>it.level === 'good');
+		const bad = patterns.filter((it)=>it.level === 'bad');
+		const other = patterns.filter((it)=>it.level !== 'good' && it.level !== 'bad');
+		const out = [];
+		out.push(`喜格：${good.length ? fmt(good) : '（无）'}`);
+		out.push(`忌格：${bad.length ? fmt(bad) : '（无）'}`);
+		if(other.length){
+			out.push(`察看：${fmt(other)}`);
+		}
+		return out.join('\n');
+	}catch(e){
+		return '无';
+	}
+}
+
+// AI 快照·相位段（右栏「相位」面板已显示但此前未导出）：复用 buildAspectRows，与盘面相位表同源；异常降级「无」。
+function buildGuolaoAspectSection(result){
+	try{
+		const chart = getChart(result);
+		const aspects = (chart && chart.aspects) || (result && result.aspects) || null;
+		const rows = buildAspectRows(aspects);
+		if(!rows || !rows.length){
+			return '无';
+		}
+		return rows.map((row)=>(
+			`${row.from} ${row.aspect} ${row.to}（${row.state}${row.orb ? `，误差${row.orb}` : ''}）`
+		)).join('\n');
+	}catch(e){
+		return '无';
+	}
 }
 
 // AI 快照·大限段：复用 Moira 命盘轮的命度→十二宫大限算法（moiraBuildLimitTable/lifeDegree），

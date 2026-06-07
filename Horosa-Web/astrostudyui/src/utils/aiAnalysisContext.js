@@ -163,12 +163,17 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	xianqin: '演禽',
 	cetian: '策天飞星',
 	huangji: '皇极经世',
+	wuzhao: '五兆',
+	taixuan: '太玄筮法',
+	jingjue: '荆诀',
+	shenyishu: '神易数',
 };
 
 // AI 分析「使用技法」命盘类下拉。仅收录能按本盘数据返回结构化快照的技法。
-// 已移除的空壳（选了挂不出内容，徒增干扰）：
-//   relative(合盘,需两张盘)、jieqi 系列×6(节气盘,需多次取数+列表参数,非单盘技法)、
-//   cntradition(辅助,无可复用 builder)、otherbu(骰子,随机不可复算)、fengshui(风水,iframe/DOM)。
+// 仍排除（命盘类无法复用 builder）：relative(合盘,需两张盘)、cntradition(辅助,无可复用 builder)。
+// 注：wuzhao/taixuan/jingjue/shenyishu 已在 CASE_TYPE_OPTIONS 可存事盘 + 存模块快照，此前可存却挂不上，
+//   现并入 ANALYSIS_CASE_TECHNIQUES 走 sectionsOnly 缓存挂载（不重算）。
+//   jieqi(节气盘,非单盘/多次取数)、otherbu(骰子,随机不可复算)、fengshui(风水) 暂无事盘存储(不在 CASE_TYPE_OPTIONS)→ 仍只导出不挂载。
 // 标签仍保留在 ANALYSIS_TECHNIQUE_LABELS（导出/他处可能引用）。
 export const ANALYSIS_CHART_TECHNIQUES = [
 	'astrochart',
@@ -221,6 +226,11 @@ export const ANALYSIS_CASE_TECHNIQUES = [
 	'horary',
 	'election',
 	'mundane',
+	// 报数/揲蓍 确定性起卦术：均已在 CASE_TYPE_OPTIONS 可存事盘 + 存模块快照，sectionsOnly 缓存挂载（此前可存却挂不上）。
+	'wuzhao',
+	'taixuan',
+	'jingjue',
+	'shenyishu',
 ];
 
 // 「时间确定式法」：盘面完全由起课时间 + 默认设置(含地点)决定，可即时起盘。
@@ -2585,6 +2595,20 @@ export function listAnalysisTechniqueOptions(source){
 		value: key,
 		label: getTechniqueLabel(key),
 	}));
+}
+
+// 组合包用：与 source 无关的「全技法」选项（命盘类 + 事盘类去重），供组合编辑时预选默认挂载技法。
+export function listAllAnalysisTechniqueOptions(){
+	const seen = new Set();
+	const out = [];
+	[...ANALYSIS_CHART_TECHNIQUES, ...ANALYSIS_CASE_TECHNIQUES].forEach((key)=>{
+		if(seen.has(key)){
+			return;
+		}
+		seen.add(key);
+		out.push({ value: key, label: getTechniqueLabel(key) });
+	});
+	return out;
 }
 
 export async function getAnalysisTechniqueContexts(source, techniqueKeys, options = {}){

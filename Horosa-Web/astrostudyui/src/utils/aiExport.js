@@ -111,8 +111,9 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 // v19 — 占星全面扩建:世俗盘(新月/满月/日食/月食/地区盘/行星周期/世俗宫义)+ 星运三技法(三分主星/数字相位/月相推运)。
 // v22 — R2 对抗自检:八字「多运限·指定时段」/ 紫微「运限」段未登记进 PRESET_SECTIONS,自定义过导出段+设了多运限的
 //        用户,显式要的多运限段被 filterContentByWantedSections 静默删。补 preset 末尾两段 + 升版让旧用户迁移时 union 并入。
-export const AI_EXPORT_SETTINGS_VERSION = 22;
-const AI_EXPORT_SECTION_MIGRATION_VERSION = 22;
+// v23 — 七政四余补「政余格局/相位」两段:右栏 Moira 面板已显示但此前未进快照/导出。同 v22 范式(补 preset + 升版 union)。
+export const AI_EXPORT_SETTINGS_VERSION = 23;
+const AI_EXPORT_SECTION_MIGRATION_VERSION = 23;
 const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	// v18 补:占星/星运核心 + 卜卦/择日(此前漏登记)。务必与新增「有 preset 的技法」同步(aiExport.test 跨系统自检守)。
 	'astrochart',
@@ -432,7 +433,7 @@ const AI_EXPORT_PRESET_SECTIONS = {
 		'正西兑宫',
 		'西北乾宫',
 	],
-	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '神煞', '大限'],
+	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '神煞', '大限', '政余格局', '相位'],
 	qizhengkin: ['起盘', '四柱', '星曜', '十二宫', '神煞', '年限', '流时', '择日', '张果断语', '命宫解读'],
 	shaozi: ['起盘', '四柱', '四位起数', '河洛纳音', '完整结构', '64钥匙', '元会运世', '条文'],
 	tieban: ['起盘', '四柱', '算盘定部', '条文', '计算摘要', '命身刻分', '神数号码', '十二宫', '十二宫条文', '紫微安星', '条文库', '大运', '六亲佐证'],

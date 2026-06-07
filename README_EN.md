@@ -8,12 +8,12 @@
 
 **Western astrology and Chinese metaphysics, in one native macOS workstation**
 
-[![Version](https://img.shields.io/badge/version-2.6.2-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
+[![Version](https://img.shields.io/badge/version-2.6.3-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.2/Horosa-Installer-macos-arm64-offline.pkg) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@ This repository is the macOS delivery of that app: the application source, the s
 
 Regular users should go straight to the offline installer and open Horosa like any other macOS app.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.2/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg)**
 
 Best for:
 
@@ -91,14 +91,18 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## What's New in v2.6.2 beta
+## What's New in v2.6.3 beta
 
-This release wraps up reported issues: Zi Wei's AI mount now includes **palace-stem self-transformation (自化)**, and a false "java runtime not found" error on some Macs is fixed. Every technique's chart computation is identical to v2.6.1.
+This release is a deep polish pass on **AI Analysis** — chat experience, settings, and the backend provider matrix are all rounded out, with a wave of user-visible bug fixes. Every technique's chart computation is identical to v2.6.2.
 
-- **Zi Wei — AI mount adds palace-stem self-transformation** — each star in the palace overview now shows its 自化 (self-transformation of 禄/权/科/忌, a core flying-star reading derived from the palace's own stem under your chosen 四化 school); birth-year transformations and the annual / major-period / monthly mount layers were already present, all syncing to AI export / export settings / AI mount / chart storage.
-- **Fix — false "java runtime not found" on some Macs** — on Macs without Xcode Command Line Tools the startup java probe could misfire and report "backend start failed" even though the bundled java was fine; it now checks java directly with no extra dependency, so the app starts even without the Command Line Tools.
+- **AI Analysis — chat UX** — code-block copy + syntax highlighting (highlight.js), auto-scroll pause + floating "jump to latest", auto-collapse reasoning when stream finishes + "copy thinking", drag/paste images straight into the composer, "current mount" status bar above the input, first-reply **true AI-generated 6-14 char short title** (no more truncated intro fluff), in-conversation export (Markdown / JSON / Word), errors shown as Alert with a Retry button, Markdown rendering now includes LaTeX math (KaTeX).
+- **AI Analysis — settings & providers** — API Key uses Password input (eye toggle + whitespace-stripping paste), connection chip surfaces latency and failure detail in a tooltip, provider "advanced" split into three collapsible groups (models / auth / body), provider list switch between card and dense table views, model list auto-fetches when a new provider is saved.
+- **AI Analysis — materials / templates / bundles** — full-pane drag-and-drop material upload with non-blocking batch queue progress and one-time decision for duplicates, grid/list switch for materials, new folder management drawer (CRUD + "move to…"), template editor variable inference sidebar + live JSON Schema validation, template version diff modal, bundle "apply preview".
+- **AI Analysis — backend (jar rebuilt)** — usage/cost metering via a new `usage` SSE event across OpenAI/Anthropic/Gemini/Ollama; full Gemini vision support; Anthropic/Gemini/Ollama get **explicit** stop sequences / JSON mode / thinking-level mapping instead of pass-through; reasoning-model detection synced front-and-back across gpt-5/6/7 and o1/3/4/5/6/7.
+- **Export / Mount** — Qizheng Siyu gains "patterns" and "aspects" sections; Wuzhao / Taixuan / Jingjue / Shenyishu are now mountable; the "Fenzhi" chart-style buttons that did nothing are fixed.
+- **Stability** — removed the "Unhandled Rejection: prompt() is not supported" crash under the Tauri shell (all 7 native `window.prompt/confirm/alert` calls replaced by Modal async dialogs); fixed several `<Dropdown overlay>` memory leaks; ingest-files batch is unmount-safe; image upload has onerror handling and a 10 MB/image cap.
 
-The notarized offline `.pkg`, app zip, runtime archive, and manifest are aligned to `2.6.2 / 2.6.2-runtime1`. Full log on the [v2.6.2 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2).
+The notarized offline `.pkg`, app zip, runtime archive, and manifest are aligned to `2.6.3 / 2.6.3-runtime1`. Full log on the [v2.6.3 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3).
 
 ## Under the Hood
 

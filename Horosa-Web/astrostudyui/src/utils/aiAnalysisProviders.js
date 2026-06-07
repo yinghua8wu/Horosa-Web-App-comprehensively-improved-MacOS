@@ -186,10 +186,58 @@ export const THINKING_LEVELS = [
 
 const THINKING_BUDGET = { low: 2048, medium: 8192, high: 16000 };
 
+// 模型计价（USD per 1k tokens；in=输入、out=输出）。仅作粗略估算（价目会漂移，UI 上标注「估算」）。
+// 命中按"模型名前缀最长匹配"。空表示不展示价格、只展示 tokens。
+const MODEL_PRICING = [
+	// OpenAI
+	{ prefix: 'gpt-4o-mini', in: 0.00015, out: 0.0006 },
+	{ prefix: 'gpt-4o', in: 0.0025, out: 0.01 },
+	{ prefix: 'gpt-4-turbo', in: 0.01, out: 0.03 },
+	{ prefix: 'gpt-4', in: 0.03, out: 0.06 },
+	{ prefix: 'gpt-3.5', in: 0.0005, out: 0.0015 },
+	{ prefix: 'o3-mini', in: 0.0011, out: 0.0044 },
+	{ prefix: 'o1-mini', in: 0.003, out: 0.012 },
+	{ prefix: 'o1', in: 0.015, out: 0.06 },
+	// Anthropic
+	{ prefix: 'claude-3-opus', in: 0.015, out: 0.075 },
+	{ prefix: 'claude-3-5-sonnet', in: 0.003, out: 0.015 },
+	{ prefix: 'claude-3-5-haiku', in: 0.0008, out: 0.004 },
+	{ prefix: 'claude-3-sonnet', in: 0.003, out: 0.015 },
+	{ prefix: 'claude-3-haiku', in: 0.00025, out: 0.00125 },
+	// Gemini
+	{ prefix: 'gemini-2.5-pro', in: 0.00125, out: 0.005 },
+	{ prefix: 'gemini-2.5-flash', in: 0.000075, out: 0.0003 },
+	{ prefix: 'gemini-2.0-flash', in: 0.00010, out: 0.0004 },
+	{ prefix: 'gemini-1.5-pro', in: 0.00125, out: 0.005 },
+	{ prefix: 'gemini-1.5-flash', in: 0.000075, out: 0.0003 },
+	// DeepSeek
+	{ prefix: 'deepseek-reasoner', in: 0.00055, out: 0.00219 },
+	{ prefix: 'deepseek-chat', in: 0.00027, out: 0.0011 },
+];
+
+export function estimateUsageCost(model, inputTokens, outputTokens){
+	const m = ('' + (model || '')).toLowerCase();
+	if(!m){ return null; }
+	const slash = m.lastIndexOf('/');
+	const bare = slash >= 0 ? m.substring(slash + 1) : m;
+	let best = null;
+	for(const item of MODEL_PRICING){
+		if(bare.indexOf(item.prefix) === 0){
+			if(!best || item.prefix.length > best.prefix.length){ best = item; }
+		}
+	}
+	if(!best){ return null; }
+	const inT = Number(inputTokens) || 0;
+	const outT = Number(outputTokens) || 0;
+	const cost = (inT / 1000) * best.in + (outT / 1000) * best.out;
+	return { cost, currency: 'USD' };
+}
+
 // reasoning 模型（自带思考、拒绝 temperature）——与后端 isOpenAIReasoningModel 同步。
+// 已覆盖 OpenAI o1/o3/o4/o5/o6/o7 + gpt-5/6/7 系列 + DeepSeek reasoner / *-r1 / 通用 thinking 命名。
 export function isReasoningModel(model){
 	const m = ('' + (model || '')).toLowerCase();
-	return /(^|\/)(gpt-5|gpt6|o1|o3|o4|o5)/.test(m) || /reasoner|-?r1\b|thinking/.test(m);
+	return /(^|\/)(gpt-?[567]|o[13-7])/.test(m) || /reasoner|-?r1\b|thinking/.test(m);
 }
 
 // 把通用「思考档」映射进 providerOptions（不破坏既有键）。

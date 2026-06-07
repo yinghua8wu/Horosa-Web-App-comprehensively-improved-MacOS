@@ -155,6 +155,11 @@ export function migrateRecord(storeName, record){
 		next.defaultEmbeddingModel = next.defaultEmbeddingModel || null;
 		next.defaultSystemPrompt = next.defaultSystemPrompt || '';
 		next.defaultRetrievalMode = next.defaultRetrievalMode || 'auto';
+		// 组合包扩展（选模板→选盘自动套：挂载技法 + 资料 + 生成设置 + 系统提示）。
+		next.defaultTechniqueKeys = normalizeArray(next.defaultTechniqueKeys);
+		next.defaultChatTemperature = (next.defaultChatTemperature === undefined || next.defaultChatTemperature === '') ? null : next.defaultChatTemperature;
+		next.defaultChatTopP = (next.defaultChatTopP === undefined || next.defaultChatTopP === '') ? null : next.defaultChatTopP;
+		next.defaultThinkingLevel = next.defaultThinkingLevel || '';
 		break;
 	case AI_ANALYSIS_STORES.providerProfiles:
 		next.providerType = next.providerType || 'openai';

@@ -8,12 +8,12 @@
 
 **把占星与中国术数，收进一个原生 macOS 工作站**
 
-[![Version](https://img.shields.io/badge/version-2.6.2-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
+[![Version](https://img.shields.io/badge/version-2.6.3-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.2/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg) ·
 [入口页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@
 
 普通用户直接下载离线安装包，像任何 macOS 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.2/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合场景：
 
@@ -91,14 +91,18 @@
 
 命盘与事盘都能本地保存：带标签、快照与后端原始结构化数据，可 JSON 导入导出，重开后恢复现场。
 
-## v2.6.2 beta 更新
+## v2.6.3 beta 更新
 
-这一版收尾用户反馈的 issue:为紫微 AI 挂载补**宫干自化**,并修复部分 Mac 上的「java 运行时找不到」误报——所有技法的命盘计算与 v2.6.1 一致。
+这一版集中对 **AI 分析** 做深度打磨:聊天体验、设置、后端 Provider 矩阵都补齐,配套修了一批让用户能感知的 bug。所有技法的命盘计算与 v2.6.2 一致。
 
-- **紫微 · AI 挂载补宫干自化** —— 宫位总览里每颗星标出「自化禄 / 权 / 科 / 忌」(飞星核心,按所选四化流派自动取值);生年四化、流年 / 大限 / 流月等运限挂载此前已具备,一并同步到 AI 导出 / 导出设置 / AI 挂载 / 命盘事盘储存。
-- **修复 · 部分 Mac「java 运行时找不到」误报** —— 少数未装 Xcode 命令行工具的 Mac 上,启动时的 java 探测会误判而报「后端启动失败」,实际内置 java 完好;本版改为直接探测、去掉多余依赖,未装命令行工具也能正常启动。
+- **AI 分析 · 聊天体验** —— 代码块复制+语法高亮、上滚暂停自动滚动+「跳到最新」浮动按钮、推理面板流完自动折叠+「复制思考」、对话栏拖拽/粘贴图片、「当前挂载」状态条、首回**真 AI 生成 6-14 字短标题**(不再截开头废话)、活动对话内导出 Markdown/JSON/Word、错误改 Alert+重试按钮、Markdown 渲染补 LaTeX 数学公式(KaTeX)。
+- **AI 分析 · 设置与接口** —— API Key 用 Password 输入框(粘贴去空白)、连接 chip 显示延迟与失败详情、Provider「高级」三段折叠、Provider 列表「卡片/紧凑」切换、新 Provider 保存后自动拉模型列表。
+- **AI 分析 · 资料/模版/组合** —— 资料全 pane 拖拽上传+非阻塞批量队列进度+重复文件一次性决策、卡片/列表切换、新增文件夹管理 Drawer+「移动到」、模板编辑变量推断侧栏+JSON Schema 实时校验、模板版本 diff 弹层、组合包「应用预览」。
+- **AI 分析 · 后端补齐(已重编 jar)** —— 用量/费用计量(SSE 新 `usage` 事件,四家 Provider 全覆盖,消息底显 token 与估算成本);Gemini 视觉补齐;Anthropic/Gemini/Ollama 停止序列/JSON 模式/思考档**显式映射**而非透传;reasoning 模型识别同步 gpt-5/6/7、o1/3/4/5/6/7。
+- **导出/挂载** —— 七政四余补「政余格局/相位」段;五兆/太玄筮法/荆诀/神易数补 AI 挂载;「分至」星盘样式按钮失效修复。
+- **稳定性** —— 消除 Tauri 桌面壳下 `window.prompt/confirm/alert` 引发的崩溃(全 7 处改用 Modal 异步替代);修若干 Dropdown 内存泄漏;资料批量导入末段卸载安全;图片上传 onerror+10MB/张上限。
 
-公证离线 `.pkg`、app zip、runtime 包与 manifest 已统一对齐到 `2.6.2 / 2.6.2-runtime1`。完整改动见 [v2.6.2 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.2)。
+公证离线 `.pkg`、app zip、runtime 包与 manifest 已统一对齐到 `2.6.3 / 2.6.3-runtime1`。完整改动见 [v2.6.3 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)。
 
 ## 技术构成
 

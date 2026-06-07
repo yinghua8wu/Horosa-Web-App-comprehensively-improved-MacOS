@@ -24,7 +24,8 @@ import { HORARY_CATEGORIES } from '../../components/horary/HoraryMain';
 import { ELECTION_TOPICS } from '../../components/election/ElectionMain';
 
 // germany 本轮改为可重算 record（fieldsToParams→/chart 真实重算中点盘），故移出只读集。
-const SECTIONS_ONLY = ['sixyao', 'tongshefa', 'mundane'];
+// wuzhao/taixuan/jingjue/shenyishu：可存事盘(CASE_TYPE_OPTIONS)却此前挂不上，补 sectionsOnly 缓存挂载（不重算）。
+const SECTIONS_ONLY = ['sixyao', 'tongshefa', 'mundane', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu'];
 
 beforeEach(()=>{
 	window.localStorage.clear();
