@@ -5,7 +5,7 @@ import {
 	getProviderProtocolFamily,
 } from './aiAnalysisProviders';
 
-export const AI_ANALYSIS_SCHEMA_VERSION = 3;
+export const AI_ANALYSIS_SCHEMA_VERSION = 4;
 
 export const AI_ANALYSIS_STORES = {
 	providerProfiles: 'provider_profiles',
@@ -21,10 +21,12 @@ export const AI_ANALYSIS_STORES = {
 	messages: 'messages',
 	contextCache: 'context_cache',
 	workspaceMeta: 'workspace_meta',
+	reportTemplates: 'report_templates',
+	reportInstances: 'report_instances',
 };
 
 const DB_NAME = 'horosa.ai.analysis.v1';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const UI_PREF_KEY = 'horosa.ai.analysis.ui.v3';
 const MEMORY_DB = new Map();
 
@@ -127,6 +129,7 @@ export function migrateRecord(storeName, record){
 		next.fileExt = next.fileExt || '';
 		next.tags = normalizeArray(next.tags);
 		next.tagIds = normalizeArray(next.tagIds);
+		next.schools = normalizeArray(next.schools);
 		next.fileHash = next.fileHash || '';
 		next.textHash = next.textHash || '';
 		next.originBlob = next.originBlob || '';
@@ -208,6 +211,35 @@ export function migrateRecord(storeName, record){
 		break;
 	case AI_ANALYSIS_STORES.workspaceMeta:
 		next.key = next.key || next.id;
+		break;
+	case AI_ANALYSIS_STORES.reportTemplates:
+		next.technique = next.technique || 'bazi';
+		next.granularity = next.granularity || 12;
+		next.name = next.name || '未命名报告模板';
+		next.sections = normalizeArray(next.sections);
+		next.introSection = next.introSection || null;
+		next.outroSection = next.outroSection || null;
+		next.version = next.version || 1;
+		next.schools = normalizeArray(next.schools);
+		next.readOnly = next.readOnly !== false;
+		break;
+	case AI_ANALYSIS_STORES.reportInstances:
+		next.templateId = next.templateId || null;
+		next.templateVersion = next.templateVersion || 1;
+		next.caseId = next.caseId || null;
+		next.caseLabel = next.caseLabel || '';
+		next.caseSnapshot = next.caseSnapshot || null;
+		next.technique = next.technique || 'bazi';
+		next.granularity = next.granularity || 12;
+		next.schools = normalizeArray(next.schools);
+		next.materialIds = normalizeArray(next.materialIds);
+		next.sections = next.sections && typeof next.sections === 'object' ? next.sections : {};
+		next.intro = next.intro || '';
+		next.outro = next.outro || '';
+		next.meta = next.meta || {};
+		next.title = next.title || '';
+		next.status = next.status || 'pending'; // pending | running | done | failed | cancelled
+		next.embedCharts = next.embedCharts !== false;
 		break;
 	default:
 		break;

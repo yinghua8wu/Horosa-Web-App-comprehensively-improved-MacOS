@@ -23,9 +23,14 @@ const ZODIACAL_LABELS = {
 	[AstroConst.SIDEREAL]: '恒星黄道',
 };
 
-function resolveChartCircleZodiacal(value){
+function resolveChartCircleZodiacal(value, ayanKey){
 	if(value === undefined || value === null || value === ''){
 		return null;
+	}
+	// 恒星黄道:拼上具体 ayanāṃśa(恒星黄道·Raman),复用统一口径;无具体岁差则退「恒星黄道」。
+	const isSid = value === AstroConst.SIDEREAL || `${value}` === '1' || value === '恒星黄道';
+	if(isSid){
+		return AstroConst.zodiacalDisplayText(AstroConst.SIDEREAL, ayanKey);
 	}
 	return ZODIACAL_LABELS[value] || AstroText.AstroMsg[value] || AstroText.AstroTxtMsg[value] || `${value}`;
 }
@@ -39,7 +44,7 @@ function resolveChartCircleHouseSystem(value){
 
 export function resolveChartCircleDisplayMode(params = {}){
 	return {
-		zodiacal: resolveChartCircleZodiacal(params.zodiacal),
+		zodiacal: resolveChartCircleZodiacal(params.zodiacal, params.siderealAyanamsa),
 		hsys: resolveChartCircleHouseSystem(params.hsys),
 	};
 }

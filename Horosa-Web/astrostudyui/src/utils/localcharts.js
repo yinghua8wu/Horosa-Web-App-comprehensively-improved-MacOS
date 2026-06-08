@@ -251,7 +251,7 @@ export function buildLocalChartRecord(values){
 		pos: values.pos ? values.pos : '',
 		gender: values.gender !== undefined && values.gender !== null ? parseInt(values.gender + '', 10) : -1,
 		isPub: values.isPub !== undefined && values.isPub !== null ? parseInt(values.isPub + '', 10) : 0,
-		doubingSu28: values.doubingSu28 ? 1 : 0,
+		doubingSu28: values.doubingSu28 !== undefined && values.doubingSu28 !== null ? Number(values.doubingSu28) : undefined,
 		group: normalizeGroup(values.group),
 		creator: values.creator ? values.creator : 'local',
 		updateTime: values.preserveUpdateTime && values.updateTime ? values.updateTime : nowStr(),
@@ -291,6 +291,7 @@ export function buildLocalChartRecord(values){
 		// (present 才落库,对齐 pd* 写法),否则 buildFieldObject 回退现状默认 → 不破坏既有命盘。
 		hsys: values.hsys !== undefined && values.hsys !== null ? values.hsys : undefined,
 		zodiacal: values.zodiacal !== undefined && values.zodiacal !== null ? parseInt(values.zodiacal + '', 10) : undefined,
+		siderealAyanamsa: values.siderealAyanamsa !== undefined && values.siderealAyanamsa !== null ? (values.siderealAyanamsa + '') : undefined,
 		tradition: values.tradition !== undefined && values.tradition !== null ? parseInt(values.tradition + '', 10) : undefined,
 		strongRecption: values.strongRecption !== undefined && values.strongRecption !== null ? parseInt(values.strongRecption + '', 10) : undefined,
 		simpleAsp: values.simpleAsp !== undefined && values.simpleAsp !== null ? parseInt(values.simpleAsp + '', 10) : undefined,
@@ -300,6 +301,8 @@ export function buildLocalChartRecord(values){
 		godKeyPos: values.godKeyPos !== undefined && values.godKeyPos !== null ? values.godKeyPos : undefined,
 		adjustJieqi: values.adjustJieqi !== undefined && values.adjustJieqi !== null ? parseInt(values.adjustJieqi + '', 10) : undefined,
 		guolaoLifeMode: values.guolaoLifeMode !== undefined && values.guolaoLifeMode !== null ? values.guolaoLifeMode : undefined,
+		indiaHsys: values.indiaHsys !== undefined && values.indiaHsys !== null ? values.indiaHsys : undefined,
+		indiaAyanamsa: values.indiaAyanamsa !== undefined && values.indiaAyanamsa !== null ? (values.indiaAyanamsa + '') : undefined,
 		guolaoNodeMode: values.guolaoNodeMode !== undefined && values.guolaoNodeMode !== null ? values.guolaoNodeMode : undefined,
 	};
 	return record;

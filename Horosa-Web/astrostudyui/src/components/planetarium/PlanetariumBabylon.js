@@ -908,7 +908,7 @@ function buildRequestParams(fields, time){
 		name: fields.name ? fields.name.value : null,
 		pos: fields.pos ? fields.pos.value : null,
 		hsys: fields.hsys ? fields.hsys.value : 1,
-		zodiacal: fields.zodiacal ? fields.zodiacal.value : 0,
+		zodiacal: fields.zodiacal ? fields.zodiacal.value : 0, siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
 		doubingSu28: fields.doubingSu28 ? fields.doubingSu28.value : 0,
 		southchart: fields.southchart ? fields.southchart.value : 0,
 		starLimit: 9000,

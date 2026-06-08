@@ -8,6 +8,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { convertToArray } from '../../utils/helper';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { buildStarAndLotPositionLines, buildHouseCuspLines, } from '../../utils/astroAiSnapshot';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 import { XQSelect as Select } from '../xq-ui';
@@ -29,7 +30,7 @@ function natalParams(chartObj){
 		date: params.date, time: params.time, ad: params.ad ? params.ad : 1,
 		zone: params.zone, dirZone: params.zone, lon: params.lon, lat: params.lat,
 		gpsLat: params.gpsLat, gpsLon: params.gpsLon, hsys: params.hsys,
-		zodiacal: params.zodiacal, tradition: params.tradition,
+		zodiacal: params.zodiacal, siderealAyanamsa: params.siderealAyanamsa, tradition: params.tradition,
 	};
 }
 
@@ -38,15 +39,34 @@ function todayStr(){
 	return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')} 12:00:00`;
 }
 
-// 把向运盘的「向运→本命」相位网格化为 markdown 段。
-function formatArcSnapshot(result, title, intro){
+// 把向运盘格式化为 markdown：本命盘配置 + 向运盘配置 + 「向运→本命」相位网格。
+function formatArcSnapshot(result, title, intro, natalChartObj){
 	if(!result || !result.chart || !Array.isArray(result.chart.aspects)){ return ''; }
 	const sym = (id) => (AstroText.AstroTxtMsg[id] || `${id}`);
 	const asp = (deg) => (AstroText.AstroTxtMsg['Asp' + deg] || `${deg}°`);
 	const lines = [];
 	lines.push(`[${title}]`);
 	if(intro){ lines.push(intro); }
+	// 本命盘配置(内圈)
+	const natalStars = buildStarAndLotPositionLines(natalChartObj);
+	const natalHouses = buildHouseCuspLines(natalChartObj);
+	if(natalStars.length || natalHouses.length){
+		lines.push('');
+		lines.push('[本命盘配置]');
+		if(natalStars.length){ lines.push('星与虚点'); lines.push(...natalStars); }
+		if(natalHouses.length){ lines.push('宫位宫头'); lines.push(...natalHouses); }
+	}
+	// 向运盘配置(时段盘/外圈):result 本身即向运盘 chartObj
+	const arcStars = buildStarAndLotPositionLines(result);
+	const arcHouses = buildHouseCuspLines(result);
+	if(arcStars.length || arcHouses.length){
+		lines.push('');
+		lines.push('[时段盘配置]');
+		if(arcStars.length){ lines.push('星与虚点'); lines.push(...arcStars); }
+		if(arcHouses.length){ lines.push('宫位宫头'); lines.push(...arcHouses); }
+	}
 	lines.push('');
+	lines.push('[相位]');
 	lines.push('| 向运星 | 相位 | 本命星 | 误差 |');
 	lines.push('| --- | --- | --- | --- |');
 	let n = 0;
@@ -57,7 +77,6 @@ function formatArcSnapshot(result, title, intro){
 			n += 1;
 		});
 	});
-	if(n === 0){ return ''; }
 	return lines.join('\n');
 }
 
@@ -74,7 +93,7 @@ export async function buildPlanetaryArcSnapshotText(chartObj, opts){
 		const params = { ...natalParams(chartObj), datetime, asporb, arcSource };
 		const data = await request(`${Constants.ServerRoot}/predict/planetaryarc`, { body: JSON.stringify(params) });
 		const result = data[Constants.ResultKey];
-		return formatArcSnapshot(result, '行星弧（Planetary Arc）', '行星弧(默认月亮弧)：以所选天体的二次推运移动量为弧推进全盘，看向运星对本命的相位。');
+		return formatArcSnapshot(result, '行星弧（Planetary Arc）', '行星弧(默认月亮弧)：以所选天体的二次推运移动量为弧推进全盘，看向运星对本命的相位。', chartObj);
 	}catch(e){
 		return '';
 	}

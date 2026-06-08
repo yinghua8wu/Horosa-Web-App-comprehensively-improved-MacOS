@@ -387,7 +387,8 @@ AstroTxtMsg[AstroConst.DESC] = '下降';
 AstroTxtMsg[AstroConst.MC] = '中天';
 AstroTxtMsg[AstroConst.IC] = '天底';
 
-AstroTxtMsg[AstroConst.SIDEREAL] = '恒星黄道，岁差:Lahiri';
+// 不再硬编码岁差 Lahiri(现支持 47 ayanāṃśa);具体岁差由各处用 AstroConst.zodiacalDisplayText(zodiacal, siderealAyanamsa) 拼接。
+AstroTxtMsg[AstroConst.SIDEREAL] = '恒星黄道';
 
 AstroTxtMsg[AstroConst.PARS_SPIRIT] = '灵点';
 AstroTxtMsg[AstroConst.PARS_FAITH] = '信心点';

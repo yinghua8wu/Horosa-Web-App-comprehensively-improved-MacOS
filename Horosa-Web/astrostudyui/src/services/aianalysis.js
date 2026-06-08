@@ -21,6 +21,9 @@ function resolveRequestTimeout(values){
 	if(Number.isFinite(raw) && raw >= 1000){
 		return Math.min(raw, 600000);
 	}
+	// v1.16-BB6: Ollama 本地首次模型加载慢(20s+),默认 timeout 给 180s 避免假阴性诊断
+	const pt = values && values.providerType;
+	if(pt === 'ollama') return 180000;
 	return 120000;
 }
 

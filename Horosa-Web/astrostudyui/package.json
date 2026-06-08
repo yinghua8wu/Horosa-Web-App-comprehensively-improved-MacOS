@@ -43,6 +43,8 @@
 		"fastclick": "^1.0.6",
 		"flv.js": "^1.6.2",
 		"highlight.js": "^11.9.0",
+		"html-to-image": "^1.11.13",
+		"html2pdf.js": "^0.14.0",
 		"js-rsa": "^1.0.3",
 		"jszip": "^3.10.1",
 		"katex": "^0.16.10",

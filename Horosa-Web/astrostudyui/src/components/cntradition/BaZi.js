@@ -808,7 +808,7 @@ class BaZi extends Component{
 								<BaZiLegacyMain value={bazi} fields={this.props.fields} baziOpt={this.state.baziOpt} />
 							) : (
 								<div className={`horosa-bazi-main-stack ${isFineChart ? 'horosa-bazi-main-stack-fine' : ''}`}>
-									<div className="horosa-bazi-main-chart-slot">
+									<div className="horosa-bazi-main-chart-slot" data-capture-chart-only>
 										<PaiBaZi
 											value={bazi}
 											height={isFineChart ? 'auto' : chartHeight}

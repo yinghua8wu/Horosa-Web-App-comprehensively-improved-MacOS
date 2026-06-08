@@ -350,7 +350,9 @@ function buildBaseInfoLines(chartObj, fields){
 	const zodiacal = chart.zodiacal || AstroConst.ZODIACAL[fieldValue(fields, 'zodiacal')];
 	const hsys = chart.hsys || AstroConst.HouseSys[fieldValue(fields, 'hsys')];
 	if(zodiacal || hsys){
-		lines.push(`${msg(zodiacal)}，${msg(hsys)}`);
+		const ayanKey = fieldValue(fields, 'siderealAyanamsa', '') || (chart && chart.siderealAyanamsa) || '';
+		const zodiacalTxt = zodiacal ? AstroConst.zodiacalDisplayText(zodiacal, ayanKey) : msg(zodiacal);
+		lines.push(`${zodiacalTxt}，${msg(hsys)}`);
 	}
 	lines.push(PLANET_HOUSE_INFO_NOTE);
 
@@ -918,7 +920,11 @@ export function createAstroSnapshotSignature(chartObj, fields, options = {}){
 	const hsys = chart.hsys || AstroConst.HouseSys[fieldValue(fields, 'hsys')] || '';
 	const chartId = chartObj && chartObj.chartId ? chartObj.chartId : '';
 	const onlyRulerExaltReception = resolveOnlyRulerExaltReception(options);
-	return [chartId, birth, zone, lon, lat, zodiacal, hsys, chart.isDiurnal ? '1' : '0', onlyRulerExaltReception ? '1' : '0'].join('|');
+	// 恒星黄道 ayanāṃśa（raw key，如 'raman'）：zodiacal 仅区分 回归/恒星，无法分辨 47 个 ayanāṃśa →
+	// 必入签名，否则换 ayanāṃśa 后 hasMatchingSavedAstroSnapshot 误判旧快照可复用（Lahiri 快照套到 Raman 盘）。
+	// 追加在末位：旧签名无 parts[9] → 解码为 '' → 匹配守卫跳过 → 旧快照行为逐字不变（向后兼容）。
+	const siderealAyanamsa = params.siderealAyanamsa || fieldValue(fields, 'siderealAyanamsa') || '';
+	return [chartId, birth, zone, lon, lat, zodiacal, hsys, chart.isDiurnal ? '1' : '0', onlyRulerExaltReception ? '1' : '0', siderealAyanamsa].join('|');
 }
 
 export function buildAstroSnapshotContent(chartObj, fields, options = {}){

@@ -1490,6 +1490,18 @@ function guolaoLifeModeFromFields(fields){
 	return getStoredGuolaoLifeMode();
 }
 
+// 七政宿度制(su28Mode 0-4)：优先 fields.doubingSu28（页面选/存盘值，数据丢失修复后保真），
+// 缺省回退 getStoredGuolaoSu28Mode（AI 挂载抽屉「宿度制」/全局默认 2）。与 命度/罗计 同口径。
+function guolaoSu28ModeFromFields(fields){
+	if(fields && fields.doubingSu28 && fields.doubingSu28.value !== undefined && fields.doubingSu28.value !== null){
+		const v = Number(fields.doubingSu28.value);
+		if([0, 1, 2, 3, 4].indexOf(v) >= 0){
+			return v;
+		}
+	}
+	return getStoredGuolaoSu28Mode();
+}
+
 function guolaoLifeModeName(mode){
 	const normalized = normalizeGuolaoLifeMode(mode);
 	if(normalized === GUOLAO_LIFE_MODE_YUMAO){
@@ -1784,7 +1796,7 @@ function buildGuolaoLimitSection(chart, fields, params){
 }
 
 function fieldsToParams(fields){
-	const su28Mode = Number(fields.doubingSu28.value);
+	const su28Mode = guolaoSu28ModeFromFields(fields);
 	const params = {
 		date: fields.date.value.format('YYYY/MM/DD'),
 		time: fields.time.value.format('HH:mm:ss'),
@@ -1796,7 +1808,7 @@ function fieldsToParams(fields){
 		hsys: 0,
 		zodiacal: su28Mode === GUOLAO_SU28_MODE_ZHENG_SIDEREAL ? 1 : 0,
 		tradition: fields.tradition.value,
-		doubingSu28: fields.doubingSu28.value,
+		doubingSu28: su28Mode,
 		guolaoZhengSidereal: su28Mode === GUOLAO_SU28_MODE_ZHENG_SIDEREAL ? 1 : 0,
 		guolaoLifeMode: guolaoLifeModeFromFields(fields),
 		strongRecption: fields.strongRecption.value,

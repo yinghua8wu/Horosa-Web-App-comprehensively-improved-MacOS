@@ -5,6 +5,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroText from '../../constants/AstroText';
 import { unwrapResult, astroSymbol, symbolWithMeaning, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+import { buildStarAndLotPositionLines, buildHouseCuspLines, } from '../../utils/astroAiSnapshot';
 
 const TabPane = Tabs.TabPane;
 
@@ -45,7 +46,16 @@ export async function buildVedicProgSnapshotText(chartObj, opts){
 	const lines = [];
 	lines.push('[恒星推运（Vedic Sidereal）]');
 	lines.push('二次/三次/小限推运在恒星黄道（sidereal）下计算；下表为二次推运（截至今日）。');
+	const natalStars = buildStarAndLotPositionLines(chartObj);
+	const natalHouses = buildHouseCuspLines(chartObj);
+	if(natalStars.length || natalHouses.length){
+		lines.push('');
+		lines.push('[本命盘配置]');
+		if(natalStars.length){ lines.push('星与虚点'); lines.push(...natalStars); }
+		if(natalHouses.length){ lines.push('宫位宫头'); lines.push(...natalHouses); }
+	}
 	lines.push('');
+	lines.push('[时段盘配置 二次推运位置]');
 	lines.push('| 点 | 恒星推运位置 |');
 	lines.push('| --- | --- |');
 	secondary.positions.filter((p) => EVENT_POINTS.indexOf(p.id) >= 0).forEach((p) => {

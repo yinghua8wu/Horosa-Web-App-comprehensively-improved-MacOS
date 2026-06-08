@@ -312,6 +312,9 @@ const ELECTION_FIELDS = [
 const ASTRO_CHART_FIELDS = [
 	{ name: 'hsys', label: '宫制', type: 'select', options: HSYS_OPTIONS, default: 0, group: '排盘' },
 	{ name: 'zodiacal', label: '黄道', type: 'select', options: ZODIACAL_OPTIONS, default: 0, group: '排盘' },
+	// 恒星黄道时的具体 ayanāṃśa（与命盘页同一套 47 制，复用印占 INDIA_AYANAMSA_OPTIONS——西洋 siderealAyanamsa 键即此）。
+	// 默认 ''=随盘/后端默认(Lahiri)；prune-empty → 不覆盖存盘 ayanāṃśa（守「默认即现状」）。仅「黄道=恒星」时后端生效。
+	{ name: 'siderealAyanamsa', label: '岁差制（黄道=恒星时生效）', type: 'select', options: [{ value: '', label: '默认（随盘 / Lahiri）' }, ...AstroConst.INDIA_AYANAMSA_OPTIONS], default: '', group: '排盘' },
 	{ name: 'doubingSu28', label: '斗柄二十八宿', type: 'switch', options: ON_OFF, default: 0, group: '排盘' },
 	{ name: 'tradition', label: '传统择宫（界/外观）', type: 'switch', options: ON_OFF, default: 0, group: '择宫' },
 	{ name: 'strongRecption', label: '强互容', type: 'switch', options: ON_OFF, default: 0, group: '择宫' },
@@ -327,11 +330,13 @@ const ASTRO_CHART_FIELDS = [
 	{ name: 'useStoredOrbs', label: '沿用本盘自定义容许度', type: 'switch', options: ON_OFF, default: 0, group: '容许度' },
 ];
 
-// 印度占星：宫制（印度专用宫制集合）+ 黄道默认恒星（buildIndiaSnapshotForFields 走自身默认，本期只暴露时间/宿）。
-// 印度占星：buildIndiaSnapshotForFields→fieldsToParams 只用 date/time/经纬（出生信息、挂载侧不可调），
-// 既不下发 timeAlg、也全程不引用 doubingSu28 → 这两项对印度盘 inert；分盘/Ayanamsa 当前写死（wireGap）。
-// 故印度盘无可重算的可调项 → 空 fields（仅内容勾选），守"不放无效选项"。
-const INDIA_CHART_FIELDS = [];
+// 印度占星：岁差制(indiaAyanamsa 47 制) + 分宫制(indiaHsys)。已接入挂载设置(2026-06-08 Batch D)：
+// buildFieldObject 读 record.indiaAyanamsa/indiaHsys → IndiaChart.fieldsToParams 重算。
+// timeAlg/doubingSu28 对印度盘 inert（fieldsToParams 不引用）故不列，守"不放无效选项"。
+const INDIA_CHART_FIELDS = [
+	{ name: 'indiaAyanamsa', label: '岁差制', type: 'select', options: AstroConst.INDIA_AYANAMSA_OPTIONS, default: AstroConst.INDIA_AYANAMSA_DEFAULT, group: '排盘' },
+	{ name: 'indiaHsys', label: '分宫制', type: 'select', options: AstroConst.INDIA_HOUSE_SYSTEM_OPTIONS, default: AstroConst.INDIA_HOUSE_SYSTEM_DEFAULT, group: '排盘' },
+];
 
 // 主限法·表格（primarydirect）：列未来 pdYears 年全部 direction 行。方位法 + 时间换算 + 顺逆 + 映点/界 + pdYears
 // （全部 === buildFieldObject 现状；无 datetime——表格是「年限范围」不是「单一时刻」）。
@@ -376,6 +381,13 @@ const GUOLAO_FIELDS = [
 	{ name: 'nodeMode', label: '罗计', type: 'select', default: 'northKetuSouthRahu', group: '命度', storageKey: 'horosaGuolaoNodeMode', options: [
 		{ value: 'northKetuSouthRahu', label: '北计南罗（默认）' },
 		{ value: 'northRahuSouthKetu', label: '北罗南计' },
+	] },
+	{ name: 'su28Mode', label: '宿度制', type: 'select', default: 2, group: '命度', storageKey: 'horosaGuolaoSu28Mode', options: [
+		{ value: 2, label: '回归今制（默认）' },
+		{ value: 3, label: '回归开禧（开禧历）' },
+		{ value: 4, label: '恒星制（郑式）' },
+		{ value: 0, label: '荀爽19年测量' },
+		{ value: 1, label: '斗柄定房法' },
 	] },
 ];
 
@@ -516,7 +528,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	// ---- A 类：命盘星盘系（fields 驱动）----
 	astrochart: { kind: 'record', fields: ASTRO_CHART_FIELDS },
 	astrochart_like: { kind: 'record', fields: ASTRO_CHART_FIELDS },
-	indiachart: { kind: 'record', fields: INDIA_CHART_FIELDS, emptyHint: '印度盘按出生信息固定起盘（分盘/Ayanamsa 暂不可调），挂载仅支持内容勾选。' },
+	indiachart: { kind: 'record', fields: INDIA_CHART_FIELDS, emptyHint: '印度盘按出生信息起盘，可调岁差制/分宫制。' },
 	suzhan: { kind: 'record', fields: ASTRO_CHART_FIELDS },
 	// 演禽/策天/皇极：经 ken 后端按出生 fields 起盘，跟随时间换算。
 	xianqin: { kind: 'record', fields: TIME_FIELDS },

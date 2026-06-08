@@ -39,7 +39,7 @@ function natalParams(chartObj){
 		date: params.date, time: params.time, ad: params.ad ? params.ad : 1,
 		zone: params.zone, dirZone: params.zone, lon: params.lon, lat: params.lat,
 		gpsLat: params.gpsLat, gpsLon: params.gpsLon, hsys: params.hsys,
-		zodiacal: params.zodiacal, tradition: params.tradition,
+		zodiacal: params.zodiacal, siderealAyanamsa: params.siderealAyanamsa, tradition: params.tradition,
 	};
 }
 
@@ -91,7 +91,8 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	const o = { ...PERSIAN_DEFAULT_OPTS, ...(opts && typeof opts === 'object' ? opts : {}) };
 	const rateKey = RATE[o.rateKey] !== undefined ? o.rateKey : 'persian';
 	const direction = o.direction === 'converse' ? 'converse' : 'direct';
-	const hits = buildPersianHits(chartObj, rateKey, 90, direction);
+	const maxYears = (Number(o.maxYears) > 0 ? Number(o.maxYears) : 90);
+	const hits = buildPersianHits(chartObj, rateKey, maxYears, direction);
 	if(!hits.length){ return ''; }
 	const sym = (id) => (AstroText.AstroTxtMsg[id] || `${id}`);
 	const asp = (deg) => (AstroText.AstroTxtMsg['Asp' + deg] || `${deg}°`);
@@ -101,7 +102,7 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	lines.push('');
 	lines.push('| 年龄 | 日期 | 向运星 | 相位 | 本命对象 |');
 	lines.push('| --- | --- | --- | --- | --- |');
-	hits.slice(0, 120).forEach((h) => {
+	hits.slice(0, Math.max(200, maxYears * 4)).forEach((h) => {
 		lines.push(`| ${h.age} | ${h.date || '-'} | ${sym(h.promittor)} | ${asp(h.aspect)} | ${sym(h.significator)} |`);
 	});
 	return lines.join('\n');
@@ -113,8 +114,9 @@ class AstroPersianDirected extends Component{
 		const np = natalParams(props.value);
 		const dt = new DateTime();
 		dt.addDate(1);
-		this.state = { params: { ...np, datetime: dt, asporb: 1, nodeRetrograde: false, rateKey: 'persian', direction: 'direct' }, dirChart: null };
+		this.state = { params: { ...np, datetime: dt, asporb: 1, nodeRetrograde: false, rateKey: 'persian', direction: 'direct', maxYears: 90 }, dirChart: null };
 		this.requestDirection = this.requestDirection.bind(this);
+		this.changeMaxYears = this.changeMaxYears.bind(this);
 		this.requestData = this.requestData.bind(this);
 		this.changeRate = this.changeRate.bind(this);
 		this.changeDirection = this.changeDirection.bind(this);
@@ -144,7 +146,7 @@ class AstroPersianDirected extends Component{
 	}
 
 	saveSnapshot(){
-		const txt = buildPersianDirectedSnapshotText(this.props.value);
+		const txt = buildPersianDirectedSnapshotText(this.props.value, this.state.params);
 		saveModuleAISnapshot('persiandirected', txt, { tab: 'persiandirected' });
 		return txt;
 	}
@@ -192,6 +194,11 @@ class AstroPersianDirected extends Component{
 		});
 	}
 
+	// 应期表计算年数(右侧表格不再固定 90 年):仅影响 hits 计算与快照,无需重算左盘。
+	changeMaxYears(v){
+		this.setState({ params: { ...this.state.params, maxYears: v } });
+	}
+
 	handleTimeChanged(val){
 		if(!val || !val.time){ return; }
 		const next = val.time instanceof DateTime ? val.time : val.time.time;
@@ -207,7 +214,8 @@ class AstroPersianDirected extends Component{
 		const chartObj = { natualChart: this.props.value, dirChart: this.state.dirChart };
 		const rateKey = this.state.params.rateKey;
 		const direction = this.state.params.direction || 'direct';
-		const hits = buildPersianHits(this.props.value, rateKey, 90, direction);
+		const maxYears = (Number(this.state.params.maxYears) > 0 ? Number(this.state.params.maxYears) : 90);
+		const hits = buildPersianHits(this.props.value, rateKey, maxYears, direction);
 		let birthDt = null;
 		try{
 			const b = this.props.value && this.props.value.params ? this.props.value.params.birth : '';
@@ -240,6 +248,14 @@ class AstroPersianDirected extends Component{
 									<Select value={direction} onChange={this.changeDirection} style={{ width: '100%' }}>
 										<Option value="direct">Direct（逆时针）</Option>
 										<Option value="converse">Converse（顺时针）</Option>
+									</Select>
+								</Col>
+							</Row>
+							<Row gutter={8} style={{ marginBottom: 8 }}>
+								<Col span={12}>
+									<div style={{ marginBottom: 4 }}>应期年数</div>
+									<Select value={maxYears} onChange={this.changeMaxYears} style={{ width: '100%' }}>
+										{[50, 90, 120, 150, 200].map((y) => <Option value={y} key={y}>{y} 年</Option>)}
 									</Select>
 								</Col>
 							</Row>

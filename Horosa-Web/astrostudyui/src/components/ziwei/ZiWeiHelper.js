@@ -201,3 +201,61 @@ export function getLayerSihua(chartObj, gan){
 	}
 	return res;
 }
+
+// 运限三方四正(用户修正): 给定运命宫索引, 返回三合两宫索引 [运财帛宫, 运官禄宫]
+// 紫微十二宫从命宫起**逆时针**排: 命/兄/夫/子/财(+4)/疾/迁(+6)/交/官(+8)/田/福/父
+// chart.houses 数组按地支固定顺序 (子=0..亥=11), 所以 +4 = 运财帛, +6 = 运迁移(对宫), +8 = 运官禄
+// 用户指正:之前标错"三合宫(财帛/官禄)/(夫妻/迁移)"让 AI 困惑;实际两个三合宫各自有明确身份。
+// 本宫和对宫已在 head 行("命宫【X】·对宫【Y】"),三方四正块只补两个三合宫即可,不重复。
+export function getSanheIndices(mingIdx){
+	if(typeof mingIdx !== 'number' || mingIdx < 0) return [];
+	const idx = ((mingIdx % 12) + 12) % 12;
+	const caibo = (idx + 4) % 12;    // 运财帛宫
+	const guanlu = (idx + 8) % 12;   // 运官禄宫
+	return [caibo, guanlu];
+}
+
+// 收集某宫位的所有星曜(主/辅/煞/桃花/杂等),返回数组
+export function collectAllStars(house){
+	if(!house) return [];
+	const groups = ['starsMain','starsAssist','starsEvil','starsOthersGood','starsOthersBad','starsSmall','stars'];
+	const collected = [];
+	groups.forEach((key)=>{
+		const arr = house[key] || [];
+		arr.forEach((s)=>{
+			const name = typeof s === 'string' ? s : (s && s.name);
+			if(name && !collected.includes(name)) collected.push(name);
+		});
+	});
+	return collected;
+}
+
+// 运限三合两宫 (运财帛宫 + 运官禄宫): 返回 [{runName, palaceName, ganZhi, stars}, ...]
+// runName 是该宫在当前运限下的身份(运财帛/运官禄), palaceName 是它在原命盘上的本名(如疾厄宫/兄弟宫)
+// 用于运限快照写入 + UI 渲染 + AI 报告 prompt
+export function collectSanhePalaces(chart, mingIdx){
+	if(!chart || !chart.houses || typeof mingIdx !== 'number') return [];
+	const [caiboIdx, guanluIdx] = getSanheIndices(mingIdx);
+	const buildOne = (runName, i)=>{
+		const h = chart.houses[i] || {};
+		return {
+			runName,
+			palaceName: h.name || h.houseName || '',
+			ganZhi: h.ganzi || h.ganZhi || h.gan_zhi || '',
+			houseIndex: i,
+			stars: collectAllStars(h),
+		};
+	};
+	return [
+		buildOne('运财帛宫', caiboIdx),
+		buildOne('运官禄宫', guanluIdx),
+	];
+}
+
+// 旧 API 保留兼容(若有外部调用), 但弃用 - 新代码用 collectSanhePalaces
+export function collectFourPalaceStars(chart, mingIdx){
+	return collectSanhePalaces(chart, mingIdx);
+}
+export function getTripleIndices(mingIdx){
+	return getSanheIndices(mingIdx);
+}

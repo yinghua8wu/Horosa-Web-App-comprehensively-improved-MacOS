@@ -375,8 +375,47 @@ class ZWLuckPanel extends Component {
 					</div>
 				)}
 				{layer.level === 'liunian' && this.renderFlowJiangSui(chart, layer)}
+				{this.renderFourPalaces(chart, mingIdx)}
 			</div>
 		);
+	}
+
+	// 运限三合(用户修正): 显该层级运财帛宫 + 运官禄宫(本宫和对宫已在 head 行不重复)
+	// 2 个小卡片, 标"运财帛宫"/"运官禄宫" 让用户/AI 明确这是该段时间的三合宫位
+	renderFourPalaces(chart, mingIdx) {
+		try {
+			const sanhe = ZiWeiHelper.collectSanhePalaces(chart, mingIdx);
+			if (!sanhe || sanhe.length !== 2) return null;
+			return (
+				<div className="horosa-ziwei-luck-sanhe" style={{ marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--horosa-border, rgba(0,0,0,0.08))' }}>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-soft, #888)', marginBottom: 4 }}>运限三合</div>
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
+						{sanhe.map((p, idx) => {
+							const colors = ['#fff5d6', '#e0f5e9']; // 运财帛=金黄, 运官禄=浅绿(术数语义中性, 明暗皆可读)
+							return (
+								<div key={idx} style={{
+									padding: '4px 6px',
+									background: colors[idx % 2],
+									borderRadius: 4,
+									fontSize: 11.5,
+									lineHeight: 1.4,
+								}}>
+									<div style={{ fontWeight: 600, color: '#555' }}>
+										{p.runName}：<span style={{ color: '#222' }}>{p.palaceName}</span>
+										{p.ganZhi && <span style={{ color: '#999', marginLeft: 4 }}>{p.ganZhi}</span>}
+									</div>
+									<div style={{ color: '#444', marginTop: 2 }}>
+										{p.stars && p.stars.length ? p.stars.join('、') : <span style={{ color: '#bbb' }}>(无主辅星)</span>}
+									</div>
+								</div>
+							);
+						})}
+					</div>
+				</div>
+			);
+		} catch (e) {
+			return null;
+		}
 	}
 
 	// P1-C 流年「流将前/流岁前」十二神（仅流年层显示，年神煞不下沉到流月流日）。

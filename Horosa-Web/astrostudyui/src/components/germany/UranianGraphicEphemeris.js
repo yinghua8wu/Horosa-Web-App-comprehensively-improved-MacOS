@@ -34,7 +34,7 @@ function fieldsToBase(fields){
 		date: fmt(fv(fields, 'date'), 'YYYY/MM/DD'), time: fmt(fv(fields, 'time'), 'HH:mm:ss'),
 		zone: fv(fields, 'zone'), lat: fv(fields, 'lat'), lon: fv(fields, 'lon'),
 		gpsLat: fv(fields, 'gpsLat'), gpsLon: fv(fields, 'gpsLon'),
-		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'),
+		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'), siderealAyanamsa: fv(fields, 'siderealAyanamsa'),
 	};
 }
 function paramsReady(p){

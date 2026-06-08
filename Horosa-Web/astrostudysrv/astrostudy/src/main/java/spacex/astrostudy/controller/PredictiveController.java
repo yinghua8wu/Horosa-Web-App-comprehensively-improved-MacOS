@@ -115,6 +115,9 @@ public class PredictiveController {
 		if(TransData.containsParam("zodiacal")) {
 			params.put("zodiacal", TransData.get("zodiacal"));
 		}
+		if(TransData.containsParam("siderealAyanamsa")) {
+			params.put("siderealAyanamsa", TransData.get("siderealAyanamsa"));
+		}
 		if(TransData.containsParam("virtualPointReceiveAsp")) {
 			params.put("virtualPointReceiveAsp", TransData.get("virtualPointReceiveAsp"));
 		}

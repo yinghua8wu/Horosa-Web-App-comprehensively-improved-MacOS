@@ -35,6 +35,7 @@ export function openDivinationCaseDrawer({ dispatch, fields, module, label, extr
 	// 技法设置随案存档，重开还原，避免被全局默认覆盖。
 	const settings = {
 		zodiacal: fv(fields, 'zodiacal', 0),
+		siderealAyanamsa: fv(fields, 'siderealAyanamsa', ''),
 		hsys: fv(fields, 'hsys', 0),
 		tradition: fv(fields, 'tradition', 1),
 	};

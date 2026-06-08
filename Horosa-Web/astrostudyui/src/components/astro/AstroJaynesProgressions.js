@@ -5,6 +5,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroText from '../../constants/AstroText';
 import { unwrapResult, astroSymbol, symbolWithMeaning, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+import { buildStarAndLotPositionLines, buildHouseCuspLines, } from '../../utils/astroAiSnapshot';
 
 const TabPane = Tabs.TabPane;
 
@@ -37,7 +38,16 @@ export async function buildJaynesProgSnapshotText(chartObj, opts){
 	const lines = [];
 	lines.push('[赤纬推运（Jayne Declination）]');
 	lines.push('Charles Jayne 赤纬推运：推运后看赤纬平行/反平行（下表为二次推运，截至今日）。');
+	const natalStars = buildStarAndLotPositionLines(chartObj);
+	const natalHouses = buildHouseCuspLines(chartObj);
+	if(natalStars.length || natalHouses.length){
+		lines.push('');
+		lines.push('[本命盘配置]');
+		if(natalStars.length){ lines.push('星与虚点'); lines.push(...natalStars); }
+		if(natalHouses.length){ lines.push('宫位宫头'); lines.push(...natalHouses); }
+	}
 	lines.push('');
+	lines.push('[时段盘 赤纬平行/反平行]');
 	lines.push('| 推运点 | 类型 | 本命点 | 误差 |');
 	lines.push('| --- | --- | --- | --- |');
 	sec.parallels.slice(0, 80).forEach((p) => {

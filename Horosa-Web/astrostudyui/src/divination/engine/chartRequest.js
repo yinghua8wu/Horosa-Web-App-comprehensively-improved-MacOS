@@ -23,6 +23,7 @@ export function buildChartParams(fields){
 		hsys: v('hsys', 0),
 		southchart: v('southchart', 0),
 		zodiacal: v('zodiacal', 0),
+		siderealAyanamsa: v('siderealAyanamsa', ''),
 		tradition: v('tradition', 1),
 		doubingSu28: v('doubingSu28', 0),
 		strongRecption: v('strongRecption', 0),

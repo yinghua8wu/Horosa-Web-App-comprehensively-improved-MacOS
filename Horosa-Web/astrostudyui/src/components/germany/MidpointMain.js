@@ -7,9 +7,11 @@ import PlusMinusTime from '../astro/PlusMinusTime';
 import DateTime from '../comp/DateTime';
 import { getHousesOption } from '../comp/CompHelper'
 import { XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import * as AstroConst from '../../constants/AstroConst';
 
 const TabPane = Tabs.TabPane;
 const Option = Select.Option;
+const OptGroup = Select.OptGroup;
 
 class MidpointMain extends Component{
 
@@ -37,8 +39,10 @@ class MidpointMain extends Component{
 
 	changeZodiacal(val){
 		if(this.props.onChange){
+			const parsed = AstroConst.parseZodiacSelectValue(val);
 			this.props.onChange({
-				zodiacal: val,
+				zodiacal: parsed.zodiacal,
+				siderealAyanamsa: parsed.siderealAyanamsa,
 			});
 		}
 	}
@@ -131,10 +135,14 @@ class MidpointMain extends Component{
 									<Col span={12}>
 										<Select style={{width:'100%'}}
 											onChange={this.changeZodiacal}
-											value={this.props.fields.zodiacal.value} 
+											value={AstroConst.zodiacSelectValue(this.props.fields.zodiacal.value, this.props.fields.siderealAyanamsa && this.props.fields.siderealAyanamsa.value)}
+											dropdownMatchSelectWidth={false}
 											size='small'>
-											<Option value={0}>回归黄道</Option>
-											<Option value={1}>恒星黄道</Option>
+											{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+												<OptGroup label={grp.group} key={grp.group}>
+													{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+												</OptGroup>
+											))}
 										</Select>
 									</Col>
 	

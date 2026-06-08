@@ -61,10 +61,9 @@ function buildStarInfoLines(natalChartObj){
 	}
 
 	const zodiacalRaw = chart.zodiacal || AstroConst.ZODIACAL[`${params.zodiacal}`];
-	if(zodiacalRaw === AstroConst.SIDEREAL){
-		lines.push(`黄道：${AstroText.AstroTxtMsg[AstroConst.SIDEREAL] || zodiacalRaw}`);
-	}else if(zodiacalRaw){
-		lines.push('黄道：回归黄道');
+	if(zodiacalRaw){
+		const ayanKey = params.siderealAyanamsa || (chart && chart.siderealAyanamsa) || '';
+		lines.push(`黄道：${AstroConst.zodiacalDisplayText(zodiacalRaw, ayanKey)}`);
 	}
 	const hsys = AstroConst.HouseSys[`${params.hsys}`] || chart.hsys;
 	if(hsys){
@@ -158,6 +157,11 @@ function buildSetupLines(params){
 	if(p.nodeRetrograde !== undefined && p.nodeRetrograde !== null){
 		lines.push(`月交点逆行：${p.nodeRetrograde ? '是' : '否'}`);
 	}
+	// 恒星黄道时标注具体 ayanāṃśa（与主命盘快照口径一致，让 AI 明确知道是 Raman/Fagan 等而非默认 Lahiri）。
+	// 仅恒星盘追加此行 → 回归盘输出逐字不变（向后兼容）。
+	if(`${p.zodiacal}` === '1'){
+		lines.push(`黄道：${AstroConst.zodiacalDisplayText(p.zodiacal, p.siderealAyanamsa)}`);
+	}
 	return lines;
 }
 
@@ -191,10 +195,31 @@ function buildAspectLines(result, natalChartObj){
 	return lines;
 }
 
+// 时段盘(推运/返照/向运)本身的星盘配置:行星落座 + 宫位宫头。
+// 取 result.dirChart(完整时段盘 chartObj)优先,退回 result(其 chart.objects 即时段盘行星)。
+function buildDirectedChartLines(result){
+	const lines = [];
+	const directed = (result && result.dirChart) ? result.dirChart : result;
+	if(!directed){
+		return lines;
+	}
+	const starLotLines = buildStarAndLotPositionLines(directed);
+	if(starLotLines.length){
+		lines.push('时段盘 星与虚点');
+		lines.push(...starLotLines);
+	}
+	const houseLines = buildHouseCuspLines(directed);
+	if(houseLines.length){
+		lines.push('时段盘 宫位宫头');
+		lines.push(...houseLines);
+	}
+	return lines;
+}
+
 export function buildPredictiveSnapshotText(natalChartObj, params, result){
 	const lines = [];
 
-	lines.push('[星盘信息]');
+	lines.push('[本命盘配置]');
 	const starLines = buildStarInfoLines(natalChartObj);
 	if(starLines.length){
 		lines.push(...starLines);
@@ -207,6 +232,15 @@ export function buildPredictiveSnapshotText(natalChartObj, params, result){
 	const setupLines = buildSetupLines(params);
 	if(setupLines.length){
 		lines.push(...setupLines);
+	}else{
+		lines.push('无');
+	}
+
+	lines.push('');
+	lines.push('[时段盘配置]');
+	const directedLines = buildDirectedChartLines(result);
+	if(directedLines.length){
+		lines.push(...directedLines);
 	}else{
 		lines.push('无');
 	}

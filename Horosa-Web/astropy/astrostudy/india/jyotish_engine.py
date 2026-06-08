@@ -6,6 +6,7 @@ from flatlib.datetime import Datetime
 from flatlib.ephem import eph
 
 from astrostudy.india.yoga_engine import build_yogas
+from astrostudy.nakshatra import NAKSHATRAS, nakshatra_from_lon
 
 
 SIGN_CN = {
@@ -52,17 +53,7 @@ DASHA_SEQUENCE = [
     {'key': 'Mercury', 'id': const.MERCURY, 'label': '水星', 'years': 17},
 ]
 
-NAKSHATRAS = [
-    ('Ashwini', '马', 'Ketu'), ('Bharani', '胃', 'Venus'), ('Krittika', '昴', 'Sun'),
-    ('Rohini', '毕', 'Moon'), ('Mrigashira', '参', 'Mars'), ('Ardra', '井', 'Rahu'),
-    ('Punarvasu', '鬼', 'Jupiter'), ('Pushya', '柳', 'Saturn'), ('Ashlesha', '星', 'Mercury'),
-    ('Magha', '张', 'Ketu'), ('Purva Phalguni', '翼', 'Venus'), ('Uttara Phalguni', '轸', 'Sun'),
-    ('Hasta', '角', 'Moon'), ('Chitra', '亢', 'Mars'), ('Swati', '氐', 'Rahu'),
-    ('Vishakha', '房', 'Jupiter'), ('Anuradha', '心', 'Saturn'), ('Jyeshtha', '尾', 'Mercury'),
-    ('Mula', '箕', 'Ketu'), ('Purva Ashadha', '斗', 'Venus'), ('Uttara Ashadha', '牛', 'Sun'),
-    ('Shravana', '女', 'Moon'), ('Dhanishta', '虚', 'Mars'), ('Shatabhisha', '危', 'Rahu'),
-    ('Purva Bhadrapada', '室', 'Jupiter'), ('Uttara Bhadrapada', '壁', 'Saturn'), ('Revati', '奎', 'Mercury'),
-]
+# NAKSHATRAS 已迁至 astrostudy/nakshatra.py(共享),见顶部 import。
 
 TITHI_NAMES = [
     'Pratipada', 'Dvitiya', 'Tritiya', 'Chaturthi', 'Panchami', 'Shashthi',
@@ -204,22 +195,7 @@ def sign_from_lon(lon):
     return const.LIST_SIGNS[sign_index_from_lon(lon)]
 
 
-def nakshatra_from_lon(lon):
-    span = 360.0 / 27.0
-    value = norm(lon)
-    idx = min(26, int(value / span))
-    progress = (value - idx * span) / span
-    pada = min(4, int(progress * 4) + 1)
-    name, label, lord = NAKSHATRAS[idx]
-    return {
-        'index': idx + 1,
-        'name': name,
-        'label': label,
-        'lord': lord,
-        'pada': pada,
-        'progress': progress,
-        'remainingRatio': 1 - progress,
-    }
+# nakshatra_from_lon 已迁至 astrostudy/nakshatra.py(共享),见顶部 import。
 
 
 def house_number(obj):

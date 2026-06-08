@@ -26,6 +26,9 @@ import moment from 'moment';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { marked } from 'marked';
+import { normalizeMarkdown } from '../../utils/reportMarkdownNormalize';
+import { classifyQuestion, referencesSpecificCase } from '../../utils/aiAnalysisStarterPrompts';
+import { buildSoftwareHelpContext } from '../../utils/aiAnalysisHelpDocs';
 import DOMPurify from 'dompurify';
 // 仅引「common」子集（~50KB gzipped 含 js/ts/py/java/go/rust/sh/sql/json/yaml/xml/html/css/md/c/cpp/cs/php/rb/swift/kotlin 等），不引全语言。
 import hljs from 'highlight.js/lib/common';
@@ -36,6 +39,7 @@ import 'katex/dist/katex.min.css';
 import styles from './AIAnalysisMain.less';
 import MonacoEditor from './MonacoField';
 import XQIcon from '../xq-icons';
+import ReportPane, { ReportLaunchContext } from './ReportPane';
 import {
 	XQButton as Button,
 	XQCard as Card,
@@ -163,6 +167,7 @@ const SECONDARY_TABS = [
 	{ key: 'history', label: '历史', icon: <XQIcon name="calendar" /> },
 	{ key: 'materials', label: '资料', icon: <XQIcon name="book" /> },
 	{ key: 'templates', label: '模版', icon: <XQIcon name="note" /> },
+	{ key: 'report', label: '报告', icon: <XQIcon name="note" /> },
 	{ key: 'settings', label: '设置', icon: <XQIcon name="aiSettings" /> },
 ];
 
@@ -731,7 +736,7 @@ function renderMarkdownToHtml(text){
 		return '';
 	}
 	try{
-		const pre = preRenderLatex(raw);
+		const pre = preRenderLatex(normalizeMarkdown(raw));
 		const html = marked.parse(pre.source);
 		const restored = html.replace(/ KATEX(\d+) /g, (_, idx)=>pre.placeholders[Number(idx)] || '');
 		return DOMPurify.sanitize(restored, { ADD_ATTR: ['target', 'rel', 'class', 'type', 'title', 'aria-label', 'style'], ADD_TAGS: ['math', 'mrow', 'mi', 'mn', 'mo', 'msup', 'msub', 'mfrac', 'mtext', 'annotation', 'semantics'] });
@@ -876,6 +881,9 @@ function AIAnalysisMain(props){
 	const [bundles, setBundles] = React.useState([]);
 	const [conversations, setConversations] = React.useState([]);
 	const [activeConversationId, setActiveConversationId] = React.useState('');
+	// v1.16-O: 对话切换 race token — 用户快速切 A→B→A 时,老 listConversationMessages 可能比新的更晚返回,会用 A 的消息覆盖 B。
+	// 每次切对话 ++ token,setMessages 前核对 token 一致才写。
+	const conversationLoadTokenRef = React.useRef(0);
 	const [messages, setMessages] = React.useState([]);
 	const [selectedSourceId, setSelectedSourceId] = React.useState('');
 	const [modelSelection, setModelSelection] = React.useState(defaultUi.modelSelection || '');
@@ -987,6 +995,8 @@ function AIAnalysisMain(props){
 	const [providerForm] = Form.useForm();
 	const abortRef = React.useRef(null);
 	const streamBufferRef = React.useRef('');
+	// 报告 tab 跨组件触发器（renderReportPane 内通过 onAttachLaunch 注册，供对话栏/案例 tab 内的快捷按钮调用）
+	const reportLaunchRef = React.useRef(null);
 	const streamReasoningBufferRef = React.useRef(''); // #16:DeepSeek reasoner 思考过程(独立于答案,仅展示/存档,绝不回灌 messages)
 	const streamUsageRef = React.useRef(null); // 2A：本次流的 usage 计量(末帧到达后由 SSE usage 事件填充)
 	const chatLogRef = React.useRef(null);
@@ -1378,7 +1388,12 @@ function AIAnalysisMain(props){
 			setConversations(sortByUpdatedDesc(nextConversations));
 			setSources(listAnalysisSources());
 			if(options.keepConversation && activeConversationId){
-				setMessages(await listConversationMessages(activeConversationId));
+				// v1.16-O: 防 race
+				const loadToken = ++conversationLoadTokenRef.current;
+				const msgs = await listConversationMessages(activeConversationId);
+				if(loadToken === conversationLoadTokenRef.current){
+					setMessages(msgs);
+				}
 			}
 		}catch(e){
 			console.error(e);
@@ -1716,7 +1731,12 @@ function AIAnalysisMain(props){
 		}
 		setModelSelection(encodeModelSelection(conversation.providerProfileId || '', conversation.model || ''));
 		setSessionSystemPrompt(conversation.systemPrompt || '');
-		setMessages(await listConversationMessages(conversation.id));
+		// v1.16-O: 防 race 切换 — 用 token check
+		const loadToken = ++conversationLoadTokenRef.current;
+		const msgs = await listConversationMessages(conversation.id);
+		if(loadToken === conversationLoadTokenRef.current){
+			setMessages(msgs);
+		}
 		setInnerTab('analysis');
 	}
 
@@ -1844,7 +1864,7 @@ function AIAnalysisMain(props){
 				const materialChunks = await ensureMaterialChunks(material);
 				chunks = chunks.concat(materialChunks.map((chunk)=>({
 					...chunk,
-					materialName: material.name,
+					materialName: material.fileName || material.name,
 				})));
 			}catch(err){
 				console.warn('material chunking failed', material && material.name, err);
@@ -2108,7 +2128,7 @@ function AIAnalysisMain(props){
 		}
 	}
 
-	async function buildResolvedPrompt(currentPrompt, profile){
+	async function buildResolvedPrompt(currentPrompt, profile, extraSystemContext){
 		const resolvedRefs = resolveReferenceItems(referenceIds, materials, bundles, templates);
 		const currentSource = activeSource || (activeConversation && activeConversation.sourceRef ? sources.find((item)=>item.id === activeConversation.sourceRef.id) : null);
 		const ctx = currentSource && currentSource.record ? await getAnalysisSourceContext(currentSource, {
@@ -2137,7 +2157,7 @@ function AIAnalysisMain(props){
 			templates: resolvedRefs.templates,
 			retrievedChunks: retrieval.retrievedChunks,
 			conversationMessages: visibleMessages,
-			systemPrompt: [sessionSystemPrompt, resolvedRefs.systemPrompt].filter(Boolean).join('\n\n'),
+			systemPrompt: [sessionSystemPrompt, resolvedRefs.systemPrompt, extraSystemContext].filter(Boolean).join('\n\n'),
 		});
 		const clippedLayers = clipContextLayers(layers, { maxChars: 20000 });
 		return {
@@ -2149,7 +2169,7 @@ function AIAnalysisMain(props){
 				templates: resolvedRefs.templates,
 				retrievedChunks: retrieval.retrievedChunks,
 				conversationMessages: visibleMessages,
-				systemPrompt: [sessionSystemPrompt, resolvedRefs.systemPrompt].filter(Boolean).join('\n\n'),
+				systemPrompt: [sessionSystemPrompt, resolvedRefs.systemPrompt, extraSystemContext].filter(Boolean).join('\n\n'),
 				maxChars: 20000,
 			}),
 			retrieval,
@@ -2185,14 +2205,43 @@ function AIAnalysisMain(props){
 		});
 	}
 
-	async function handleSend(){
+	// v1.21: 点击落地页建议问题 chip。软件类→注入帮助文档后自动发送；命/事类未挂载→弹框引导挂载；其余→正常发送。
+	function handleExampleClick(txt){
+		const { category, helpKey } = classifyQuestion(txt);
+		if(category === 'software'){
+			handleSend(txt, buildSoftwareHelpContext(helpKey));
+			return;
+		}
+		if(category === 'case-required' && !activeSource){
+			setPrompt(txt);
+			AntdModal.info({
+				title: '需要先挂载案例',
+				content: '分析某个具体的命主 / 事件，需要先挂载对应案例：① 在左栏「案例」选择已保存的命盘；② 或到 八字 / 紫微 等 tab 起盘后点「保存为命盘」，再回到这里左栏选择它。挂载后 AI 才能拿到精确的盘面数据来分析。',
+				okText: '我知道了',
+			});
+			return;
+		}
+		handleSend(txt);
+	}
+
+	async function handleSend(overrideText, extraSystemContext){
 		if(sending){
 			return;
 		}
-		const trimmed = `${prompt || ''}`.trim();
+		const trimmed = `${(overrideText != null ? overrideText : prompt) || ''}`.trim();
 		const sendImages = pendingImages.map((p)=>p.url).filter(Boolean);
 		if(!trimmed && !sendImages.length){
 			message.warning('请输入要分析的问题');
+			return;
+		}
+		// v1.21: 手动输入「具体命/事」问题但未挂载案例 → 提醒去挂载,不盲发(AI 无盘面数据只会臆测)。
+		// 软件类(带 extraSystemContext)与已挂载案例不受影响; chip 的命/事未挂载分支已在 handleExampleClick 拦截。
+		if(trimmed && !activeSource && !extraSystemContext && referencesSpecificCase(trimmed)){
+			AntdModal.info({
+				title: '需要先挂载案例',
+				content: '你问的是某个具体命主 / 事件，但当前没有挂载案例。请在左栏「案例」选择已保存的命盘，或到 八字 / 紫微 等 tab 起盘后点「保存为命盘」再回来选择。挂载后 AI 才能拿到精确盘面数据来分析。',
+				okText: '我知道了',
+			});
 			return;
 		}
 		const { profileId, model } = parseModelSelection(modelSelection);
@@ -2208,7 +2257,7 @@ function AIAnalysisMain(props){
 		setSending(true);
 		try{
 			const conversation = await ensureConversationRecord(trimmed, profile, model);
-			const promptResult = await buildResolvedPrompt(trimmed, profile);
+			const promptResult = await buildResolvedPrompt(trimmed, profile, extraSystemContext);
 			const userMessage = await saveConversationMessage({
 				conversationId: conversation.id,
 				role: 'user',
@@ -2452,6 +2501,7 @@ function AIAnalysisMain(props){
 			name: material ? material.name : '',
 			tags: material ? (material.tags || []).join(', ') : '',
 			folderId: material ? material.folderId : undefined,
+			schools: material && Array.isArray(material.schools) ? material.schools : [],
 			extractedText: material ? material.extractedText : '',
 		});
 		setMaterialModalOpen(true);
@@ -2466,6 +2516,8 @@ function AIAnalysisMain(props){
 			kind: editingMaterial && editingMaterial.kind ? editingMaterial.kind : 'note',
 			folderId: values.folderId || null,
 			tags: normalizeTags(values.tags),
+			// 报告功能：资料按流派标记后，生成报告时可按流派过滤资料
+			schools: Array.isArray(values.schools) ? values.schools.filter((s)=>`${s||''}`.trim()) : [],
 			extractedText: `${values.extractedText || ''}`.trim(),
 			searchText: buildMaterialSearchText({
 				...(editingMaterial || {}),
@@ -2642,6 +2694,23 @@ function AIAnalysisMain(props){
 	async function ingestFiles(fileList, options = {}){
 		const files = Array.from(fileList || []).filter((f)=>f && f.name);
 		if(!files.length) return;
+		// v1.16-BB5: 大文件 OOM 守门 — > 50MB 警告(parseMaterialFile 内部用 base64,大文件可能爆内存/UI 卡死)
+		const HUGE = 50 * 1024 * 1024;
+		const hugeFiles = files.filter((f)=>f.size > HUGE);
+		if(hugeFiles.length){
+			const list = hugeFiles.map((f)=>`${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`).join('\n');
+			const proceed = await new Promise((resolve)=>{
+				Modal.confirm({
+					title: '检测到超大文件 (> 50MB)',
+					content: <div>以下文件可能解析慢或导致 UI 卡顿:<pre style={{maxHeight:120,overflow:'auto',background:'#f5f5f5',padding:8,fontSize:12}}>{list}</pre>建议先拆分或转 .txt 后再上传。仍要继续吗?</div>,
+					okText: '仍要上传',
+					cancelText: '取消',
+					onOk: ()=>resolve(true),
+					onCancel: ()=>resolve(false),
+				});
+			});
+			if(!proceed) return;
+		}
 		// 初始化队列；统一过 safeSetQ 守门，组件 unmount 后绝不 setState。
 		const safeSetQ = (updater)=>{ if(isMountedRef.current){ setMaterialIngestQueue(updater); } };
 		const queue = files.map((f)=>({ id: `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, name: f.name, size: f.size || 0, status: 'parsing' }));
@@ -4177,7 +4246,7 @@ function AIAnalysisMain(props){
 		return (
 			<div className={styles.landingExamples}>
 				{examples.map((txt)=>(
-					<Tag key={txt} className={styles.landingExampleChip} onClick={()=>setPrompt(txt)}>{txt}</Tag>
+					<Tag key={txt} className={styles.landingExampleChip} onClick={()=>handleExampleClick(txt)}>{txt}</Tag>
 				))}
 				{aiExamplesLoading && !ai ? (
 					<span className={styles.landingExamplesHint}>AI 生成示例中…</span>
@@ -4253,6 +4322,22 @@ function AIAnalysisMain(props){
 						<Tooltip title="刷新案例"><Button size="small" type="text" icon={<XQIcon name="refresh" />} onClick={()=>setSources(listAnalysisSources())} /></Tooltip>
 						<Tooltip title="添加图片（多媒体输入，仅视觉模型有效）"><Button size="small" type="text" icon={<XQIcon name="import" />} onClick={()=>{ if(imageInputRef.current){ imageInputRef.current.click(); } }} disabled={sending} /></Tooltip>
 						<input ref={imageInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e)=>{ handlePickImages(e.target.files); e.target.value = ''; }} />
+						<Tooltip title="生成报告（按当前案例 + 模板一键生成）"><Button size="small" type="text" icon={<XQIcon name="note" />} onClick={()=>{
+							// 切到 报告 tab，预填当前 active source 的技法/案例
+							setInnerTab('report');
+							setTimeout(()=>{
+								if(reportLaunchRef.current){
+									const cur = activeSource;
+									const sm = `${(cur && cur.record && (cur.record.sourceModule || cur.record.chartType)) || ''}`.toLowerCase();
+									const tech = sm === 'ziwei' ? 'ziwei' : 'bazi';
+									reportLaunchRef.current({
+										technique: tech,
+										caseId: cur ? cur.id : undefined,
+										granularity: 12,
+									});
+								}
+							}, 200);
+						}} /></Tooltip>
 						{sending ? <Tooltip title="停止生成"><Button size="small" type="text" danger icon={<XQIcon name="stop" />} onClick={handleStopStreaming} /></Tooltip> : null}
 					</Space>
 					<div className={styles.composerSend}>
@@ -4800,7 +4885,8 @@ function AIAnalysisMain(props){
 									{ title: '名称', dataIndex: 'name', ellipsis: { showTitle: true }, render: (v)=>v || '未命名' },
 									{ title: '类型', width: 90, render: (_, it)=>it.kind || 'note' },
 									{ title: '文件夹', width: 140, ellipsis: true, render: (_, it)=>(it.folderId ? (materialFolders.find((folder)=>folder.id === it.folderId)?.name || '未知') : '未分类') },
-									{ title: '标签', width: 180, ellipsis: true, render: (_, it)=>(it.tags || []).join('、') || '无' },
+									{ title: '标签', width: 160, ellipsis: true, render: (_, it)=>(it.tags || []).join('、') || '无' },
+									{ title: '流派', width: 160, render: (_, it)=>(it.schools || []).length ? (it.schools || []).map((s, i)=>(<Tag key={i} color="cyan" style={{marginBottom:2}}>{s}</Tag>)) : <span style={{color:'#999'}}>通用</span> },
 									{ title: '更新时间', width: 150, render: (_, it)=>buildTimestampLabel(it.updatedAt) },
 									{ title: '操作', width: 380, render: (_, it)=>(
 										<Space size={4} wrap>
@@ -4842,6 +4928,7 @@ function AIAnalysisMain(props){
 										<div>类型：{item.kind || 'note'}</div>
 										<div>文件夹：{item.folderId ? (materialFolders.find((folder)=>folder.id === item.folderId)?.name || '未知') : '未分类'}</div>
 										<div>标签：{(item.tags || []).length ? (item.tags || []).join('、') : '无'}</div>
+										<div>流派：{(item.schools || []).length ? (item.schools || []).map((s, i)=>(<Tag key={i} color="cyan" style={{marginRight:4}}>{s}</Tag>)) : '通用'}</div>
 										<div>更新时间：{buildTimestampLabel(item.updatedAt)}</div>
 									</div>
 									<div className={styles.summaryBlock}>
@@ -4980,6 +5067,22 @@ function AIAnalysisMain(props){
 					</div>
 				</div>
 			</div>
+		);
+	}
+
+	function renderReportPane(){
+		const parsed = parseModelSelection(modelSelection);
+		const currentModel = parsed.model || '';
+		const modelOpts = activeProviderProfile ? normalizeProfileChatModels(activeProviderProfile).map((m)=>({value:m,label:m})) : [];
+		return (
+			<ReportPane
+				sources={sources}
+				profile={activeProviderProfile}
+				model={currentModel}
+				providerName={activeProviderProfile && activeProviderProfile.name || ''}
+				modelOptions={modelOpts}
+				onAttachLaunch={(fn)=>{ reportLaunchRef.current = fn; }}
+			/>
 		);
 	}
 
@@ -5136,7 +5239,10 @@ function AIAnalysisMain(props){
 					<TabPane tab={<span>{SECONDARY_TABS[3].icon}模版</span>} key="templates">
 						<div className={styles.pane}>{renderTemplatesPane()}</div>
 					</TabPane>
-					<TabPane tab={<span>{SECONDARY_TABS[4].icon}设置</span>} key="settings">
+					<TabPane tab={<span>{SECONDARY_TABS[4].icon}报告</span>} key="report">
+						<div className={styles.pane}>{renderReportPane()}</div>
+					</TabPane>
+					<TabPane tab={<span>{SECONDARY_TABS[5].icon}设置</span>} key="settings">
 						<div className={styles.pane}>{renderSettingsPane()}</div>
 					</TabPane>
 				</Tabs>
@@ -5167,6 +5273,24 @@ function AIAnalysisMain(props){
 					) : null}
 					<Form.Item name="tags" label="标签">
 						<Input placeholder="支持逗号分隔" />
+					</Form.Item>
+					<Form.Item name="schools" label="流派" extra="可多选/自由输入；报告功能可按流派过滤资料并注入流派提示。">
+						<Select
+							mode="tags"
+							placeholder="如 子平派 / 盲派 / 北派飞星 等（不填 = 视为通用资料）"
+							style={{ width: '100%' }}
+							options={[
+								{ value: '子平派', label: '子平派' },
+								{ value: '盲派', label: '盲派' },
+								{ value: '新派（段建业）', label: '新派（段建业）' },
+								{ value: '滴天髓派', label: '滴天髓派' },
+								{ value: '神峰通考派', label: '神峰通考派' },
+								{ value: '北派飞星', label: '北派飞星' },
+								{ value: '中州派', label: '中州派' },
+								{ value: '三合派', label: '三合派' },
+								{ value: '钦天四化派', label: '钦天四化派' },
+							]}
+						/>
 					</Form.Item>
 					<Form.Item name="extractedText" label="资料内容" rules={[{ required: true, message: '请输入资料内容' }]}>
 						<TextArea rows={10} />

@@ -337,12 +337,14 @@ class AstroRelative extends Component{
 			},
 			hsys: 0,
 			zodiacal: 0,
+			siderealAyanamsa: '',
 			relative: this.state.currentRelative
 		}
 
 		if(this.props.fields){
 			params.hsys = this.props.fields.hsys.value;
 			params.zodiacal = this.props.fields.zodiacal.value;
+			params.siderealAyanamsa = this.props.fields.siderealAyanamsa ? this.props.fields.siderealAyanamsa.value : '';
 		}
 
 		return params;

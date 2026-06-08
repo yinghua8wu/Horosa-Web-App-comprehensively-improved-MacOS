@@ -18,9 +18,11 @@ import {
 	XQTabs,
 	XQToolbar,
 } from '../xq-ui';
+import * as AstroConst from '../../constants/AstroConst';
 
 const TabPane = XQTabs.TabPane;
 const Option = XQSelect.Option;
+const OptGroup = XQSelect.OptGroup;
 
 class AstroChartMain3D extends Component{
 
@@ -56,8 +58,10 @@ class AstroChartMain3D extends Component{
 
 	changeZodiacal(val){
 		if(this.props.onChange){
+			const parsed = AstroConst.parseZodiacSelectValue(val);
 			this.props.onChange({
-				zodiacal: val,
+				zodiacal: parsed.zodiacal,
+				siderealAyanamsa: parsed.siderealAyanamsa,
 			});
 		}
 	}
@@ -195,11 +199,15 @@ class AstroChartMain3D extends Component{
 						{showzodical ? (
 							<XQSelect
 								onChange={this.changeZodiacal}
-								value={this.props.fields.zodiacal.value}
+								value={AstroConst.zodiacSelectValue(this.props.fields.zodiacal.value, this.props.fields.siderealAyanamsa && this.props.fields.siderealAyanamsa.value)}
+								dropdownMatchSelectWidth={false}
 								size='small'
 							>
-								<Option value={0}>回归黄道</Option>
-								<Option value={1}>恒星黄道</Option>
+								{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+									<OptGroup label={grp.group} key={grp.group}>
+										{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+									</OptGroup>
+								))}
 							</XQSelect>
 						) : null}
 						{showhsys ? (

@@ -40,7 +40,7 @@ class AstroSolarArc extends Component{
 				gpsLat: qryparam.gpsLat,
 				gpsLon: qryparam.gpsLon,
 				hsys: qryparam.hsys,
-				zodiacal: qryparam.zodiacal,
+				zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
 				tradition: qryparam.tradition,
 				datetime: new DateTime(),
 				tmType: 'y',
@@ -132,7 +132,7 @@ class AstroSolarArc extends Component{
 			gpsLat: qryparam.gpsLat,
 			gpsLon: qryparam.gpsLon,
 			hsys: qryparam.hsys,
-			zodiacal: qryparam.zodiacal,
+			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
 			tradition: qryparam.tradition,
 		};
 		return params;

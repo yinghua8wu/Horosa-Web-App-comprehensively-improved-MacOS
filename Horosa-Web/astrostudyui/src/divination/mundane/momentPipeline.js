@@ -140,6 +140,8 @@ export async function chartAtMoment(momentStr, fieldsLike){
 		gpsLon: f.gpsLon != null ? f.gpsLon : 0,
 		hsys: f.hsys != null ? f.hsys : 0,
 		zodiacal: f.zodiacal != null ? f.zodiacal : 0,
+		// 恒星黄道 ayanāṃśa：择日「时势合参」子盘(Election chartAtMoment)须随主盘 ayanāṃśa；缺省 '' = 后端默认(回归/Lahiri)。
+		siderealAyanamsa: f.siderealAyanamsa != null ? f.siderealAyanamsa : '',
 		tradition: f.tradition != null ? f.tradition : 1,
 		predictive: 0,
 		pdaspects: [0, 60, 90, 120, 180],

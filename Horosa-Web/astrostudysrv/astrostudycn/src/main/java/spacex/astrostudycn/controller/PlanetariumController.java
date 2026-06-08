@@ -58,6 +58,9 @@ public class PlanetariumController {
 		params.put("lon", TransData.get("lon"));
 		params.put("hsys", TransData.getValueAsInt("hsys", 1));
 		params.put("zodiacal", TransData.getValueAsInt("zodiacal", 0));
+		if(TransData.containsParam("siderealAyanamsa")) {
+			params.put("siderealAyanamsa", TransData.get("siderealAyanamsa"));
+		}
 		params.put("doubingSu28", TransData.getValueAsInt("doubingSu28", 0));
 		params.put("southchart", TransData.getValueAsBool("southchart", false));
 		params.put("predictive", false);

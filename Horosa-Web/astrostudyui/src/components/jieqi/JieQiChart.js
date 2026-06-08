@@ -39,6 +39,9 @@ function paramsToFields(params){
 		zodiacal: {
 			value: params.zodiacal,
 		},
+		siderealAyanamsa: {
+			value: params.siderealAyanamsa,
+		},
 		tradition: {
 			value: 0,
 		},
@@ -94,7 +97,7 @@ class JieQiMain extends Component{
 			gpsLat: this.props.gpsLat,
 			gpsLon: this.props.gpsLon,
 			hsys: this.props.hsys,
-			zodiacal: this.props.zodiacal,
+			zodiacal: this.props.zodiacal, siderealAyanamsa: this.props.siderealAyanamsa,
 			name: this.props.chartname,
 		}
 

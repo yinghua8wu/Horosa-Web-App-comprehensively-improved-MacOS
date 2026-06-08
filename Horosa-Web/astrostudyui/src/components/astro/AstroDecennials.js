@@ -405,7 +405,7 @@ class AstroDecennials extends Component{
 			hsys: qryparam.hsys,
 			tradition: qryparam.tradition,
 			birth: qryparam.birth,
-			zodiacal: qryparam.zodiacal,
+			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
 		};
 	}
 

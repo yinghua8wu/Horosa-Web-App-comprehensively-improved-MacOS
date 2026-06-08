@@ -126,7 +126,9 @@ function getLifeHouse(chart, houses){
 
 const ZW_PERIOD_LEVEL_LABEL = { daxian: '大限', liunian: '流年', liuyue: '流月', liuri: '流日', liushi: '流时' };
 
-// 单层运限 → 文本块（四化落宫 + 流曜，复用 ZiWeiHelper.getLayerSihua/getFlowStars，与盘面交互卡同口径）。
+// 单层运限 → 文本块（四化落宫 + 流曜 + 三方四正星情, 复用 ZiWeiHelper.getLayerSihua/getFlowStars/collectFourPalaceStars,
+// 与盘面交互卡同口径）。
+// 用户增量(v1.9): 末尾追加"三方四正"四宫星曜列表,让 AI 看到该时段真实的三合宫位星情,提高流年判断准度。
 function formatLuckLayerLines(chart, layer, levelLabel, subText){
 	const lines = [];
 	const mingIdx = layer.mingIndex;
@@ -144,6 +146,19 @@ function formatLuckLayerLines(chart, layer, levelLabel, subText){
 		const parts = flowStars.map((s)=>`${s.name}（${luckHouseName(chart, luckHouseIdxByBranch(chart, s.zhi), true)}）`);
 		lines.push(`流曜：${parts.join('、')}`);
 	}
+	// 运限三合(用户修正): 仅追加运财帛宫 + 运官禄宫(本宫和对宫已在 head 行).
+	// label 用"运财帛宫【原命盘宫名·干支】" 让 AI 明确"这是该段时间的财帛宫,落在原命盘 X 宫位置"
+	try {
+		const sanhe = ZiWeiHelper.collectSanhePalaces(chart, mingIdx);
+		if(sanhe && sanhe.length === 2){
+			lines.push('运限三合：');
+			sanhe.forEach((p)=>{
+				const starsText = (p.stars && p.stars.length) ? p.stars.join('、') : '(无主辅星)';
+				const gz = p.ganZhi ? `·${p.ganZhi}` : '';
+				lines.push(`  ${p.runName}【${p.palaceName}${gz}】：${starsText}`);
+			});
+		}
+	} catch(_) { /* defensive: 缺数据时不阻塞快照 */ }
 	return lines;
 }
 
@@ -869,7 +884,7 @@ class ZiWeiMain extends Component{
 							/>
 						</div>
 						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-ziwei-chart-panel xq-chart-renderer xq-chart-renderer-ziwei">
-							<div className="horosa-ziwei-chart-viewport">
+							<div className="horosa-ziwei-chart-viewport" data-capture-chart-only>
 								<ZiWeiChart
 									value={chart}
 									height="100%"

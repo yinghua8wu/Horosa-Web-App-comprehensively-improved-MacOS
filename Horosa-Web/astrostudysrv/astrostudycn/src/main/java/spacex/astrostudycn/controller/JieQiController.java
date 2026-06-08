@@ -143,6 +143,9 @@ public class JieQiController {
 		}else {
 			params.put("zodiacal", 0);
 		}
+		if(TransData.containsParam("siderealAyanamsa")) {
+			params.put("siderealAyanamsa", TransData.get("siderealAyanamsa"));
+		}
 		if(TransData.containsParam("gpsLat")) {
 			params.put("gpsLat", TransData.get("gpsLat"));
 			params.put("gpsLon", TransData.get("gpsLon"));

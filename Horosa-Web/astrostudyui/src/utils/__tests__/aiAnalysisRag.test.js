@@ -42,7 +42,9 @@ describe('aiAnalysisRag', ()=>{
 		], 2100);
 		expect(merged.length).toBe(2);
 		const text = buildRetrievedContextText(merged);
-		expect(text).toContain('资料片段 1');
-		expect(text).toContain('来源：资料一');
+		// 资料引用真名: 块头式 【资料：xxx】 取代旧的「资料片段 N / 来源：xxx」
+		expect(text).toContain('【资料：资料一】');
+		expect(text).toContain('【资料：资料二】');
+		expect(text).not.toContain('资料片段');
 	});
 });

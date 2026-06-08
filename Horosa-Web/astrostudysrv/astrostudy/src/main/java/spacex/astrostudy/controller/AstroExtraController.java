@@ -82,6 +82,9 @@ public class AstroExtraController {
 		params.put("outer", TransData.get("outer"));
 		params.put("hsys", TransData.getValueAsInt("hsys", 0));
 		params.put("zodiacal", TransData.getValueAsInt("zodiacal", 0));
+		if(TransData.containsParam("siderealAyanamsa")) {
+			params.put("siderealAyanamsa", TransData.get("siderealAyanamsa"));
+		}
 		if(TransData.containsParam("relative")) {
 			params.put("relative", TransData.get("relative"));
 		}

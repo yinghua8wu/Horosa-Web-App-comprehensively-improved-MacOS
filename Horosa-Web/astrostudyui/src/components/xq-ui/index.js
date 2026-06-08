@@ -160,6 +160,7 @@ export function XQSelect({className = '', popupClassName = '', dropdownClassName
 }
 
 XQSelect.Option = Select.Option;
+XQSelect.OptGroup = Select.OptGroup;
 
 export const XQInput = React.forwardRef(function XQInput({className = '', ...rest}, ref){
 	return (

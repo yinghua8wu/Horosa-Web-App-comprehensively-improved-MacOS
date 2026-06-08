@@ -70,6 +70,9 @@ public class GermanyTechController {
 		params.put("simpleAsp", TransData.getValueAsBool("simpleAsp", false));
 		params.put("predictive", TransData.getValueAsBool("predictive", false));
 		params.put("zodiacal", TransData.getValueAsInt("zodiacal", 0));
+		if(TransData.containsParam("siderealAyanamsa")) {
+			params.put("siderealAyanamsa", TransData.get("siderealAyanamsa"));
+		}
 		params.put("southchart", TransData.getValueAsBool("southchart", false));
 		if(TransData.containsParam("gpsLat")) {
 			params.put("gpsLat", TransData.get("gpsLat"));

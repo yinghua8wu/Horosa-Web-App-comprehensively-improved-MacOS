@@ -17,7 +17,7 @@ function fieldsToParams(fields){
 		gpsLat: fields.gpsLat.value,
 		gpsLon: fields.gpsLon.value,
 		hsys: fields.hsys.value,
-		zodiacal: fields.zodiacal.value,
+		zodiacal: fields.zodiacal.value, siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
 		tradition: fields.tradition.value,
 		strongRecption: fields.strongRecption.value,
 		simpleAsp: fields.simpleAsp.value,

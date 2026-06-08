@@ -6,6 +6,7 @@ import PageHeader from '../components/homepage/PageHeader';
 import UpdateNotifier from '../components/update/UpdateNotifier';
 import ServiceStatusBanner from '../components/common/ServiceStatusBanner';
 import StartupGate from '../components/common/StartupGate';
+import BackendStatusDot from '../components/common/BackendStatusDot';
 import {
     APPEARANCE_DARK,
     applyAppearanceToDocument,
@@ -138,6 +139,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
             <div id='globalFooter' style={{height: 0, overflow: 'hidden'}} />
             <UpdateNotifier />
             <ServiceStatusBanner />
+            <BackendStatusDot />
             <StartupGate />
         </Layout>
     );

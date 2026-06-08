@@ -11,7 +11,7 @@ import { XQSegmented as Segmented, XQSelect as Select, XQTabs as Tabs } from '..
 import XQIcon from '../xq-icons';
 
 const TabPane = Tabs.TabPane;
-const {Option} = Select;
+const {Option, OptGroup} = Select;
 const DASHA_YEAR_DAYS = 365.25;
 const NAKSHATRA_SIZE = 360 / 27;
 const INDIA_DEGREE_DISPLAY_DEGREE = 'degree';
@@ -1462,9 +1462,14 @@ class IndiaChartMain extends Component{
 													style={{width: '100%'}}
 													value={indiaAyanamsa}
 													onChange={this.changeIndiaAyanamsa}
+													dropdownMatchSelectWidth={false}
 												>
-													{AstroConst.INDIA_AYANAMSA_OPTIONS.map((item)=>(
-														<Option value={item.value} key={item.value}>{item.label}</Option>
+													{AstroConst.groupOptions(AstroConst.INDIA_AYANAMSA_OPTIONS).map((grp)=>(
+														<OptGroup label={grp.group} key={grp.group}>
+															{grp.items.map((item)=>(
+																<Option value={item.value} key={item.value}>{item.label}</Option>
+															))}
+														</OptGroup>
 													))}
 												</Select>
 											</div>
@@ -1475,9 +1480,14 @@ class IndiaChartMain extends Component{
 													style={{width: '100%'}}
 													value={indiaHsys}
 													onChange={this.changeHsys}
+													dropdownMatchSelectWidth={false}
 												>
-													{AstroConst.INDIA_HOUSE_SYSTEM_OPTIONS.map((item)=>(
-														<Option value={item.value} key={item.value}>{item.label}</Option>
+													{AstroConst.groupOptions(AstroConst.INDIA_HOUSE_SYSTEM_OPTIONS).map((grp)=>(
+														<OptGroup label={grp.group} key={grp.group}>
+															{grp.items.map((item)=>(
+																<Option value={item.value} key={item.value}>{item.label}</Option>
+															))}
+														</OptGroup>
 													))}
 												</Select>
 											</div>
@@ -1488,6 +1498,7 @@ class IndiaChartMain extends Component{
 													style={{width: '100%'}}
 													value={this.state.currentTab}
 													onChange={this.changeTab}
+													dropdownMatchSelectWidth={false}
 												>
 													{splitOptions.map((item)=>(
 														<Option value={item.value} key={item.value}>{item.label}</Option>
@@ -1500,7 +1511,7 @@ class IndiaChartMain extends Component{
 														size="small"
 														style={{width: '100%'}}
 														value={degreeDisplayMode}
-														onChange={this.changeDegreeDisplayMode}
+														onChange={this.changeDegreeDisplayMode} dropdownMatchSelectWidth={false}
 													>
 														{INDIA_DEGREE_DISPLAY_OPTIONS.map((item)=>(
 															<Option value={item.value} key={item.value}>{item.label}</Option>

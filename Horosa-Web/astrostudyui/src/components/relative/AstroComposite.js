@@ -28,6 +28,9 @@ function paramsToFields(param, flds){
 		zodiacal:{
 			value: param.zodiacal
 		},
+		siderealAyanamsa:{
+			value: param.siderealAyanamsa
+		},
 	}
 	return fields;
 }

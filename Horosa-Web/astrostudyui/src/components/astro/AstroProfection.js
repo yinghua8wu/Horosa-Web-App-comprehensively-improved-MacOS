@@ -40,7 +40,7 @@ class AstroProfection extends Component{
 				gpsLat: qryparam.gpsLat,
 				gpsLon: qryparam.gpsLon,
 				hsys: qryparam.hsys,
-				zodiacal: qryparam.zodiacal,
+				zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
 				tradition: qryparam.tradition,
 				datetime: now,
 				tmType: 'y',
@@ -123,7 +123,7 @@ class AstroProfection extends Component{
 			gpsLon: qryparam.gpsLon,
 			hsys: qryparam.hsys,
 			tradition: qryparam.tradition,
-			zodiacal: qryparam.zodiacal,
+			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
 		};
 		return params;
 	}

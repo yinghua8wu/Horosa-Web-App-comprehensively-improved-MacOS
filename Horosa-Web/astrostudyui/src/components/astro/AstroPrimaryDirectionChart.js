@@ -5,7 +5,7 @@ import PlusMinusTime from './PlusMinusTime';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-import { saveAstroAISnapshot, } from '../../utils/astroAiSnapshot';
+import { saveAstroAISnapshot, buildStarAndLotPositionLines, buildHouseCuspLines, } from '../../utils/astroAiSnapshot';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import styles from '../../css/styles.less';
@@ -307,8 +307,9 @@ function buildAscTermHighlight(dirChart){
 	return null;
 }
 
-function buildSnapshotText(chartObj, currentDt, currentArc){
+function buildSnapshotText(chartObj, currentDt, currentArc, dirChart){
 	const params = chartObj && chartObj.params ? chartObj.params : {};
+	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
 	const lines = [];
 	lines.push('[出生时间]');
 	lines.push(`出生时间：${params.birth || '无'}`);
@@ -316,6 +317,15 @@ function buildSnapshotText(chartObj, currentDt, currentArc){
 	lines.push('[星盘信息]');
 	lines.push(`经纬度：${params.lon || ''} ${params.lat || ''}`.trim() || '无');
 	lines.push(`时区：${params.zone || '无'}`);
+	const zodiacalRaw = chart.zodiacal || AstroConst.ZODIACAL[`${params.zodiacal}`];
+	if(zodiacalRaw){
+		const ayanKey = params.siderealAyanamsa || chart.siderealAyanamsa || '';
+		lines.push(`黄道：${AstroConst.zodiacalDisplayText(zodiacalRaw, ayanKey)}`);
+	}
+	const hsysLabel = AstroConst.HouseSys[`${params.hsys}`] || chart.hsys;
+	if(hsysLabel){
+		lines.push(`宫制：${hsysLabel}`);
+	}
 	lines.push('');
 	lines.push('[主限法盘设置]');
 	lines.push(`时间选择：${currentDt ? currentDt.format('YYYY-MM-DD HH:mm:ss') : '无'}`);
@@ -323,6 +333,22 @@ function buildSnapshotText(chartObj, currentDt, currentArc){
 		lines.push(`度数换算：${getPdTimeKeyLabel(params.pdTimeKey)}`);
 		lines.push(`向运方向：${params.direction === 'converse' ? '逆向 Converse' : '顺向 Direct'}`);
 	lines.push(`当前Arc：${splitDegreeText(currentArc)}`);
+	lines.push('');
+	// 本命盘配置(内圈):行星落座 + 宫位宫头
+	lines.push('[本命盘配置]');
+	const natalStars = buildStarAndLotPositionLines(chartObj);
+	const natalHouses = buildHouseCuspLines(chartObj);
+	if(natalStars.length){ lines.push('星与虚点'); lines.push(...natalStars); }
+	if(natalHouses.length){ lines.push('宫位宫头'); lines.push(...natalHouses); }
+	if(!natalStars.length && !natalHouses.length){ lines.push('无'); }
+	lines.push('');
+	// 主限法盘配置(外圈/时段盘):推导出的各星曜与虚点位置 + 宫位
+	lines.push('[主限法盘配置]');
+	const dirStars = buildStarAndLotPositionLines(dirChart);
+	const dirHouses = buildHouseCuspLines(dirChart);
+	if(dirStars.length){ lines.push('星与虚点'); lines.push(...dirStars); }
+	if(dirHouses.length){ lines.push('宫位宫头'); lines.push(...dirHouses); }
+	if(!dirStars.length && !dirHouses.length){ lines.push('无'); }
 	lines.push('');
 	lines.push('[主限法盘说明]');
 	lines.push('左侧双盘内圈为本命盘，外圈为按当前主限法设置和所选时间推导出的主限法盘位置。');
@@ -376,6 +402,7 @@ function buildFieldsFromChartObj(baseFields, chartObj, pdMethod, pdTimeKey){
 	assign('gpsLon', params.gpsLon !== undefined && params.gpsLon !== null ? params.gpsLon : params.lon, fields.gpsLon ? fields.gpsLon.value : '');
 	assign('hsys', params.hsys, fields.hsys ? fields.hsys.value : 0);
 	assign('zodiacal', params.zodiacal, fields.zodiacal ? fields.zodiacal.value : 0);
+	assign('siderealAyanamsa', params.siderealAyanamsa, fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '');
 	assign('tradition', params.tradition, fields.tradition ? fields.tradition.value : 0);
 	assign('strongRecption', params.strongRecption, fields.strongRecption ? fields.strongRecption.value : 0);
 	assign('simpleAsp', params.simpleAsp, fields.simpleAsp ? fields.simpleAsp.value : 0);
@@ -691,7 +718,7 @@ class AstroPrimaryDirectionChart extends Component{
 			gpsLat: params.gpsLat !== undefined && params.gpsLat !== null ? params.gpsLat : params.lat,
 			gpsLon: params.gpsLon !== undefined && params.gpsLon !== null ? params.gpsLon : params.lon,
 			hsys: params.hsys,
-			zodiacal: params.zodiacal,
+			zodiacal: params.zodiacal, siderealAyanamsa: params.siderealAyanamsa,
 			tradition: params.tradition,
 			strongRecption: params.strongRecption !== undefined ? params.strongRecption : false,
 			simpleAsp: params.simpleAsp !== undefined ? params.simpleAsp : false,
@@ -803,7 +830,7 @@ class AstroPrimaryDirectionChart extends Component{
 			gpsLat: params.gpsLat,
 			gpsLon: params.gpsLon,
 			hsys: params.hsys,
-			zodiacal: params.zodiacal,
+			zodiacal: params.zodiacal, siderealAyanamsa: params.siderealAyanamsa,
 			tradition: params.tradition,
 			pdtype: DEFAULT_PD_TYPE,
 			pdMethod: this.getSelectedPdMethod(),
@@ -875,7 +902,7 @@ class AstroPrimaryDirectionChart extends Component{
 				direction: this.state.pdDirectionValue,
 			},
 		};
-		const txt = buildSnapshotText(snapshotChartObj, derived.currentDt, derived.currentArc);
+		const txt = buildSnapshotText(snapshotChartObj, derived.currentDt, derived.currentArc, derived.dirChart);
 		if(!txt){
 			return '';
 		}

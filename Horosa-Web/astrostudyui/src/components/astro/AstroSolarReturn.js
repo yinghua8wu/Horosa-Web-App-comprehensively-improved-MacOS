@@ -51,7 +51,7 @@ class AstroSolarReturn extends Component{
 				lat: qryparam.lat,
 				hsys: qryparam.hsys,
 				tradition: qryparam.tradition,
-				zodiacal: qryparam.zodiacal,
+				zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
 				datetime: dt,
 				dirLat: qryparam.lat,
 				dirLon: qryparam.lon,
@@ -138,7 +138,7 @@ class AstroSolarReturn extends Component{
 			gpsLon: qryparam.gpsLon,
 			gpsLat: qryparam.gpsLat,
 			hsys: qryparam.hsys,
-			zodiacal: qryparam.zodiacal,
+			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
 			tradition: qryparam.tradition,
 		};
 		return params;

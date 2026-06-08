@@ -148,6 +148,9 @@ class AstroPlanet extends Component{
 				});
 			}
 
+			let naksMap = (chartObj.chart && chartObj.chart.nakshatras) || chartObj.nakshatras || null;
+			let nak = naksMap ? naksMap[objid] : null;
+
 			let dom = (
 				<Row key={objid}>
 					<Col span={24}>
@@ -189,6 +192,17 @@ class AstroPlanet extends Component{
 										), obj.house)}
 									</Col>
 								</Row>
+								{
+									nak && (
+										<Row gutter={12}>
+											<Col span={titleSpan}>月宿</Col>
+											<Col span={ctSpan} style={{fontFamily: AstroConst.NormalFont}}>
+												{nak.index}. {nak.name}（{nak.label}）P{nak.pada}
+												{' · 宿主'}{AstroConst.NAK_LORD_CN[nak.lord] || nak.lord}
+											</Col>
+										</Row>
+									)
+								}
 							<Row gutter={12}>
 								<Col span={titleSpan}>映点</Col>
 								<Col span={ctSpan} style={{fontFamily: AstroConst.NormalFont}}>

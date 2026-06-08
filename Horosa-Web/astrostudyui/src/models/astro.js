@@ -5,6 +5,7 @@ import DateTime from '../components/comp/DateTime';
 import * as service from '../services/astro';
 import {randomStr,} from '../utils/helper';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
+import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
 import { saveAstroAISnapshot, } from '../utils/astroAiSnapshot';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
 import * as AstroConst from '../constants/AstroConst';
@@ -74,6 +75,10 @@ function newEmptyFields(){
 		zodiacal: {
 			value: 0,
 			name: ['zodiacal'],
+		},
+		siderealAyanamsa: {
+			value: '',
+			name: ['siderealAyanamsa'],
 		},
 		tradition: {
 			value: 0,
@@ -228,6 +233,7 @@ function fieldsToParams(fields){
 		hsys: fields.hsys.value,
 		southchart: fields.southchart.value,
 		zodiacal: fields.zodiacal.value,
+		siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
 		tradition: fields.tradition.value,
 		doubingSu28: fields.doubingSu28.value,
 		guolaoLifeMode: fields.guolaoLifeMode ? fields.guolaoLifeMode.value : 'asc',
@@ -268,10 +274,15 @@ function isValidChartResponse(rsp){
 	return rsp !== undefined && rsp !== null && rsp.Result !== undefined && rsp.Result !== null;
 }
 
-function showChartServiceError(){
-	Modal.error({
-		title: '排盘失败：本地排盘服务未就绪。请确认 Horosa 本地服务仍在运行后重试。',
-	});
+// Mac issue #12 / Win #11 #14: 委托到 components/common/ChartServiceErrorModal 渲染富对话框
+// (dva 的 model parser 不支持 JSX,所以 React 端必须放独立组件文件)。
+// fallback 用经典 Modal.error 防止任何加载/导入异常导致用户拿不到反馈。
+function showChartServiceError(extraDetail){
+	try {
+		showChartServiceErrorRich(extraDetail);
+	} catch(e) {
+		Modal.error({ title: '排盘失败：本地排盘服务未就绪。请确认 Horosa 本地服务仍在运行后重试。' });
+	}
 }
 
 
@@ -502,6 +513,10 @@ export default {
 			zodiacal: {
 				value: 0,
 				name: ['zodiacal'],
+			},
+			siderealAyanamsa: {
+				value: '',
+				name: ['siderealAyanamsa'],
 			},
 			tradition: {
 				value: 0,

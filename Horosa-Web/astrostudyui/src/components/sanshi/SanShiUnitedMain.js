@@ -60,7 +60,7 @@ import {
 import styles from './SanShiUnitedMain.less';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 
-const { Option } = Select;
+const { Option, OptGroup } = Select;
 const TabPane = Tabs.TabPane;
 const BRANCH_ORDER = '子丑寅卯辰巳午未申酉戌亥'.split('');
 const BRANCH_ZODIAC_MAP = {
@@ -1470,6 +1470,7 @@ class SanShiUnitedMain extends Component{
 				sex: 1,
 				guireng: 2,
 				zodiacal: 0,
+				siderealAyanamsa: '',
 				hsys: 0,
 				after23NewDay: defaultAfter23NewDay(),
 				lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
@@ -1895,6 +1896,9 @@ class SanShiUnitedMain extends Component{
 				if(payload.options.zodiacal === 0 || payload.options.zodiacal === 1){
 					options.zodiacal = payload.options.zodiacal;
 				}
+				if(typeof payload.options.siderealAyanamsa === 'string'){
+					options.siderealAyanamsa = payload.options.siderealAyanamsa;
+				}
 				if(payload.options.hsys !== undefined && payload.options.hsys !== null){
 					options.hsys = payload.options.hsys;
 				}
@@ -1934,6 +1938,9 @@ class SanShiUnitedMain extends Component{
 		const patchFields = {};
 		if(options.zodiacal !== undefined){
 			patchFields.zodiacal = { value: options.zodiacal };
+		}
+		if(options.siderealAyanamsa !== undefined){
+			patchFields.siderealAyanamsa = { value: options.siderealAyanamsa };
 		}
 		if(options.hsys !== undefined){
 			patchFields.hsys = { value: options.hsys };
@@ -2161,6 +2168,26 @@ class SanShiUnitedMain extends Component{
 			[key]: { value },
 		};
 		this.setState({ localFields });
+	}
+
+	// 黄道复合值(回归 / 恒星:ayanāṃśa)→ 同步 zodiacal + siderealAyanamsa,单次请求(避免连续 onOptionChange 因 setState 异步互相覆盖)。
+	onAstroZodiacalChange(val){
+		const parsed = AstroConst.parseZodiacSelectValue(val);
+		const options = normalizeKenQimenOptions({
+			...(this.state.options || {}),
+			zodiacal: parsed.zodiacal,
+			siderealAyanamsa: parsed.siderealAyanamsa,
+		});
+		const patch = {
+			zodiacal: { value: parsed.zodiacal },
+			siderealAyanamsa: { value: parsed.siderealAyanamsa },
+		};
+		const localFields = {
+			...this.getActiveFields(),
+			...patch,
+		};
+		this.setState({ options, localFields });
+		this.onFieldsChange(patch, true);
 	}
 
 	getTimeFieldsFromSelector(baseFields){
@@ -2409,6 +2436,7 @@ class SanShiUnitedMain extends Component{
 			timeAlg: normalizeTimeAlg(opt.timeAlg),
 			hsys: 0,
 			zodiacal: 0,
+			siderealAyanamsa: '',
 			doubingSu28: false,
 		};
 	}
@@ -3715,9 +3743,12 @@ class SanShiUnitedMain extends Component{
 						</label>
 						<label className="horosa-sanshi-select-field">
 							<span>黄道</span>
-							<Select size="small" value={opt.zodiacal} onChange={(v)=>this.onAstroFieldOptionChange('zodiacal', v)}>
-								<Option value={0}>回归黄道</Option>
-								<Option value={1}>恒星黄道</Option>
+							<Select size="small" value={AstroConst.zodiacSelectValue(opt.zodiacal, opt.siderealAyanamsa)} onChange={(v)=>this.onAstroZodiacalChange(v)} dropdownMatchSelectWidth={false}>
+								{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+									<OptGroup label={grp.group} key={grp.group}>
+										{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+									</OptGroup>
+								))}
 							</Select>
 						</label>
 					</div>
@@ -3853,9 +3884,12 @@ class SanShiUnitedMain extends Component{
 								</Select>
 							</div>
 							<div>
-								<Select size="small" value={opt.zodiacal} onChange={(v)=>this.onAstroFieldOptionChange('zodiacal', v)} style={{ width: '100%' }}>
-									<Option value={0}>回归黄道</Option>
-									<Option value={1}>恒星黄道</Option>
+								<Select size="small" value={AstroConst.zodiacSelectValue(opt.zodiacal, opt.siderealAyanamsa)} onChange={(v)=>this.onAstroZodiacalChange(v)} dropdownMatchSelectWidth={false} style={{ width: '100%' }}>
+									{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+										<OptGroup label={grp.group} key={grp.group}>
+											{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+										</OptGroup>
+									))}
 								</Select>
 							</div>
 							<div>

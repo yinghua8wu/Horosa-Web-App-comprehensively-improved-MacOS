@@ -125,6 +125,7 @@ class WebChartSrv:
                     'zone': data['zone'],
                     'tradition': perchart.tradition,
                     'zodiacal': perchart.zodiacal,
+                    'siderealAyanamsa': perchart.siderealAyanamsa,
                     'doubingSu28': perchart.su28Mode,
                     'showPdBounds': data.get('showPdBounds', 1),
                     'pdtype': perchart.pdtype,

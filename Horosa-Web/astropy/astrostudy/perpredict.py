@@ -1174,6 +1174,7 @@ class PerPredict:
             cparams = copy.deepcopy(params)
             cparams['date'] = dirparts[0]
             cparams['time'] = dirparts[1]
+            cparams['siderealAyanamsa'] = self.perchart.siderealAyanamsa
             obj = {
                 'date': srdtstr,
                 'chart': {
@@ -1194,12 +1195,13 @@ class PerPredict:
         zone = params['zone']
         returnDate = Datetime(dt, tm, zone)
         srDate = dateSolarReturn(returnDate, sun.lon, self.perchart.zodiacal)
-        chart = Chart(srDate, self.perchart.pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS)
+        chart = Chart(srDate, self.perchart.pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
         srdt = Datetime.fromJD(srDate.jd, srDate.utcoffset)
         srdtstr = srdt.toCNString()
         dirparts = srdtstr.split(' ')
         params['date'] = dirparts[0]
         params['time'] = dirparts[1]
+        params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
         obj = {
             'date': srdtstr,
             'chart': {
@@ -1219,12 +1221,13 @@ class PerPredict:
         zone = params['zone']
         returnDate = Datetime(dt, tm, zone)
         srDate = dateSolarReturn(returnDate, sun.lon, self.perchart.zodiacal)
-        chart = Chart(srDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS)
+        chart = Chart(srDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
         srdt = Datetime.fromJD(srDate.jd, srDate.utcoffset)
         srdtstr = srdt.toCNString()
         dirparts = srdtstr.split(' ')
         params['date'] = dirparts[0]
         params['time'] = dirparts[1]
+        params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
 
         obj = {
             'date': srdtstr,
@@ -1251,12 +1254,13 @@ class PerPredict:
         zone = params['zone']
         returnDate = Datetime(dt, tm, zone)
         lrDate = dateLunarReturn(returnDate, moon.lon, self.perchart.zodiacal)
-        chart = Chart(lrDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS)
+        chart = Chart(lrDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
         srdt = Datetime.fromJD(lrDate.jd, lrDate.utcoffset)
         srdtstr = srdt.toCNString()
         dirparts = srdtstr.split(' ')
         params['date'] = dirparts[0]
         params['time'] = dirparts[1]
+        params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
 
         obj = {
             'date': srdtstr,
@@ -1280,13 +1284,14 @@ class PerPredict:
             zone = params['zone']
             returnDate = Datetime(dt, tm, zone)
             seclrDate = dateLunarReturn(returnDate, moon.lon, self.perchart.zodiacal)
-            secchart = Chart(seclrDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS)
+            secchart = Chart(seclrDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
             srdt = Datetime.fromJD(seclrDate.jd, seclrDate.utcoffset)
             srdtstr1 = srdt.toCNString()
             dirparts1 = srdtstr1.split(' ')
             params1 = copy.deepcopy(params)
             params1['date'] = dirparts1[0]
             params1['time'] = dirparts1[1]
+            params1['siderealAyanamsa'] = self.perchart.siderealAyanamsa
             parts = dirparts1[0].split('-')
             if parts[1] == m:
                 obj1 = {
@@ -1312,9 +1317,10 @@ class PerPredict:
         tm = parts[1]
         zone = params['zone']
         givenDate = Datetime(dt, tm, zone)
-        chart = Chart(givenDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS)
+        chart = Chart(givenDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
         params['date'] = parts[0]
         params['time'] = parts[1]
+        params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
 
         obj = {
             'date': date,

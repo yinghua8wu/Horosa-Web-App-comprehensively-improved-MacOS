@@ -31,16 +31,19 @@ class ModernAstroSrv:
             if 'zodiacal' in data.keys():
                 zodiacal = data['zodiacal']
 
+            ayan = data.get('siderealAyanamsa', '')
             inner = data['inner']
             outer = data['outer']
             inner['tradition'] = False
             inner['predictive'] = False
             inner['hsys'] = hsys
-            inner['zodical'] = zodiacal
+            inner['zodiacal'] = zodiacal
+            inner['siderealAyanamsa'] = ayan
             outer['tradition'] = False
             outer['predictive'] = False
             outer['hsys'] = hsys
-            outer['zodical'] = zodiacal
+            outer['zodiacal'] = zodiacal
+            outer['siderealAyanamsa'] = ayan
 
             relative = 0
             if 'relative' in data.keys():

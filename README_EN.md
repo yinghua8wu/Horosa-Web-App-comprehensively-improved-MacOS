@@ -8,12 +8,12 @@
 
 **Western astrology and Chinese metaphysics, in one native macOS workstation**
 
-[![Version](https://img.shields.io/badge/version-2.6.3-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
+[![Version](https://img.shields.io/badge/version-2.6.4-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.4)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.4)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.4)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.4/Horosa-Installer-macos-arm64-offline.pkg) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@ This repository is the macOS delivery of that app: the application source, the s
 
 Regular users should go straight to the offline installer and open Horosa like any other macOS app.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.4/Horosa-Installer-macos-arm64-offline.pkg)**
 
 Best for:
 
@@ -91,19 +91,17 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## What's New in v2.6.3 beta
+## What's New in v2.6.4 beta
 
-This release is a deep polish pass on **AI Analysis** — chat experience, settings, and the backend provider matrix are all rounded out, with a wave of user-visible bug fixes. Every technique's chart computation is identical to v2.6.2.
+This release's headline is the **sidereal zodiac, fully built out**, with AI Analysis export/mount/storage kept in sync, plus two previously-finished feature sets folded in. Default behavior is bit-for-bit identical to v2.6.3:
 
-- **AI Analysis — chat UX** — code-block copy + syntax highlighting (highlight.js), auto-scroll pause + floating "jump to latest", auto-collapse reasoning when stream finishes + "copy thinking", drag/paste images straight into the composer, "current mount" status bar above the input, first-reply **true AI-generated 6-14 char short title** (no more truncated intro fluff), in-conversation export (Markdown / JSON / Word), errors shown as Alert with a Retry button, Markdown rendering now includes LaTeX math (KaTeX).
-- **AI Analysis — settings & providers** — API Key uses Password input (eye toggle + whitespace-stripping paste), connection chip surfaces latency and failure detail in a tooltip, provider "advanced" split into three collapsible groups (models / auth / body), provider list switch between card and dense table views, model list auto-fetches when a new provider is saved.
-- **AI Analysis — materials / templates / bundles** — full-pane drag-and-drop material upload with non-blocking batch queue progress and one-time decision for duplicates, grid/list switch for materials, new folder management drawer (CRUD + "move to…"), template editor variable inference sidebar + live JSON Schema validation, template version diff modal, bundle "apply preview".
-- **AI Analysis — backend (jar rebuilt)** — usage/cost metering via a new `usage` SSE event across OpenAI/Anthropic/Gemini/Ollama; full Gemini vision support; Anthropic/Gemini/Ollama get **explicit** stop sequences / JSON mode / thinking-level mapping instead of pass-through; reasoning-model detection synced front-and-back across gpt-5/6/7 and o1/3/4/5/6/7.
-- **Export / Mount** — Qizheng Siyu gains "patterns" and "aspects" sections; Wuzhao / Taixuan / Jingjue / Shenyishu are now mountable; the "Fenzhi" chart-style buttons that did nothing are fixed.
-- **Stability** — removed the "Unhandled Rejection: prompt() is not supported" crash under the Tauri shell (all 7 native `window.prompt/confirm/alert` calls replaced by Modal async dialogs); fixed several `<Dropdown overlay>` memory leaks; ingest-files batch is unmount-safe; image upload has onerror handling and a 10 MB/image cap.
-
-The notarized offline `.pkg`, app zip, runtime archive, and manifest are aligned to `2.6.3 / 2.6.3-runtime1`. Full log on the [v2.6.3 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3).
-
+- **Sidereal — all 47 ayanāṃśas** — every Western chart's zodiac selector goes from binary tropical/sidereal to **tropical + 47 ayanāṃśas** (Lahiri/Raman/Fagan-Bradley/KP…), each computed through Swiss Ephemeris and shifting the chart; the ring labels the active ayanāṃśa. Backward compatible.
+- **Western Nakshatra** — under sidereal, each planet card gains the 27-mansion + lord + pada.
+- **Indian astrology** — clipped left-panel dropdowns fixed; ayanāṃśa 6→47, house systems 4→24 (all via pyswisseph).
+- **AI Analysis four-way sync** — dual-chart techniques (returns, solar arc, profection, given-year, planetary arc, primary-directions chart, Vedic/Jayne progressions) now mount/export a full natal + period config; Indian/Qizheng/Western mount settings expose all options; Persian Directed gains a 50–200 year switch; export sections sync (settings 23→24, auto-migrated).
+- **Fixes** — natal AI-snapshot signature distinguishes the specific ayanāṃśa; electional time-context sub-charts follow the main ayanāṃśa; primary-directions form fidelity.
+- **Folded in · AI report generation** — BaZi/ZiWei, 6 templates at 8/12/20 sections, streamed, optional embedded chart screenshots, Markdown/Word/PDF/HTML export.
+- **Folded in · Startup robustness (Mac #12)** — transparent 30s retry, rich error dialog, backend health dot, staged startup messaging.
 ## Under the Hood
 
 - **Frontend** — React 17 + Umi 3 + TypeScript with Ant Design; D3 for chart drawing, Babylon.js / Three.js for 3D, Plotly for astrocartography maps, and Monaco for editing AI-export templates

@@ -378,6 +378,11 @@ public class ChartController {
 		}else {
 			params.put("zodiacal", 0);
 		}
+		// 恒星黄道岁差(ayanāṃśa):必须显式转发给 Python(perchart 读 siderealAyanamsa 解析 SE 模式),
+		// 否则前端选的 Raman/Fagan 等被 getParams 丢弃 → 永远落 Lahiri 默认、度数不变(同 pd* 透传坑)。
+		if(TransData.containsParam("siderealAyanamsa")) {
+			params.put("siderealAyanamsa", TransData.get("siderealAyanamsa"));
+		}
 		if(TransData.containsParam("gpsLat")) {
 			params.put("gpsLat", TransData.get("gpsLat"));
 			params.put("gpsLon", TransData.get("gpsLon"));

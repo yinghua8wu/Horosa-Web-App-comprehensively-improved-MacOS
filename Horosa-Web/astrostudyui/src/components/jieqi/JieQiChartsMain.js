@@ -27,7 +27,7 @@ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/d
 import { appendPlanetHouseInfo, appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
 
 const TabPane = Tabs.TabPane;
-const {Option} = Select
+const {Option, OptGroup} = Select
 const JIEQI_STD = [
 	'小寒', '大寒', '立春', '雨水', '惊蛰', '春分',
 	'清明', '谷雨', '立夏', '小满', '芒种', '夏至',
@@ -140,6 +140,9 @@ function paramsToFields(params, flds){
 		zodiacal: {
 			value: params.zodiacal,
 		},
+		siderealAyanamsa: {
+			value: params.siderealAyanamsa,
+		},
 		doubingSu28: {
 			value: (doubingSu28Val === true || parseInt(doubingSu28Val, 10) === 1) ? 1 : 0,
 		},
@@ -214,7 +217,7 @@ function fieldsToState(fields){
 		lat: fields.lat.value,
 		lon: fields.lon.value,
 		hsys: fields.hsys.value,
-		zodiacal: fields.zodiacal.value,
+		zodiacal: fields.zodiacal.value, siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
 		gpsLat: fields.gpsLat.value,
 		gpsLon: fields.gpsLon.value,
 		doubingSu28: fields.doubingSu28.value,
@@ -244,6 +247,7 @@ function getChartCacheKey(params, term, birth){
 		birth,
 		params && params.hsys,
 		params && params.zodiacal,
+		params && params.siderealAyanamsa,
 		params && params.doubingSu28,
 	].join('|');
 }
@@ -434,6 +438,7 @@ function buildChartRequestParams(params, birth){
 		hsys: params.hsys,
 		southchart: false,
 		zodiacal: params.zodiacal,
+		siderealAyanamsa: params.siderealAyanamsa,
 		tradition: 0,
 		doubingSu28: params.doubingSu28,
 		strongRecption: 0,
@@ -837,6 +842,7 @@ export class JieQiChartsMain extends Component{
 			ad: now.ad,
 			hsys: 0,
 			zodiacal: 0,
+			siderealAyanamsa: '',
 			doubingSu28: 0,
 			gpsLat: Constants.DefGpsLat,
 			gpsLon: Constants.DefGpsLon,
@@ -924,6 +930,7 @@ export class JieQiChartsMain extends Component{
 			lat: this.state.lat,
 			hsys: this.state.hsys,
 			zodiacal: this.state.zodiacal,
+			siderealAyanamsa: this.state.siderealAyanamsa,
 			gpsLat: this.state.gpsLat,
 			gpsLon: this.state.gpsLon,
 			doubingSu28: this.state.doubingSu28,
@@ -1161,7 +1168,7 @@ export class JieQiChartsMain extends Component{
 				lon: p.lon,
 				lat: p.lat,
 				hsys: p.hsys,
-				zodiacal: p.zodiacal,
+				zodiacal: p.zodiacal, siderealAyanamsa: p.siderealAyanamsa,
 			});
 			saveModuleAISnapshot('jieqi_current', buildJieQiCurrentSnapshotText(this.state.currentTab, result, fields, this.state.jieqis, this.props.planetDisplay), {
 				year: p.year,
@@ -1169,7 +1176,7 @@ export class JieQiChartsMain extends Component{
 				lon: p.lon,
 				lat: p.lat,
 				hsys: p.hsys,
-				zodiacal: p.zodiacal,
+				zodiacal: p.zodiacal, siderealAyanamsa: p.siderealAyanamsa,
 				currentTab: this.state.currentTab,
 			});
 		};
@@ -1288,8 +1295,10 @@ export class JieQiChartsMain extends Component{
 	}
 
 	changeZodiacal(val){
+		const parsed = AstroConst.parseZodiacSelectValue(val);
 		this.setState({
-			zodiacal: val,
+			zodiacal: parsed.zodiacal,
+			siderealAyanamsa: parsed.siderealAyanamsa,
 		}, ()=>{
 			this.requestJieQi()
 		})
@@ -1636,12 +1645,16 @@ export class JieQiChartsMain extends Component{
 							/>
 						</Col>
 						<Col span={3}>
-							<Select 
+							<Select
 								style={{width: '100%'}}
 								onChange={this.changeZodiacal}
-								value={this.state.zodiacal} size='small'>
-								<Option value={0}>回归黄道</Option>
-								<Option value={1}>恒星黄道</Option>
+								dropdownMatchSelectWidth={false}
+								value={AstroConst.zodiacSelectValue(this.state.zodiacal, this.state.siderealAyanamsa)} size='small'>
+								{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+									<OptGroup label={grp.group} key={grp.group}>
+										{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+									</OptGroup>
+								))}
 							</Select>
 						</Col>
 						<Col span={3}>

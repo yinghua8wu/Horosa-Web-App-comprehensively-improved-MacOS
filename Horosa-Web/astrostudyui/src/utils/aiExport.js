@@ -112,8 +112,11 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 // v22 — R2 对抗自检:八字「多运限·指定时段」/ 紫微「运限」段未登记进 PRESET_SECTIONS,自定义过导出段+设了多运限的
 //        用户,显式要的多运限段被 filterContentByWantedSections 静默删。补 preset 末尾两段 + 升版让旧用户迁移时 union 并入。
 // v23 — 七政四余补「政余格局/相位」两段:右栏 Moira 面板已显示但此前未进快照/导出。同 v22 范式(补 preset + 升版 union)。
-export const AI_EXPORT_SETTINGS_VERSION = 23;
-const AI_EXPORT_SECTION_MIGRATION_VERSION = 23;
+// v24 — 占星双盘技法补「本命盘配置/时段盘配置」段(返照/小限/太阳弧/流年/主限法盘/行星弧/Vedic/Jayne):预测快照把旧[星盘信息]
+//        拆成[本命盘配置]+[时段盘配置]、主限法盘加[主限法盘配置]。自定义过导出段的老用户原会被静默删→同 v22/v23 范式
+//        (补 preset + 升版 union + 星盘信息→时段盘配置 legacy map)。
+export const AI_EXPORT_SETTINGS_VERSION = 24;
+const AI_EXPORT_SECTION_MIGRATION_VERSION = 24;
 const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	// v18 补:占星/星运核心 + 卜卦/择日(此前漏登记)。务必与新增「有 preset 的技法」同步(aiExport.test 跨系统自检守)。
 	'astrochart',
@@ -324,19 +327,19 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	primarydirect: ['出生时间', '星盘信息', '主/界限法设置', '主/界限法表格'],
 	distributions: ['界推运（分配法 / Distributions）'],
 	agepoint: ['年龄推进点（Age Point / Huber）'],
-	primarydirchart: ['出生时间', '星盘信息', '主/界限法设置', '主/界限法表格'],
+	primarydirchart: ['出生时间', '星盘信息', '主限法盘设置', '本命盘配置', '主限法盘配置', '主限法盘说明'],
 	zodialrelease: ['起盘信息', '星盘信息', '基于X点推运'],
 	firdaria: ['出生时间', '星盘信息', '法达星限表格'],
-	profection: ['星盘信息', '起盘信息', '相位'],
-	solararc: ['星盘信息', '起盘信息', '相位'],
-	solarreturn: ['星盘信息', '起盘信息', '相位'],
-	lunarreturn: ['星盘信息', '起盘信息', '相位'],
-	givenyear: ['星盘信息', '起盘信息', '相位'],
+	profection: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
+	solararc: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
+	solarreturn: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
+	lunarreturn: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
+	givenyear: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
 	decennials: ['起盘信息', '星盘信息', '十年大运设置', '基于X起运'],
 	planetaryages: ['行星年龄（Ages of Man）'],
-	vedicprog: ['恒星推运（Vedic Sidereal）'],
-	jaynesprog: ['赤纬推运（Jayne Declination）'],
-	planetaryarc: ['行星弧（Planetary Arc）'],
+	vedicprog: ['恒星推运（Vedic Sidereal）', '本命盘配置', '时段盘配置 二次推运位置'],
+	jaynesprog: ['赤纬推运（Jayne Declination）', '本命盘配置', '时段盘 赤纬平行/反平行'],
+	planetaryarc: ['行星弧（Planetary Arc）', '本命盘配置', '时段盘配置', '相位'],
 	persiandirected: ['波斯向运（Persian Directed）'],
 	yearsystem129: ['129年系统表格'],
 	balbillus: ['Balbillus'],
@@ -929,6 +932,13 @@ function filterContentByWantedSections(content, wanted){
 
 function mapLegacySectionTitle(key, title){
 	const normalized = normalizeSectionTitle(title);
+	// v24：返照/小限/太阳弧/流年 旧[星盘信息]段拆为[本命盘配置]+[时段盘配置]，老用户存的 星盘信息 迁到 时段盘配置。
+	if(key === 'profection' || key === 'solararc' || key === 'solarreturn' || key === 'lunarreturn' || key === 'givenyear'){
+		if(normalized === '星盘信息'){
+			return '时段盘配置';
+		}
+		return normalized;
+	}
 	if(key === 'tongshefa'){
 		if(normalized === '互潜'){
 			return '潜藏';

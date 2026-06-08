@@ -8,6 +8,139 @@
 
 ---
 
+## v2.6.4（2026-06-08 发布）· 恒星黄道 47 岁差全栈 + 西洋月宿 + 印占补齐 + AI 四同步（合并 启动健壮性#12 / AI报告v1）
+
+> **Windows 必做两件：① 同步 8 个 Java 控制器并 JDK17 重编 jar；② 同步 Python 排盘组件。** 其余（恒星黄道 UI / 月宿 / AI 四同步 / 启动健壮性 / AI 报告）都是 Mac/Win 共享前端，拉前端后自动受益。下方原「未发版」两条（启动健壮性、AI 报告）即本版合并发布的内容。
+
+### 必须同步 ①（Java，否则恒星黄道 ayanāṃśa 在 Windows 不生效）
+- 8 个控制器 `getParams()` 各在 `put("zodiacal", ...)` 旁补 `if(TransData.containsParam("siderealAyanamsa")) put("siderealAyanamsa", ...)`：
+  - `astrostudycn`：`ChartController` / `QueryChartController` / `JieQiController` / `PlanetariumController`
+  - `astrostudy`：`GermanyTechController` / `ModernChartController` / `AstroExtraController` / `PredictiveController`
+- **重编**：`mvn install` astrostudy + astrostudycn → `mvn clean package` astrostudyboot（**必 clean**，否则 jar:jar 跳过 repackage、嵌套 lib jar 不更新）。
+- **验证**：抽 `BOOT-INF/lib/astrostudycn-*.jar` 内 `ChartController.class`，`grep -a siderealAyanamsa` 应 >0。**坑：macOS/部分 `strings` 遇 .class 的 `CAFEBABE` 魔数会误判 Mach-O 报错返 0 → 用 `grep -a` 或 `javap -p -c` 验。**
+
+### 必须同步 ②（Python 排盘引擎）
+- 新增 `astropy/astrostudy/nakshatra.py`（27 宿表）；`india/jyotish_engine.py` 改 re-import。
+- `astropy/astrostudy/perchart.py`：`siderealMode` 解析（`normalize_ayanamsa`）+ 序列化 res 加 `nakshatras` / `siderealAyanamsa`。
+- `astropy/astrostudy/perpredict.py`：directed `Chart(...)` 加 `sidereal_mode`、6 个 dirParams 加 `siderealAyanamsa`。
+- `astropy/astrostudy/india/india_chart_kernel.py`：分宫制 4→24、黄道 6→47（SE_SIDM 0–46）。
+- **响应 echo 命门**：`astropy/websrv/webchartsrv.py`（index）+ `astropy/astrostudy/helper.py`（getChartObj）的 `obj['params']` echo 加 `siderealAyanamsa`（不补则前端 `chartObj.params` 永拿不到、所有派生组件白补）。
+- `astropy/websrv/webmodernsrv.py`：合盘 relative inner/outer 加 `siderealAyanamsa`（顺带修祖传 `zodical`→`zodiacal` typo）。
+
+### 自动受益（纯前端，Win 拉前端即同步）
+- 恒星黄道 47 岁差复合下拉（`AstroConst.buildZodiacOptions`）/ 西洋盘月宿行 / 印占下拉展宽 / AI 四同步（双盘双配置、挂载设置印占·七政·西洋、波斯年数、AI 导出段 `AI_EXPORT_SETTINGS_VERSION` 23→24）。
+- **启动健壮性 #12**（纯前端，见下方原条目）、**AI 报告 v1**（纯前端 + 后端 `/bazi/direct`·`/ziwei/birth` 截图，**无新 Java**）。
+
+> 机制细节见 `实现说明` §「恒星黄道 ayanāṃśa(siderealAyanamsa) 全栈透传」。
+
+---
+
+## 未发版（开发中）· 启动健壮性大批加固（Mac issue #12 / Win 同类历史问题）
+
+- **性质：纯前端加性改造**（新增 2 组件 + 修改 4 文件），**无 Java 改动**，前端 Mac/Win 共享所以 Windows 自动受益。
+- **修改文件**：
+  - `Horosa-Web/astrostudyui/src/services/astro.js` — fetchChart 透明重试 6 → 10 次（累计 12s → 30s），覆盖慢机器 35-60s 首启窗口
+  - `Horosa-Web/astrostudyui/src/models/astro.js` — showChartServiceError 委托到富对话框组件（dva model 不支持 JSX，必须 React 端独立组件）
+  - `Horosa-Web/astrostudyui/src/components/common/StartupGate.js` — 分阶段文案（6s/15s/30s）+ Tauri 环境下加「重试 / 重启后端 / 诊断」按钮 + 长时间未就绪显示后端地址
+  - `Horosa-Web/astrostudyui/src/components/common/ServiceStatusBanner.js` — 离线横幅加「立即重试 / 重启后端 / 打开诊断」按钮
+  - `Horosa-Web/astrostudyui/src/layouts/app.js` — 挂载新增的 BackendStatusDot
+- **新增组件**：
+  - `Horosa-Web/astrostudyui/src/components/common/ChartServiceErrorModal.js` — 「排盘失败：本地服务未就绪」的富对话框（4 类原因 + 4 个操作按钮 + 探测后端 onOk 回调）
+  - `Horosa-Web/astrostudyui/src/components/common/BackendStatusDot.js` — 右下角常驻后端健康指示灯（绿/黄/红圆点 + Popover 详情 + 60s 慢探）
+- **Tauri 命令依赖**（已存在，无需新加）：`trigger_runtime_repair_command` / `open_diagnostics_window_command`
+- **未发版**：本批 commit/push/打包/手测均未做，等 macOS 端用户拍板后再开同步窗口。
+
+---
+
+## 未发版（开发中）· AI 分析「报告」v1.4 工程师级 17 处 audit 修复
+
+3 个并行 Explore agent 找到 19 个潜在 bug，选 17 个真实可触发的全修：
+
+**Pipeline / Queue**:
+- ConcurrentQueue 暴露 `getErrors()/getStats()`，drain 后 successRate < 40% 跳过辅助节
+- isContentTruncated 加 `ELLIPSIS_END_RE` 识别 `...` `。。。` `…` `等等` 收尾视为截断
+- 续写循环改 `while(true) + 头部 if(continueAttempts >= MAX_CONTINUE) break` 严格限制最多 2 次
+- renderTemplateVars 防嵌套（替换值里的 `{{` 转 placeholder）
+- resolveSchoolPrompt 未知流派给通用 fallback guideline
+- INTRO/OUTRO maxTokens 2500→120/500（按实际产出贴近）
+
+**Capture / Fetch**:
+- ChartCaptureMount 内 fetch 加 `fetchWithTimeout` 15s + AbortController
+- ChartCaptureMount readyEmitted immediate flip 防 setState error/result 接连触发双调
+- reportChartCapture 加 `captureLock` 全局 Promise 串行化截图任务
+
+**UI / Modal**:
+- ChartServiceErrorModal `handleCopyDiag` async + await + 真实 success/error message
+- ChartServiceErrorModal `tauriInvoke` async + await + successMsg/errorMsg 参数
+- BackendStatusDot `handleRestart/handleDiag` 同步 await + 反馈
+- ServiceStatusBanner `handleRestart/handleDiag` 同步 await + console.warn
+- ReportGenerator useEffect 移除 form 依赖 + eslint-disable 注释
+- ReportPane 跨 tab 自动恢复改 functional setState 防 stale closure race
+
+**测试**:
+- reportTruncation.test.js 加 4 用例覆盖省略号收尾（567→571 全过）
+
+---
+
+## 未发版（开发中）· AI 分析「报告」v1.3 截断问题彻底修复
+
+用户截图反馈报告内容被截断（"但坐支辰土（日柱"、"甲木偏财透出，申金" 等末句没收尾）。**4 重根因式修复**：
+1. **maxTokens 全节 bulk-bump**: 1000-1800 → 2500-5000（命主基本/性格/健康 2500；用神/格局/婚姻/事业 3500；大运/流年 4000-5000）
+2. **`isContentTruncated` 检测 + 自动续写**: 末尾非合法终止符 → `streamSectionReply` 追发续写请求（"下面是你刚才输出的最后部分被截断了…请从这里继续写下去"），最多 2 次，用 prefixContent 累加流到 UI 不让用户感知"重新开始"
+3. **per-section `temperature`/`topP`**: mkSection 加默认 0.6/0.9；streamSectionReply 加 `applySamplingParams` 按 provider 家族下发；推理模型自动跳过 temperature
+4. **prompt 加「输出完整性·铁律」段**: 必须完整句号/感叹号/问号收尾、临近上限宁可省略子段、禁 "..." 收尾；retryFallbackPrompt 同步
+
+**修改文件**:
+- `Horosa-Web/astrostudyui/src/utils/reportTemplates.js` — mkSection 加 temperature/topP/完整性铁律 + 全节 maxTokens bump
+- `Horosa-Web/astrostudyui/src/utils/reportPipeline.js` — streamSectionReply 重写为「首轮 + 最多 2 次自动续写」+ usage 累加
+- `Horosa-Web/astrostudyui/src/utils/__tests__/reportTruncation.test.js` — 新增 8 用例（jest 559→567/567 全过）
+
+---
+
+## 未发版（开发中）· AI 分析「报告」v1.2 关键 bug 修复
+
+**用户截图反馈 4 处根因（2026-06-07 第三轮）**：
+1. `loadCaseSnapshot(technique, caseId)` 传 `{caseId}` 给 `buildBaziSnapshotForParams` → 后端报 `Miss date` → 所有节空跑、AI 回"没八字信息"。**修**：先 `sources[i].record` 拿 chart record → `buildChartBaziParams/buildChartZiweiParams` 转 params → 再 build。
+2. **并发 2 让节乱序完成**（用户看到节 3 先于 1/2）→ 改 `concurrency: 1` 严格按 order 顺序生成。
+3. **ChartCaptureMount 内部 render 错误浮到 dev overlay**（`TypeError: Cannot read properties of undefined (reading 'value')`）→ 加 `CaptureErrorBoundary` + `ReactDOM.render` 包 try/catch + onCaptureError 不 reject 让占位图被截。
+4. **空 snapshot 也照跑 pipeline 浪费 12 节 token** → fail-loud 三道防线（空字符串/<20字/缺关键段 `[起盘信息]`+`[四柱与三元]`/`[宫位总览]`）+ Modal.error 列具体原因。
+
+**修改文件**：
+- `Horosa-Web/astrostudyui/src/components/aianalysis/ReportPane.js` — loadCaseSnapshot 改 record→params; handleStartGenerate fail-loud 三道防线 + 防重复触发 + concurrency 1
+- `Horosa-Web/astrostudyui/src/components/common/ChartCaptureMount.js` — CaptureErrorBoundary + 错误状态也 onCaptureReady（截占位图）
+- `Horosa-Web/astrostudyui/src/utils/reportChartCapture.js` — ReactDOM.render 包 try/catch
+- `Horosa-Web/astrostudyui/src/utils/aiAnalysisContext.js` — export buildChartBaziParams/buildChartZiweiParams
+
+---
+
+## 未发版（开发中）· AI 分析「报告」v1.1 增补：嵌图实装 + e2e 验证
+
+- **性质：纯前端加性改造**（1 个新组件 + 1 个改组件 + 1 个 utils 导出），无 Java 改动。
+- **新增**: `Horosa-Web/astrostudyui/src/components/common/ChartCaptureMount.js` — 命盘图捕获挂载组件（独立非 Redux，fetch 走 `/bazi/direct` 或 `/ziwei/birth` POST + 渲染 PaiBaZi/ZiWeiChart + 紫微 palace-highlight via inline `<style>`）。
+- **修改**:
+  - `utils/reportChartCapture.js` — 改用 ChartCaptureMount，移除原本 lazy import BaZi/ZiWei 的设计；caseRecord 替代 caseId 传入。
+  - `utils/aiAnalysisContext.js` — 导出 `buildChartBaziParams` / `buildChartZiweiParams`，供 ChartCaptureMount 复用 record→params 转换。
+  - `components/aianalysis/ReportPane.js` `doChartCapture` 改成传 `sources.find(s=>s.id===caseId).record` 给 captureChartByType。
+- **端到端验证**: preview 里 inject IndexedDB 测试报告实例 → 报告 tab 列表 + 详情页（26 h2 + 12 TOC + intro alert + 末页）全渲染 OK；后端断开时嵌图调用会 graceful return null 不阻塞。Windows 自动受益。
+- **未发版**: 等 macOS 用户拍板后再开同步窗口。
+
+---
+
+## 未发版（开发中）· AI 分析「报告」功能 v1（首批）
+
+- **性质：纯前端加性改造**（新增 8 utils + 2 React 组件 + 修改 5 文件），**无 Java 改动**。详见 [`ai-report-feature-v1.md`](ai-report-feature-v1.md)。
+- **新依赖**：`html-to-image@^1.11.13`（已加入 `Horosa-Web/astrostudyui/package.json`）。Windows 同步前端时务必 `npm install`。
+- **IndexedDB schema bump**: `aiAnalysisStore.js` `AI_ANALYSIS_SCHEMA_VERSION 3→4` + `DB_VERSION 3→4`（自动 migrate 创建 `report_templates` + `report_instances` 两 stores + `materials.schools` 字段）。
+- **AI 分析右栏 SECONDARY_TABS 加 'report'**（在 templates 与 settings 之间）。
+- **预置 6 套报告模板**（八字 8/12/20 + 紫微 8/12/20）在 `utils/reportTemplates.js` 硬编码 readOnly。
+- **预置 9 套流派 guideline**（八字 5 + 紫微 4）在 `utils/reportSchools.js`。
+- **资料 (materials) 加 schools 字段**：资料编辑表单新增「流派」Tag 多选输入；卡片显 `<Tag color="cyan">` chip。
+- **聊天栏「📄 报告」快捷按钮**：一键切到报告 tab 并预填当前 activeSource → technique/caseId。
+- **截图基础设施已建** (`utils/reportChartCapture.js`)：用 React Portal 隐藏挂载点 + html-to-image 懒加载；首批 BaZi.js / ZiWeiMain.js 未实装 `embeddedMode='capture'` props，截图会 10s timeout 后返回 null，报告生成不阻塞、章节仍正常生成纯文本。Windows 同步无需为此特别做事，等 Mac 端下版补 capture mode 时一起同步。
+- **未发版**：本批 commit/push/打包/手测均未做，等 macOS 端用户拍板后再开同步窗口。
+
+---
+
 ## v2.6.3（发版中）· AI 分析深度打磨 + 大批稳定性修复
 
 - **性质：前端 17 项 + 后端 4 项加性改造（已重编 jar），含 Tauri `prompt() is not supported` 崩溃修复（关键）**。详见 [`ai-analysis-comprehensive-enhancements-v3.md`](ai-analysis-comprehensive-enhancements-v3.md)。

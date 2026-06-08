@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 
-function downloadBlob(fileName, blob){
+export function downloadBlob(fileName, blob){
 	const url = (window.URL || window.webkitURL).createObjectURL(blob);
 	const link = document.createElement('a');
 	link.style.display = 'none';

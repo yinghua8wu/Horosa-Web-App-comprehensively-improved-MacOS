@@ -102,6 +102,9 @@ public class QueryChartController {
 		chart.put("_wireRev", "pd_method_sync_v8");
 		chart.put("hsys", TransData.getValueAsInt("hsys", 0));
 		chart.put("zodiacal", TransData.getValueAsInt("zodiacal", 0));
+		if(TransData.containsParam("siderealAyanamsa")) {
+			chart.put("siderealAyanamsa", TransData.get("siderealAyanamsa"));
+		}
 		chart.put("predictive", TransData.getValueAsBool("predictive", false));
 		chart.put("includePrimaryDirection", TransData.getValueAsBool("includePrimaryDirection", false));
 		if(TransData.containsParam("pdtype")) {

@@ -93,6 +93,9 @@ public class ModernChartController {
 		params.put("outer", outer);
 		params.put("hsys", TransData.getValueAsInt("hsys", 0));
 		params.put("zodiacal", TransData.getValueAsInt("zodiacal", 0));
+		if(TransData.containsParam("siderealAyanamsa")) {
+			params.put("siderealAyanamsa", TransData.get("siderealAyanamsa"));
+		}
 		params.put("relative", TransData.getValueAsInt("relative", 0));
 		
 		return params;

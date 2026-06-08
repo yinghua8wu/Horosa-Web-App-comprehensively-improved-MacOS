@@ -16,6 +16,7 @@ import { GLOSSARY } from '../../divination/data/glossary';
 import { openDivinationCaseDrawer, getDivinationSavedCasePayload } from '../../utils/divinationCaseSave';
 
 const Option = XQSelect.Option;
+const OptGroup = XQSelect.OptGroup;
 
 // 卜卦盘 / 择日盘 共用的自包含三栏页（左设置+调时 / 中圆盘 / 右判断）。
 // 时间/地点/设置全部用本地 state，独立于「占星」主盘，不回灌父级 astro model。
@@ -30,6 +31,7 @@ class DivinationChartShell extends Component{
 		const defs = props.defaults || {};
 		seed.tradition = { value: defs.tradition !== undefined ? defs.tradition : 1, name: ['tradition'] };
 		seed.zodiacal = { value: defs.zodiacal !== undefined ? defs.zodiacal : 0, name: ['zodiacal'] };
+		seed.siderealAyanamsa = { value: defs.siderealAyanamsa !== undefined ? defs.siderealAyanamsa : '', name: ['siderealAyanamsa'] };
 		if(defs.hsys !== undefined){
 			seed.hsys = { value: defs.hsys, name: ['hsys'] };
 		}
@@ -324,10 +326,14 @@ class DivinationChartShell extends Component{
 					<div className="horosa-field-block">
 						<div className="horosa-field-label">黄道</div>
 						<XQSelect style={{ width: '100%' }} size="small"
-							value={fields.zodiacal ? fields.zodiacal.value : 0}
-							onChange={(val)=>this.changeField('zodiacal', val)}>
-							<Option value={0}>回归黄道</Option>
-							<Option value={1}>恒星黄道</Option>
+							value={AstroConst.zodiacSelectValue(fields.zodiacal ? fields.zodiacal.value : 0, fields.siderealAyanamsa && fields.siderealAyanamsa.value)}
+							dropdownMatchSelectWidth={false}
+							onChange={(val)=>{ const p = AstroConst.parseZodiacSelectValue(val); this.patchFields({ zodiacal: p.zodiacal, siderealAyanamsa: p.siderealAyanamsa }); }}>
+							{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+								<OptGroup label={grp.group} key={grp.group}>
+									{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+								</OptGroup>
+							))}
 						</XQSelect>
 					</div>
 					<div className="horosa-field-block">

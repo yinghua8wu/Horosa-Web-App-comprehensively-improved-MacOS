@@ -26,6 +26,7 @@ import XQIcon from '../xq-icons';
 
 const TabPane = XQTabs.TabPane;
 const Option = XQSelect.Option;
+const OptGroup = XQSelect.OptGroup;
 
 function fieldValue(fields, key, fallback = ''){
 	if(!fields || !fields[key]){
@@ -98,18 +99,22 @@ class AstroChartMain extends Component{
 	}
 
 	changeZodiacal(val){
+		// val 为复合值 'tropical' | 'sidereal:<ayanamsaKey>' → 拆成 zodiacal(0/1) + siderealAyanamsa
+		const parsed = AstroConst.parseZodiacSelectValue(val);
 		if(this.props.onChange){
 			if(this.tmHook.getValue){
 				let tm = this.tmHook.getValue().value;
 				this.props.onChange({
-					zodiacal: val,
+					zodiacal: parsed.zodiacal,
+					siderealAyanamsa: parsed.siderealAyanamsa,
 					tm: tm,
 					ad: tm.ad,
 					zone: tm.zone,
 				});
 			}else{
 				this.props.onChange({
-					zodiacal: val,
+					zodiacal: parsed.zodiacal,
+					siderealAyanamsa: parsed.siderealAyanamsa,
 				});
 			}
 
@@ -299,7 +304,8 @@ class AstroChartMain extends Component{
 		const lon = fieldValue(fields, 'lon', params.lon || '--');
 		const lat = fieldValue(fields, 'lat', params.lat || '--');
 		const zone = params.zone || fieldValue(fields, 'zone', '--');
-		const zodiacal = AstroText.AstroMsg[zodiacalRaw] || AstroText.AstroTxtMsg[zodiacalRaw] || zodiacalRaw || '--';
+		const ayanKey = fieldValue(fields, 'siderealAyanamsa', '') || params.siderealAyanamsa || (chart && chart.siderealAyanamsa) || '';
+		const zodiacal = zodiacalRaw ? AstroConst.zodiacalDisplayText(zodiacalRaw, ayanKey) : '--';
 		const hsys = AstroText.AstroMsg[hsysRaw] || hsysRaw || '--';
 		const sect = chart.isDiurnal === undefined || chart.isDiurnal === null ? '昼夜未定' : (chart.isDiurnal ? '日生盘' : '夜生盘');
 		const dayofweek = chart.dayofweek || '';
@@ -525,9 +531,13 @@ class AstroChartMain extends Component{
 							<XQSelect
 								style={{width: '100%'}}
 								onChange={this.changeZodiacal}
-								value={this.props.fields.zodiacal.value} size='small'>
-								<Option value={0}>回归黄道</Option>
-								<Option value={1}>恒星黄道</Option>
+								dropdownMatchSelectWidth={false}
+								value={AstroConst.zodiacSelectValue(this.props.fields.zodiacal.value, this.props.fields.siderealAyanamsa && this.props.fields.siderealAyanamsa.value)} size='small'>
+								{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+									<OptGroup label={grp.group} key={grp.group}>
+										{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+									</OptGroup>
+								))}
 							</XQSelect>
 						</div>
 					) : null}
@@ -660,11 +670,15 @@ class AstroChartMain extends Component{
 							<XQSelect
 								style={{width: '100%'}}
 								onChange={this.changeZodiacal}
-								value={this.props.fields.zodiacal.value}
+								dropdownMatchSelectWidth={false}
+								value={AstroConst.zodiacSelectValue(this.props.fields.zodiacal.value, this.props.fields.siderealAyanamsa && this.props.fields.siderealAyanamsa.value)}
 								size="small"
 							>
-								<Option value={0}>回归黄道</Option>
-								<Option value={1}>恒星黄道</Option>
+								{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+									<OptGroup label={grp.group} key={grp.group}>
+										{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+									</OptGroup>
+								))}
 							</XQSelect>
 						</div>
 					) : null}

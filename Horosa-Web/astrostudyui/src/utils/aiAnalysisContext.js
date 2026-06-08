@@ -315,13 +315,16 @@ function buildFieldObject(record){
 		pos: { value: record.pos || '' },
 		hsys: { value: record.hsys !== undefined ? record.hsys : 0 },
 		zodiacal: { value: record.zodiacal !== undefined ? record.zodiacal : 0 },
+		// 恒星黄道盘挂载 AI 时,沿用该盘保存的 ayanāṃśa(缺省 ''=后端默认 Lahiri),
+		// 使 AI 快照行星经度与盘面一致(全链路:储存→挂载→AI)。
+		siderealAyanamsa: { value: record.siderealAyanamsa !== undefined ? record.siderealAyanamsa : '' },
 		// AI 挂载「每技法设置」可覆盖的占星排盘开关:优先读 record(挂载重算时 merge 进 record.*),
 		// 缺省回退现状默认(0)→ 不调任何项时与现状逐字一致(守「默认即现状」)。
 		tradition: { value: record.tradition !== undefined && record.tradition !== null ? record.tradition : 0 },
 		strongRecption: { value: record.strongRecption !== undefined && record.strongRecption !== null ? record.strongRecption : 0 },
 		simpleAsp: { value: record.simpleAsp !== undefined && record.simpleAsp !== null ? record.simpleAsp : 0 },
 		virtualPointReceiveAsp: { value: record.virtualPointReceiveAsp !== undefined && record.virtualPointReceiveAsp !== null ? record.virtualPointReceiveAsp : 0 },
-		doubingSu28: { value: record.doubingSu28 ? 1 : 0 },
+		doubingSu28: { value: record.doubingSu28 !== undefined && record.doubingSu28 !== null ? Number(record.doubingSu28) : undefined },
 		houseStartMode: { value: 0 },
 		predictive: { value: 1 },
 		showPdBounds: { value: 1 },
@@ -351,6 +354,9 @@ function buildFieldObject(record){
 		southchart: { value: record.southchart !== undefined && record.southchart !== null ? record.southchart : 0 },
 		// 七政四余命度/罗计模式:挂载设置可经 record 携带(缺省 undefined → builder 回退全局 localStorage 默认,即现状)。
 		guolaoLifeMode: { value: record.guolaoLifeMode !== undefined && record.guolaoLifeMode !== null ? record.guolaoLifeMode : undefined },
+		// 印占：岁差制/分宫制(挂载设置可调,缺省回退印占默认)。
+		indiaHsys: { value: record.indiaHsys !== undefined && record.indiaHsys !== null ? record.indiaHsys : undefined },
+		indiaAyanamsa: { value: record.indiaAyanamsa !== undefined && record.indiaAyanamsa !== null ? record.indiaAyanamsa : undefined },
 		guolaoNodeMode: { value: record.guolaoNodeMode !== undefined && record.guolaoNodeMode !== null ? record.guolaoNodeMode : undefined },
 		// 容许度（对齐 models/astro.js fieldsToParams）：
 		//  - orbScale(整体缩放,数字):挂载可经 record.orbScale 覆盖(0.5–2.5,默认1);缺省/1 → undefined(后端零回归=现状)。
@@ -375,7 +381,7 @@ function fieldParams(fields){
 		gpsLon: fields.gpsLon.value,
 		hsys: fields.hsys.value,
 		southchart: fields.southchart.value,
-		zodiacal: fields.zodiacal.value,
+		zodiacal: fields.zodiacal.value, siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
 		tradition: fields.tradition.value,
 		doubingSu28: fields.doubingSu28.value,
 		strongRecption: fields.strongRecption.value,
@@ -853,6 +859,8 @@ function buildChartBaziPeriodFromRecord(record){
 }
 
 // 命盘技法的出生参数（形状对齐各组件 genParams：date 'YYYY-MM-DD' / time 'HH:mm:ss'）。
+// 报告功能: 导出供 reportChartCapture 等模块复用,把 chart record 转成 bazi/ziwei 起盘 params。
+export { buildChartBaziParams, buildChartZiweiParams };
 function buildChartBaziParams(record){
 	const fields = buildFieldObject(record);
 	const params = {
@@ -1376,7 +1384,7 @@ async function buildPredictivePeriodSnapshot(chartObj, key, opts){
 			gpsLat: np.gpsLat,
 			gpsLon: np.gpsLon,
 			hsys: np.hsys,
-			zodiacal: np.zodiacal,
+			zodiacal: np.zodiacal, siderealAyanamsa: np.siderealAyanamsa,
 			tradition: np.tradition,
 			datetime: datetimeForPoint,
 			tmType: tmType,
@@ -1817,6 +1825,8 @@ function parseAstroSnapshotSignature(signature){
 		lat: `${parts[4] || ''}`.trim(),
 		zodiacal: `${parts[5] || ''}`.trim(),
 		hsys: `${parts[6] || ''}`.trim(),
+		// parts[7]=isDiurnal、parts[8]=onlyRulerExalt（不参与匹配）；parts[9]=恒星黄道 ayanāṃśa（新增，旧签名缺→''）。
+		siderealAyanamsa: `${parts[9] || ''}`.trim(),
 	};
 }
 
@@ -1853,6 +1863,12 @@ function hasMatchingSavedAstroSnapshot(record){
 		return null;
 	}
 	if(!(parsed.birth || parsed.zone || parsed.lon || parsed.lat)){
+		return null;
+	}
+	// 恒星黄道 ayanāṃśa 变更须使旧快照失效：两侧都有非空 ayanāṃśa 且不同 → 不复用（重新生成）。
+	// 仅「都非空且不同」才拦截：旧签名/回归盘/默认恒星 ayanāṃśa 为空 → 跳过 → 向后兼容（最坏多抓一次，绝不误用旧盘）。
+	const recAyan = normalizeSnapshotMatchText(record.siderealAyanamsa);
+	if(parsed.siderealAyanamsa && recAyan && parsed.siderealAyanamsa !== recAyan){
 		return null;
 	}
 	return snapshot;

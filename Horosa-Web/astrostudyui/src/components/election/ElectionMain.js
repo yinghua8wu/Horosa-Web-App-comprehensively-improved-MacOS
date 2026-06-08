@@ -61,7 +61,7 @@ class ElectionMain extends Component{
 			gpsLat: f.gpsLat ? f.gpsLat.value : 39.9,
 			gpsLon: f.gpsLon ? f.gpsLon.value : 116.38,
 			hsys: f.hsys ? f.hsys.value : 0,
-			zodiacal: f.zodiacal ? f.zodiacal.value : 0,
+			zodiacal: f.zodiacal ? f.zodiacal.value : 0, siderealAyanamsa: f.siderealAyanamsa ? f.siderealAyanamsa.value : '',
 			tradition: f.tradition ? f.tradition.value : 1,
 		};
 	}
@@ -72,7 +72,7 @@ class ElectionMain extends Component{
 		const baseStr = baseDt.format('YYYY-MM-DD');
 		const geo = this.geoFromFields();
 		const minus = (d) => moment(baseStr, 'YYYY-MM-DD').subtract(d, 'days').format('YYYY-MM-DD');
-		const fieldsLike = { zone: geo.zone, lon: geo.lon, lat: geo.lat, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, hsys: geo.hsys, zodiacal: geo.zodiacal, tradition: geo.tradition };
+		const fieldsLike = { zone: geo.zone, lon: geo.lon, lat: geo.lat, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, hsys: geo.hsys, zodiacal: geo.zodiacal, siderealAyanamsa: geo.siderealAyanamsa, tradition: geo.tradition };
 		const mk = async (m) => { if(!m){ return null; } const R = await chartAtMoment(m, fieldsLike); return R ? buildFacts(R) : null; };
 		this.setState({ mundaneLoading: true });
 		try{
@@ -106,7 +106,7 @@ class ElectionMain extends Component{
 			zone: rec.zone, lat: rec.lat, lon: rec.lon,
 			gpsLat: rec.gpsLat, gpsLon: rec.gpsLon,
 			hsys: (this._fields && this._fields.hsys ? this._fields.hsys.value : 0),
-			zodiacal: 0, tradition: 1, predictive: 0, pdaspects: [0, 60, 90, 120, 180],
+			zodiacal: (this._fields && this._fields.zodiacal ? this._fields.zodiacal.value : 0), siderealAyanamsa: (this._fields && this._fields.siderealAyanamsa ? this._fields.siderealAyanamsa.value : ''), tradition: 1, predictive: 0, pdaspects: [0, 60, 90, 120, 180],
 		};
 		this.setState({ natalLoading: true });
 		try{

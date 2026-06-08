@@ -18,6 +18,7 @@ from flatlib import props
 from flatlib import utils
 from flatlib.tools import arabicparts
 from flatlib.ephem import swe
+from astrostudy.nakshatra import nakshatra_from_lon
 from astrostudy.helper import distance
 from astrostudy.jieqi.realsuntime import getOffsetByDate
 
@@ -443,6 +444,20 @@ class PerChart:
         self.eastRa = None
         self.isDoubingSu28 = self.su28Mode == SU28_MODE_DOUBING
         siderealMode = ZHENG_SIDEREAL_MODE if self.isZhengSidereal else None
+        # 用户在「黄道 → 恒星黄道」下选了具体 ayanāṃśa(Lahiri/Raman/KP… 全 47)→ 用该模式;
+        # 缺省(空)走 Swiss Ephemeris 现默认(=Lahiri),与改前逐位一致,向后兼容。
+        self.siderealAyanamsa = ''
+        if siderealMode is None and self.zodiacal == const.SIDEREAL:
+            ayan_key = data.get('siderealAyanamsa') or data.get('ayanamsa') or ''
+            if ayan_key:
+                try:
+                    from astrostudy.india.india_chart_kernel import normalize_ayanamsa
+                    resolved = normalize_ayanamsa(ayan_key)
+                    siderealMode = resolved
+                    self.siderealAyanamsa = resolved.get('key', '')
+                except Exception:
+                    siderealMode = None
+        self.siderealMode = siderealMode
 
         self.needpars = True
         if 'needpars' in data.keys():
@@ -773,6 +788,8 @@ class PerChart:
             'hsys': self.house,
             'houses': houses,
             'objects': objs,
+            'nakshatras': ({o.id: nakshatra_from_lon(o.lon) for o in objs} if self.zodiacal == const.SIDEREAL else None),
+            'siderealAyanamsa': self.siderealAyanamsa,
             'isDiurnal': self.isDiurnal,
             'antiscias': self.getAntiscia(),
             'stars': self.getStars(),
@@ -841,6 +858,8 @@ class PerChart:
             'hsys': self.house,
             'houses': houses,
             'objects': objs,
+            'nakshatras': ({o.id: nakshatra_from_lon(o.lon) for o in objs} if self.zodiacal == const.SIDEREAL else None),
+            'siderealAyanamsa': self.siderealAyanamsa,
             'isDiurnal': self.isDiurnal
         }
         return res

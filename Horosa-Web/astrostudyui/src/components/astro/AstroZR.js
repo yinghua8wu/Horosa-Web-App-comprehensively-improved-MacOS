@@ -282,7 +282,7 @@ function zrNatalParamsStandalone(chartObj, startSign){
 		hsys: qp.hsys,
 		tradition: qp.tradition,
 		birth: qp.birth,
-		zodiacal: qp.zodiacal,
+		zodiacal: qp.zodiacal, siderealAyanamsa: qp.siderealAyanamsa,
 		startSign: startSign !== undefined ? startSign : null,
 		stopLevelIdx: 3,
 	};
@@ -435,7 +435,7 @@ class AstroZR extends Component{
 			hsys: qryparam.hsys,
 			tradition: qryparam.tradition,
 			birth: qryparam.birth,
-			zodiacal: qryparam.zodiacal,
+			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
 		};
 		return params;
 	}

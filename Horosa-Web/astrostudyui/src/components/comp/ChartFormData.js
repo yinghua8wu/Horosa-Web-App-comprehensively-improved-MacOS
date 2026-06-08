@@ -10,8 +10,10 @@ import { applyDstToFields } from '../../utils/timezone';
 import DstZoneIndicator from './DstZoneIndicator';
 import {getHousesOption} from './CompHelper';
 import { XQButton, XQInput, XQSelect } from '../xq-ui';
+import * as AstroConst from '../../constants/AstroConst';
 
 const Option = XQSelect.Option;
+const OptGroup = XQSelect.OptGroup;
 
 export default class ChartFormData extends Component{
 	constructor(props) {
@@ -90,7 +92,9 @@ export default class ChartFormData extends Component{
 	}
 
 	changeZodiacal(val){
-		this.setValue('zodiacal', val);
+		const parsed = AstroConst.parseZodiacSelectValue(val);
+		this.setValue('zodiacal', parsed.zodiacal);
+		this.setValue('siderealAyanamsa', parsed.siderealAyanamsa);
 	}
 
 	changeHSys(val){
@@ -363,9 +367,12 @@ export default class ChartFormData extends Component{
 						<Row>
 							<Col span={24}>黄道系统：</Col>
 							<Col span={24}>
-								<XQSelect value={flds.zodiacal.value} onChange={this.changeZodiacal} style={{width: '100%'}}>
-									<Option value={0}>回归黄道</Option>
-									<Option value={1}>恒星黄道</Option>
+								<XQSelect value={AstroConst.zodiacSelectValue(flds.zodiacal.value, flds.siderealAyanamsa && flds.siderealAyanamsa.value)} onChange={this.changeZodiacal} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
+									{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+										<OptGroup label={grp.group} key={grp.group}>
+											{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+										</OptGroup>
+									))}
 								</XQSelect>
 							</Col>
 						</Row>

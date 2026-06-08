@@ -264,6 +264,10 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         if(values.zodiacal !== undefined && values.zodiacal !== null){
             flds.zodiacal.value = values.zodiacal;
         }
+        if(values.siderealAyanamsa !== undefined && values.siderealAyanamsa !== null){
+            if(!flds.siderealAyanamsa){ flds.siderealAyanamsa = { value: '', name: ['siderealAyanamsa'] }; }
+            flds.siderealAyanamsa.value = values.siderealAyanamsa;
+        }
         if(values.lon !== undefined && values.lon !== null){
             flds.lon.value = values.lon;
             flds.lat.value = values.lat;

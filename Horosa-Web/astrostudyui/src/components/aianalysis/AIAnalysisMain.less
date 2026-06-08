@@ -867,6 +867,24 @@
 	margin-bottom: 0;
 }
 
+// v1.16-BB3: 超长代码块横向滚动而不破裂对话框
+.markdownBody pre {
+	overflow-x: auto;
+	overflow-y: hidden;
+	max-width: 100%;
+	white-space: pre;
+	word-break: normal;
+	-webkit-overflow-scrolling: touch;
+}
+.markdownBody pre code {
+	white-space: pre;
+	word-break: normal;
+}
+.markdownBody code:not(pre code) {
+	word-break: break-all;
+	white-space: pre-wrap;
+}
+
 .markdownBody h1,
 .markdownBody h2,
 .markdownBody h3,

@@ -8,12 +8,12 @@
 
 **把占星与中国术数，收进一个原生 macOS 工作站**
 
-[![Version](https://img.shields.io/badge/version-2.6.3-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
+[![Version](https://img.shields.io/badge/version-2.6.4-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.4)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.4)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.4)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.4/Horosa-Installer-macos-arm64-offline.pkg) ·
 [入口页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@
 
 普通用户直接下载离线安装包，像任何 macOS 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.3/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.4/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合场景：
 
@@ -91,19 +91,17 @@
 
 命盘与事盘都能本地保存：带标签、快照与后端原始结构化数据，可 JSON 导入导出，重开后恢复现场。
 
-## v2.6.3 beta 更新
+## v2.6.4 beta 更新
 
-这一版集中对 **AI 分析** 做深度打磨:聊天体验、设置、后端 Provider 矩阵都补齐,配套修了一批让用户能感知的 bug。所有技法的命盘计算与 v2.6.2 一致。
+这一版主线是**恒星黄道（sidereal）全面补齐**，并把 AI 分析的导出/挂载/储存全部同步到位；另合并两套此前完成的功能。默认行为与 v2.6.3 逐位一致：
 
-- **AI 分析 · 聊天体验** —— 代码块复制+语法高亮、上滚暂停自动滚动+「跳到最新」浮动按钮、推理面板流完自动折叠+「复制思考」、对话栏拖拽/粘贴图片、「当前挂载」状态条、首回**真 AI 生成 6-14 字短标题**(不再截开头废话)、活动对话内导出 Markdown/JSON/Word、错误改 Alert+重试按钮、Markdown 渲染补 LaTeX 数学公式(KaTeX)。
-- **AI 分析 · 设置与接口** —— API Key 用 Password 输入框(粘贴去空白)、连接 chip 显示延迟与失败详情、Provider「高级」三段折叠、Provider 列表「卡片/紧凑」切换、新 Provider 保存后自动拉模型列表。
-- **AI 分析 · 资料/模版/组合** —— 资料全 pane 拖拽上传+非阻塞批量队列进度+重复文件一次性决策、卡片/列表切换、新增文件夹管理 Drawer+「移动到」、模板编辑变量推断侧栏+JSON Schema 实时校验、模板版本 diff 弹层、组合包「应用预览」。
-- **AI 分析 · 后端补齐(已重编 jar)** —— 用量/费用计量(SSE 新 `usage` 事件,四家 Provider 全覆盖,消息底显 token 与估算成本);Gemini 视觉补齐;Anthropic/Gemini/Ollama 停止序列/JSON 模式/思考档**显式映射**而非透传;reasoning 模型识别同步 gpt-5/6/7、o1/3/4/5/6/7。
-- **导出/挂载** —— 七政四余补「政余格局/相位」段;五兆/太玄筮法/荆诀/神易数补 AI 挂载;「分至」星盘样式按钮失效修复。
-- **稳定性** —— 消除 Tauri 桌面壳下 `window.prompt/confirm/alert` 引发的崩溃(全 7 处改用 Modal 异步替代);修若干 Dropdown 内存泄漏;资料批量导入末段卸载安全;图片上传 onerror+10MB/张上限。
-
-公证离线 `.pkg`、app zip、runtime 包与 manifest 已统一对齐到 `2.6.3 / 2.6.3-runtime1`。完整改动见 [v2.6.3 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.3)。
-
+- **恒星黄道 · 47 种岁差全补** —— 所有西洋占星盘（命占/合盘/中点/三维/卜卦/三式/节气）的「黄道」从 回归/恒星 二元扩为 **回归 + 47 种 ayanāṃśa**（Lahiri/Raman/Fagan-Bradley/KP… 分组下拉），每种经 Swiss Ephemeris 真实位移；盘圈标注岁差名。向后兼容，默认仍是回归。
+- **西洋盘月宿（Nakshatra）** —— 选恒星黄道时，行星卡片新增 27 宿 + 宿主 + pada。
+- **印度占星补齐** —— 左栏下拉遮挡修复；岁差制 6→47、分宫制 4→24（全走 pyswisseph）。
+- **AI 分析四同步** —— 双盘技法（返照/小限/太阳弧/流年/行星弧/主限法盘/Vedic·Jayne 推运）挂载与导出补「本命盘 + 时段盘」双配置；印占/七政/西洋盘挂载设置补齐；波斯向运加「应期年数」开关（50–200）；AI 导出段同步（版本 23→24 自动迁移）。
+- **修复** —— AI 快照签名纳入具体岁差（换制不误用旧快照）、择日时势合参子盘随主盘岁差、主限法盘表单字段保真。
+- **合并 · AI 分析「报告」生成** —— 八字/紫微 6 套预置模板（8/12/20 节），分节流式生成，章节可嵌入命盘截图，4 种导出（Markdown/Word/PDF/HTML）。
+- **合并 · 启动健壮性加固（Mac #12）** —— 排盘服务未就绪透明重试 30s、富错误对话框、右下角后端健康灯、分阶段启动文案。
 ## 技术构成
 
 - **前端** —— React 17 + Umi 3 + TypeScript，Ant Design；D3 绘盘，Babylon.js / Three.js 三维，Plotly 星体地图，Monaco 编辑 AI 导出模板
