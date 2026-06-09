@@ -8,6 +8,34 @@
 
 ---
 
+## v2.6.5（2026-06-08 发布）· 合盘交互链全面重建 + AI「起课时间」挂载 8→13 技法 + Python 数值 geo 容错
+
+> **Windows 必做一件：同步 Python 排盘组件**（helper.py / realsuntime.py / 5 个 Main.js builder 已是 Mac/Win 共享前端，拉前端即同步）。**Java jar 本版未改**（合盘端点恢复是前端改 URL，不需重编 jar）。其余（合盘交互链、AI 起课时间补 5 法、Python 数值 geo、导航搜索、关于框图标）都是共享前端，拉前端后自动受益。
+
+### 必须同步（Python 排盘引擎，2 个文件）
+- `astropy/astrostudy/helper.py` —— `convertLonStrToDegree / convertLatStrToDegree` 加 `isinstance(lon/lat, (int, float))` 数值分支（地图选点存的浮点经纬度，字符串路径原样）。
+- `astropy/astrostudy/jieqi/realsuntime.py` —— `getBaseLonByZone` 加 `isinstance(zone, (int, float))` 数值时区分支。
+- **不需重编 jar / 不需 Windows 改 Java 任何文件**（合盘端点恢复 = 前端 `AstroRelative.js` 改 URL 从 `:8899` 回 `:9999`，原来的 Java `ModernChartController` v2.6.4 就已经在了）。
+
+### 自动受益（纯前端，Win 拉前端即同步）
+- **合盘 5 子盘全可用** —— `AstroRelative.js / AstroSynastry.js / AstroMarks.js / AstroComposite.js / AstroTimeSpace.js / pages/index.js / app.less` 全链路改：端点回 `:9999`、ResizeObserver 实测高度、`chartStyle/dispatch/onChange` 透传、`handleRelativeOnChange` 直写 fields、`paramsToFields` 不再覆盖 hsys/zodiacal、删 `hidezodiacal/hidehsys` 标志、黄道 Select 局部 CSS 定宽 50/50。
+- **AI 起课时间挂载补 5 法** —— `TaiXuanMain.js / JingJueMain.js / WuZhaoMain.js / ShenYiShuMain.js` 各新增 `buildXxxSnapshotForFields(fields, opts)` 导出 + `aiAnalysisContext.js` 加 5 imports + 5 switch case + `TIMEPOINT_CASTABLE_SET / listAnalysisTechniqueOptions` 两份同步含 13 项 + `buildFieldObject` 兜底 `record.divTime` + `techniqueMountSettings.js` 4 法升 `kind:'payload'` + `AIAnalysisMain.js` 一键挂载文案 / drawer hint 更新。
+- **顺手修** —— `HomePageSetup.js` + `pages/index.js` 全 22 模块 navigationPages 加 keywords；`PageHeader.js` + 新 `appicon.png` 真 icon；`AstroPersianDirected.js` 应期年数联动表格；`UranianDial.js` glyph stroke:none；`app.less` cetian 字重 700→500 / 800→600；`AIAnalysisMain.js` source select 刷新案例；`AstroEphemeris.js + AstroExtraCommon.js + PlanetariumBabylon.js + xq-ui/styles.less` 一批小修。
+
+### 自检 / 测试更新
+- `release_preflight.sh` 新增 [37] / [38] / [39] 3 个 sentinel 块（分别锁起课时间 13 技法 + builder opts + divTime 兜底 / 合盘端点 + 交互链全检 + 黄道 Select 定宽 / Python helper 数值 geo）。
+- `aiAnalysisContext.test.js` 新增 `listAnalysisTechniqueOptions(timepoint) 必含全 13 项` 断言。
+- `techniqueMountSettings.test.js` `SECTIONS_ONLY` 常量收紧到 4 项（sixyao / tongshefa / mundane / huangji）。
+- jest 657 → **658** 全过、preflight [37][38][39] 全 ✅、umi build exit 0、py 全栈 import OK。
+
+### 运行时
+- **runtime `2.6.5-runtime1`**：升级时自动下载新 runtime（因 Python 改了 helper / realsuntime，Mac/Windows 各自的桌面壳启动器走 updater 拉新 runtime tarball 即同步）。
+
+### v2.6.5 Mac/Win 共享前端 + 隐藏「未发版功能」检查
+本版**不带任何隐藏功能**（没有「这版只 Mac 发，Win 等下版」的差），Win 端拉前端 + 拉本文档列的 Python 2 个文件即与 Mac 完全一致。
+
+---
+
 ## v2.6.4（2026-06-08 发布）· 恒星黄道 47 岁差全栈 + 西洋月宿 + 印占补齐 + AI 四同步（合并 启动健壮性#12 / AI报告v1）
 
 > **Windows 必做两件：① 同步 8 个 Java 控制器并 JDK17 重编 jar；② 同步 Python 排盘组件。** 其余（恒星黄道 UI / 月宿 / AI 四同步 / 启动健壮性 / AI 报告）都是 Mac/Win 共享前端，拉前端后自动受益。下方原「未发版」两条（启动健壮性、AI 报告）即本版合并发布的内容。

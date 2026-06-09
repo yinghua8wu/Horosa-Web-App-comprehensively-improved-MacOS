@@ -354,6 +354,75 @@ describe('aiAnalysisContext', ()=>{
 		expect(chartOptions).not.toContain('fengshui');
 	});
 
+	// 卜卦/术数事盘挂载补全：kentang 法(皇极经世/五兆/太玄/荆诀/神易数)存 payload.snapshot 为字符串。
+	describe('卜卦/术数事盘挂载（payload.snapshot 字符串 + huangji 入 CASE 集）', ()=>{
+		const localcases = require('../localcases');
+		const wuzhaoCase = {
+			cid: 'case-wz',
+			event: '五兆占断',
+			caseType: 'wuzhao',
+			sourceModule: 'wuzhao',
+			// snapshot 为纯字符串（组件 buildSnapshotText(pan)），非对象——本批修复点。
+			payload: JSON.stringify({ module: 'wuzhao', version: 1, snapshot: '[五兆]\n外卦 火 / 内卦 水（结构化快照）' }),
+			divTime: '2026-04-04 11:00:00',
+			updateTime: '2026-04-04 11:00:00',
+		};
+		const huangjiCase = {
+			cid: 'case-hj',
+			event: '皇极经世占断',
+			caseType: 'huangji',
+			sourceModule: 'huangji',
+			payload: JSON.stringify({ module: 'huangji', version: 1, snapshot: '[皇极经世]\n元会运世 经世之卦（结构化快照）' }),
+			divTime: '2026-04-04 11:00:00',
+			updateTime: '2026-04-04 11:00:00',
+		};
+		const toSource = (caze)=>({
+			id: caze.cid, sourceType: 'case', title: caze.event, module: caze.sourceModule,
+			time: caze.divTime, zone: '+08:00', tags: [], snapshotStatus: 'lazy', updatedAt: caze.updateTime, record: caze,
+		});
+
+		test('字符串 payload.snapshot 被 listAnalysisSources 识别为 ready 真盘文本（非泛化摘要）', ()=>{
+			localcases.listLocalCases.mockReturnValueOnce([wuzhaoCase]);
+			const sources = listAnalysisSources();
+			const wz = sources.find((s)=>s.id === 'case-wz');
+			expect(wz).toBeTruthy();
+			expect(wz.snapshotStatus).toBe('ready');
+		});
+
+		test('listAnalysisTechniqueOptions(case) 含 huangji（修前漏登）+ 五兆姊妹法', ()=>{
+			const opts = listAnalysisTechniqueOptions({ sourceType: 'case' }).map((o)=>o.value);
+			expect(opts).toContain('huangji');
+			expect(opts).toContain('wuzhao');
+			expect(opts).toContain('taixuan');
+			expect(opts).toContain('jingjue');
+			expect(opts).toContain('shenyishu');
+		});
+
+		// 起课时间源:必含 huangji + 4 个报数法,与 TIMEPOINT_CASTABLE_SET 同步。少一个 = 实现说明 §G 的下拉里
+		// 看到但点了显「缺失」真因。改 listAnalysisTechniqueOptions(timepoint) 必同改 TIMEPOINT_CASTABLE_SET。
+		test('listAnalysisTechniqueOptions(timepoint) 必含全 13 项 (8 时确定 + 6 报数/起例) — 与 TIMEPOINT_CASTABLE_SET 同步', ()=>{
+			const opts = listAnalysisTechniqueOptions({ sourceType: 'timepoint' }).map((o)=>o.value);
+			['liureng', 'jinkou', 'qimen', 'taiyi', 'sanshiunited', 'horary', 'election',
+				'sixyao', 'huangji', 'taixuan', 'jingjue', 'wuzhao', 'shenyishu'].forEach((k)=>{
+				expect(opts).toContain(k);
+			});
+		});
+
+		test('挂载五兆事盘 → 正文命中字符串 payload.snapshot', async ()=>{
+			const contexts = await getAnalysisTechniqueContexts(toSource(wuzhaoCase), ['wuzhao']);
+			const ctx = contexts.find((c)=>c.key === 'wuzhao');
+			expect(ctx.available).toBe(true);
+			expect(ctx.content).toContain('五兆');
+		});
+
+		test('挂载皇极经世事盘 → 正文命中字符串 payload.snapshot（入 CASE 集后可挂）', async ()=>{
+			const contexts = await getAnalysisTechniqueContexts(toSource(huangjiCase), ['huangji']);
+			const ctx = contexts.find((c)=>c.key === 'huangji');
+			expect(ctx.available).toBe(true);
+			expect(ctx.content).toContain('皇极经世');
+		});
+	});
+
 	test('getAnalysisTechniqueContexts resolves case technique snapshots from payload', async ()=>{
 		const sources = listAnalysisSources();
 		const caseSource = sources.find((item)=>item.id === 'case-1');

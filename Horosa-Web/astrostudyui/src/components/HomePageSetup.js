@@ -19,6 +19,28 @@ const Pages = [{
 	key: 'astroreader',
 }];
 
+// 导航搜索匹配：模块标题 + 分组 + 模块内术法关键词（rec.keywords，见 pages/index.js navigationPages）。
+// 空 query → 全部命中（默认行为不变）。导出供单测。
+export function pageMatchesQuery(rec, query){
+	const q = `${query || ''}`.trim().toLowerCase();
+	if(!q){
+		return true;
+	}
+	const hay = `${rec.label || ''} ${rec.group || ''} ${rec.keywords || ''}`.toLowerCase();
+	return hay.indexOf(q) >= 0;
+}
+
+// 命中是靠 keywords（卡片标题不含 query）时，返回命中的那个术法词，供卡片标注「含 卜卦盘」让用户知道为何出现；
+// 标题直接命中或无 query → 返回 ''（不标注）。
+export function matchedKeyword(rec, query){
+	const q = `${query || ''}`.trim().toLowerCase();
+	if(!q || `${rec.label || ''}`.toLowerCase().indexOf(q) >= 0){
+		return '';
+	}
+	const words = `${rec.keywords || ''}`.split(/\s+/).filter(Boolean);
+	return words.find((w)=>w.toLowerCase().indexOf(q) >= 0) || '';
+}
+
 
 class HomePageSetup extends Component{
 
@@ -109,9 +131,7 @@ class HomePageSetup extends Component{
 		const currentPage = pages.find((rec)=>rec.key === currentKey) || this.state.page || pages[0];
 		const currentGroup = this.state.activeGroup || (currentPage ? currentPage.group : null) || '命';
 		const searchValue = `${this.state.searchValue || ''}`.trim();
-		const visiblePages = searchValue ? pages.filter((rec)=>{
-			return `${rec.label || ''}${rec.group || ''}`.toLowerCase().indexOf(searchValue.toLowerCase()) >= 0;
-		}) : pages;
+		const visiblePages = searchValue ? pages.filter((rec)=>pageMatchesQuery(rec, searchValue)) : pages;
 		const groupedPages = visiblePages.reduce((groups, rec)=>{
 			const groupName = rec.group || '其他';
 			if(!groups[groupName]){
@@ -202,20 +222,24 @@ class HomePageSetup extends Component{
 							<section className={`xq-nav-section xq-nav-section-${groupName}`} key={groupName}>
 								<div className="xq-nav-section-title">{groupName}</div>
 								<div className="xq-nav-card-grid">
-									{(groupedPages[groupName] || []).map((rec)=>(
-										<button
-											type="button"
-											key={rec.key}
-											className={`xq-nav-card ${currentKey === rec.key ? 'xq-nav-card-active' : ''}`}
-											onClick={()=>{ this.clickPage(rec); }}
-											title={rec.label}
-										>
-											<span className="xq-nav-card-label">
-												<small>{rec.group || groupName}</small>
-												<strong>{rec.label}</strong>
-											</span>
-										</button>
-									))}
+									{(groupedPages[groupName] || []).map((rec)=>{
+										const hit = searchValue ? matchedKeyword(rec, searchValue) : '';
+										return (
+											<button
+												type="button"
+												key={rec.key}
+												className={`xq-nav-card ${currentKey === rec.key ? 'xq-nav-card-active' : ''}`}
+												onClick={()=>{ this.clickPage(rec); }}
+												title={hit ? `${rec.label} · 含 ${hit}` : rec.label}
+											>
+												<span className="xq-nav-card-label">
+													<small>{rec.group || groupName}</small>
+													<strong>{rec.label}</strong>
+													{hit ? <em className="xq-nav-card-hit">含 {hit}</em> : null}
+												</span>
+											</button>
+										);
+									})}
 									{groupName === '工具' ? (
 										<div className="xq-nav-tool-launcher">
 											<button

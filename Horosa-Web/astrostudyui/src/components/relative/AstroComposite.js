@@ -22,15 +22,7 @@ function paramsToFields(param, flds){
 		lon:{
 			value: param.lon
 		},
-		hsys:{
-			value: param.hsys
-		},
-		zodiacal:{
-			value: param.zodiacal
-		},
-		siderealAyanamsa:{
-			value: param.siderealAyanamsa
-		},
+		// hsys/zodiacal/siderealAyanamsa 保留全局 flds(左栏当前选择),不被 record 老快照覆盖。
 	}
 	return fields;
 }
@@ -76,18 +68,19 @@ class AstroComposite extends Component{
 		}
 
 		return (
-			<div>
-					<AstroChartMain 
+			<div style={{height: height}}>
+					<AstroChartMain
 						value={resobj} 
 					fields={fields} 
-					hidezodiacal={1}
-					hidehsys={1}
 					hidedateselector={1}
 					hidelots={1}
 					height={height} 
 					chartDisplay={this.props.chartDisplay}
 						planetDisplay={this.props.planetDisplay}
 						lotsDisplay={this.props.lotsDisplay}
+						chartStyle={this.props.chartStyle}
+						dispatch={this.props.dispatch}
+						onChange={this.props.onChange}
 						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 						showAstroMeaning={this.props.showAstroMeaning}
 					/>

@@ -207,7 +207,7 @@ export default class UranianDial extends Component {
 				g.append('line').attr('x1', px).attr('y1', py).attr('x2', lx).attr('y2', ly).attr('stroke', tone).attr('stroke-width', 0.7).attr('opacity', 0.42);
 				g.append('circle').attr('cx', px).attr('cy', py).attr('r', 1.9).attr('fill', tone).attr('opacity', 0.85);
 				const gl = g.append('text').attr('x', lx).attr('y', ly).attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-					.attr('font-size', tnp ? baseSz * 0.78 : baseSz).attr('fill', tone)
+					.attr('font-size', tnp ? baseSz * 0.78 : baseSz).attr('fill', tone).attr('stroke', 'none')
 					.attr('font-family', tnp ? 'inherit' : AstroConst.AstroChartFont).attr('font-weight', tnp ? 600 : 400)
 					.style('letter-spacing', tnp ? '0.3px' : '0').style('pointer-events', 'none')
 					.text(glyphCh);

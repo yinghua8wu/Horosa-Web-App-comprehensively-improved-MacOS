@@ -70,8 +70,17 @@ def getMiddleDate(date1, time1, date2, time2):
     return obj
 
 def convertLatStrToDegree(lat):
+    # 数值型纬度(十进制度)直接返回;无 n/s 方向字母的十进制字符串亦容错为浮点。
+    # 否则 lat.lower()/索引会对地图选点存的浮点经纬度(部分命盘 record lat/lon 为 number)崩溃。
+    if isinstance(lat, (int, float)):
+        return float(lat)
+    latstr = str(lat).lower()
+    if ('n' not in latstr) and ('s' not in latstr):
+        try:
+            return float(latstr)
+        except (TypeError, ValueError):
+            return 0.0
     positive = 1
-    latstr = lat.lower()
     parts = latstr.split('n')
     if len(parts) == 1:
         parts = latstr.split('s')
@@ -90,8 +99,17 @@ def convertLatStrToDegree(lat):
 
 
 def convertLonStrToDegree(lon):
+    # 数值型经度(十进制度)直接返回;无 e/w 方向字母的十进制字符串亦容错为浮点。
+    # 否则 lon.lower()/索引会对地图选点存的浮点经纬度崩溃(合盘「'float' object has no attribute 'lower'」真因)。
+    if isinstance(lon, (int, float)):
+        return float(lon)
+    lonstr = str(lon).lower()
+    if ('e' not in lonstr) and ('w' not in lonstr):
+        try:
+            return float(lonstr)
+        except (TypeError, ValueError):
+            return 0.0
     positive = 1
-    lonstr = lon.lower()
     parts = lonstr.split('e')
     if len(parts) == 1:
         parts = lonstr.split('w')

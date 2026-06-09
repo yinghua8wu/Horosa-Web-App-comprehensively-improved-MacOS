@@ -108,6 +108,32 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	return lines.join('\n');
 }
 
+// 当前推运年龄（向运盘时刻相对出生的年数）。与 buildPersianHits 的 hit.age 同单位(年)，
+// 黄经象征向运下「推运时间」对应的弹性年龄即 (datetime − birth)，对所有速率/顺逆都成立。
+// birthStr/datetimeStr 任一无效返回 null（守「无生时不强标年龄」）。
+export function directedAgeYears(birthStr, datetimeStr){
+	if(!birthStr || !datetimeStr){ return null; }
+	const fmts = ['YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD HH:mm', 'YYYY-MM-DD'];
+	const b = moment(`${birthStr}`.replace(/\//g, '-'), fmts);
+	const d = moment(`${datetimeStr}`.replace(/\//g, '-'), fmts);
+	if(!b.isValid() || !d.isValid()){ return null; }
+	return d.diff(b, 'days', true) / 365.2421904;
+}
+
+// 距当前推运时刻最近的应期：先按 |age−currentAge| 取最近 limit 条，再按 age 重排为时间线，
+// 每条加 fromNow=age−currentAge（负=已过、正=将来）。currentAge 非有限数 → []（无生时即不聚焦）。
+export function selectNearbyPersianHits(hits, currentAge, limit = 12){
+	// 显式挡 null/undefined/''：Number(null)===0 会被误当「年龄 0」→ 无生时仍聚焦(错)。
+	if(currentAge === null || currentAge === undefined || currentAge === '' || !Array.isArray(hits) || !hits.length){ return []; }
+	const ca = Number(currentAge);
+	if(!Number.isFinite(ca)){ return []; }
+	const withNow = hits.map((h) => ({ ...h, fromNow: Math.round((h.age - ca) * 100) / 100 }));
+	withNow.sort((a, b) => Math.abs(a.age - ca) - Math.abs(b.age - ca));
+	const near = withNow.slice(0, limit);
+	near.sort((a, b) => a.age - b.age);
+	return near;
+}
+
 class AstroPersianDirected extends Component{
 	constructor(props){
 		super(props);
@@ -115,6 +141,11 @@ class AstroPersianDirected extends Component{
 		const dt = new DateTime();
 		dt.addDate(1);
 		this.state = { params: { ...np, datetime: dt, asporb: 1, nodeRetrograde: false, rateKey: 'persian', direction: 'direct', maxYears: 90 }, dirChart: null };
+		// 终生应期长表的滚动定位：fullListRef=滚动盒、anchorRowNode=当前向运年龄锚点行、lastScrolledAge=去抖。
+		this.fullListRef = null;
+		this.anchorRowNode = null;
+		this.anchorIdx = -1;
+		this.lastScrolledAge = null;
 		this.requestDirection = this.requestDirection.bind(this);
 		this.changeMaxYears = this.changeMaxYears.bind(this);
 		this.requestData = this.requestData.bind(this);
@@ -122,6 +153,9 @@ class AstroPersianDirected extends Component{
 		this.changeDirection = this.changeDirection.bind(this);
 		this.handleTimeChanged = this.handleTimeChanged.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+		this.getCurrentAge = this.getCurrentAge.bind(this);
+		this.scrollToCurrentAge = this.scrollToCurrentAge.bind(this);
+		this.captureAnchorRow = this.captureAnchorRow.bind(this);
 	}
 
 	componentDidMount(){
@@ -130,6 +164,9 @@ class AstroPersianDirected extends Component{
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
+		// 首屏即把终生应期长表定位到当前向运年龄（锚点行在首次 render 已捕获）。
+		this.lastScrolledAge = this.getCurrentAge();
+		this.scrollToCurrentAge();
 	}
 
 	componentDidUpdate(prevProps){
@@ -137,11 +174,43 @@ class AstroPersianDirected extends Component{
 			this.requestData();
 			this.saveSnapshot();
 		}
+		// 推运时间（或换盘）改变当前向运年龄 → 重新定位长表；用 lastScrolledAge 去抖，
+		// 不在 dirChart 异步到达等无关重渲染时抢滚（避免打断用户阅读）。
+		const age = this.getCurrentAge();
+		if(age != null && (this.lastScrolledAge == null || Math.abs(age - this.lastScrolledAge) > 0.001)){
+			this.lastScrolledAge = age;
+			this.scrollToCurrentAge();
+		}
 	}
 
 	componentWillUnmount(){
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
+	}
+
+	// 当前向运年龄 = (推运时间 − 出生)。供「邻近应期」聚焦与长表定位，二者同口径。
+	getCurrentAge(){
+		const birthStr = this.props.value && this.props.value.params ? this.props.value.params.birth : '';
+		const curDt = this.state.params.datetime;
+		const curStr = (curDt && curDt.format) ? curDt.format('YYYY-MM-DD HH:mm:ss') : `${curDt || ''}`;
+		return directedAgeYears(birthStr, curStr);
+	}
+
+	// render 时按行回传 DOM 节点；只留住「当前向运年龄锚点行」(anchorIdx) 供 scrollToCurrentAge 用。
+	// 仅在 node 非空(attach)时记录：忽略内联 ref 每次重渲染的 detach(null) 调用，避免清空锚点。
+	captureAnchorRow(node, row, idx){
+		if(node && idx === this.anchorIdx){ this.anchorRowNode = node; }
+	}
+
+	// 把终生应期长表滚动盒定位到锚点行居中。用 getBoundingClientRect 算盒内偏移，
+	// 不依赖 offsetParent（table 行 offsetParent 有跨浏览器差异），稳健。
+	scrollToCurrentAge(){
+		const box = this.fullListRef;
+		const row = this.anchorRowNode;
+		if(box && row && row.getBoundingClientRect && box.getBoundingClientRect){
+			const offsetWithin = (row.getBoundingClientRect().top - box.getBoundingClientRect().top) + box.scrollTop;
+			box.scrollTop = Math.max(0, offsetWithin - (box.clientHeight / 2));
 		}
 	}
 
@@ -183,6 +252,8 @@ class AstroPersianDirected extends Component{
 		this.setState({ params }, () => {
 			const p = { ...params, datetime: params.datetime.format ? params.datetime.format('YYYY-MM-DD HH:mm') : params.datetime };
 			if(this.props.value){ this.requestDirection(p); }
+			// persiandirected 是「简单模块」，AI 导出读已存模块快照 → 改速率须重存，否则导出取旧快照。
+			this.saveSnapshot();
 		});
 	}
 
@@ -191,12 +262,14 @@ class AstroPersianDirected extends Component{
 		this.setState({ params }, () => {
 			const p = { ...params, datetime: params.datetime.format ? params.datetime.format('YYYY-MM-DD HH:mm') : params.datetime };
 			if(this.props.value){ this.requestDirection(p); }
+			this.saveSnapshot();
 		});
 	}
 
-	// 应期表计算年数(右侧表格不再固定 90 年):仅影响 hits 计算与快照,无需重算左盘。
+	// 应期表计算年数(右侧长表不再固定 90 年):仅影响 hits 计算与快照,无需重算左盘。
+	// 同步重存模块快照 → AI 导出按所选年数输出（挂载另由 record.maxYears 经 aiAnalysisContext 透传）。
 	changeMaxYears(v){
-		this.setState({ params: { ...this.state.params, maxYears: v } });
+		this.setState({ params: { ...this.state.params, maxYears: v } }, () => { this.saveSnapshot(); });
 	}
 
 	handleTimeChanged(val){
@@ -222,8 +295,37 @@ class AstroPersianDirected extends Component{
 			if(b){ const d = new DateTime(); d.parse(`${b}`, 'YYYY-MM-DD HH:mm:ss'); birthDt = d; }
 		}catch(e){ birthDt = null; }
 		const curDt = this.state.params.datetime;
-		const sym = (id) => (AstroText.AstroTxtMsg[id] || `${id}`);
 		const asp = (deg) => (AstroText.AstroTxtMsg['Asp' + deg] || `${deg}°`);
+		// 当前向运年龄 → 「邻近应期」聚焦 + 长表锚点定位（随推运时间重算）。
+		const currentAge = this.getCurrentAge();
+		const nearbyHits = selectNearbyPersianHits(hits, currentAge, 12);
+		// 长表上限 800：应期已被「应期年数」maxYears 约束；persian 速率即便 200 年也不到 800，
+		// 故年数对长表「真生效」；仅退化速率(prophected 全挤 12 年内)才触发上限并提示。
+		const fullHits = hits.length > 800 ? hits.slice(0, 800) : hits;
+		let anchorIdx = -1;
+		if(currentAge != null && fullHits.length){
+			anchorIdx = fullHits.findIndex((h) => h.age >= currentAge);
+			if(anchorIdx < 0){ anchorIdx = fullHits.length - 1; }
+		}
+		this.anchorIdx = anchorIdx;
+		const proRender = (v) => symbolWithMeaning(v, this.props.showAstroMeaning);
+		const sigRender = (v) => (AstroConst.LIST_SIGNS.indexOf(v) >= 0 ? v : symbolWithMeaning(v, this.props.showAstroMeaning));
+		const fullColumns = [
+			{ key: 'age', title: '年龄', render: (v) => v },
+			{ key: 'date', title: '日期', render: (v) => v || '-' },
+			{ key: 'promittor', title: '向运', render: proRender },
+			{ key: 'aspect', title: '相位', render: asp },
+			{ key: 'significator', title: '本命', render: sigRender },
+		];
+		const nearbyColumns = [
+			{ key: 'age', title: '年龄', render: (v) => v },
+			{ key: 'fromNow', title: '距今', render: (v) => (v > 0 ? `+${v}` : `${v}`) },
+			{ key: 'promittor', title: '向运', render: proRender },
+			{ key: 'aspect', title: '相位', render: asp },
+			{ key: 'significator', title: '本命', render: sigRender },
+		];
+		// 当前向运年龄 ±1 年内的应期行加中性高亮（非术数语义色，明暗双主题安全）。
+		const fullRowStyle = (row) => ((currentAge != null && Math.abs(row.age - currentAge) <= 1) ? { background: 'rgba(251,191,36,.16)' } : undefined);
 		const height = this.props.height ? this.props.height : 760;
 		const style = { height: (height - 20) + 'px', overflowY: 'auto', overflowX: 'hidden' };
 		return (
@@ -269,19 +371,30 @@ class AstroPersianDirected extends Component{
 									onAfterChanged={this.handleTimeChanged}
 								/>
 							</div>
-							<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginBottom: 6 }}>左侧双盘：内圈本命、外圈向运（宫头固定本命）。调上方时间即推运左盘。</div>
-							<Divider orientation="left">应期（向运 → 本命）</Divider>
-							<SmallTable
-								rowKey={(r, i) => i}
-								rows={hits.slice(0, 200)}
-								columns={[
-									{ key: 'age', title: '年龄', render: (v) => v },
-									{ key: 'date', title: '日期', render: (v) => v || '-' },
-									{ key: 'promittor', title: '向运', render: (v) => symbolWithMeaning(v, this.props.showAstroMeaning) },
-									{ key: 'aspect', title: '相位', render: (v) => asp(v) },
-									{ key: 'significator', title: '本命', render: (v) => (AstroConst.LIST_SIGNS.indexOf(v) >= 0 ? v : symbolWithMeaning(v, this.props.showAstroMeaning)) },
-								]}
-							/>
+							<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginBottom: 6 }}>
+								左侧双盘：内圈本命、外圈向运（宫头固定本命）。调上方时间即推运左盘。
+								{currentAge != null ? <span style={{ marginLeft: 6 }}>当前推运 <b>{currentAge.toFixed(1)}</b> 岁。</span> : null}
+							</div>
+							<Divider orientation="left">邻近应期（距此刻最近）</Divider>
+							{nearbyHits.length ? (
+								<SmallTable rowKey={(r, i) => `n${i}`} rows={nearbyHits} columns={nearbyColumns} />
+							) : (
+								<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginBottom: 6 }}>（调上方「推运时间」即可定位到此刻邻近的向运应期；无生时则不聚焦。）</div>
+							)}
+							<Divider orientation="left">终生应期（向运 → 本命）</Divider>
+							<div ref={(node) => { this.fullListRef = node; }}
+								style={{ position: 'relative', maxHeight: 320, overflowY: 'auto', overflowX: 'hidden', border: '1px solid rgba(148,163,184,.18)', borderRadius: 4 }}>
+								<SmallTable
+									rowKey={(r, i) => i}
+									rows={fullHits}
+									rowStyle={fullRowStyle}
+									rowRef={this.captureAnchorRow}
+									columns={fullColumns}
+								/>
+							</div>
+							{hits.length > fullHits.length ? (
+								<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginTop: 4 }}>应期过多，已显示前 {fullHits.length} 条（调小「应期年数」以聚焦）。</div>
+							) : null}
 						</div>
 					</Col>
 				</Row>

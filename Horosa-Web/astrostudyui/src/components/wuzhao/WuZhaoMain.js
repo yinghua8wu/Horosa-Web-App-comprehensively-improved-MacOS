@@ -144,6 +144,21 @@ function modeUsesManualSplits(mode){
 	return ['day', 'hour', 'minute', 'tang'].indexOf(mode) >= 0;
 }
 
+// AI 起课时间挂载入口:默认 mode='ganzhi'(干支起例,纯时间确定)+ 不报数;opts 允许用户在挂载设置里覆盖 mode/number/manual/manualSplits。
+export async function buildWuZhaoSnapshotForFields(fields, opts){
+	const dt = parseFieldsDateTime(fields);
+	if(!dt){ return ''; }
+	try{
+		const o = opts || {};
+		const mode = (o.mode === 'day' || o.mode === 'hour' || o.mode === 'minute' || o.mode === 'tang' || o.mode === 'ganzhi') ? o.mode : 'ganzhi';
+		const number = o.number !== undefined && o.number !== null ? Number(o.number) || 0 : 0;
+		const manual = !!o.manual;
+		const manualSplits = Array.isArray(o.manualSplits) && o.manualSplits.length === 6 ? o.manualSplits : DEFAULT_SPLITS;
+		const pan = await postWuZhao('pan', { ...dt, mode, number, manual, manualSplits });
+		return buildSnapshotText(pan);
+	}catch(e){ return ''; }
+}
+
 class WuZhaoMain extends Component{
 	constructor(props){
 		super(props);

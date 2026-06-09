@@ -225,6 +225,47 @@ const TAIYI_FIELDS = [
 	{ name: 'lateZiHourUseNextDay', label: '晚子时·时柱进次日', type: 'switch', options: ON_OFF, default: defaultLateZiHourUseNextDay(), group: '时间换算' },
 ];
 
+// 太玄筮法 / 荆诀 起筮种子:留空 / 0 → buildXxxSnapshotForFields 由起课时间 yyyyMMddHHmm 派生(确定性)。
+// 用户改正数 → 走该 seed(覆盖派生),适用于「报数起筮」想用具体外部数字时。
+const TAIXUAN_FIELDS = [
+	{ name: 'seed', label: '起筮种子 (留空=按起课时间派生)', type: 'number', default: 0, group: '起筮', placeholder: '空 → 按时间派生' },
+];
+const JINGJUE_FIELDS = [
+	{ name: 'seed', label: '起筮种子 (留空=按起课时间派生)', type: 'number', default: 0, group: '起筮', placeholder: '空 → 按时间派生' },
+];
+
+// 五兆神数:WuZhaoMain.state 默认 mode='ganzhi' number=0 manual=false manualSplits=DEFAULT_SPLITS。
+const WUZHAO_FIELDS = [
+	{ name: 'mode', label: '起例模式', type: 'select', default: 'ganzhi', group: '起例', options: [
+		{ value: 'ganzhi', label: '干支起例(默认,纯时间)' },
+		{ value: 'day', label: '按日报数' },
+		{ value: 'hour', label: '按时报数' },
+		{ value: 'minute', label: '按分报数' },
+		{ value: 'tang', label: '按堂报数' },
+	]},
+	{ name: 'number', label: '报数 (mode=报数类时使用)', type: 'number', default: 0, group: '起例' },
+	{ name: 'manual', label: '手动分爻', type: 'switch', options: ON_OFF, default: 0, group: '起例', normalize: (v)=>(v === true || v === 1 || v === '1') },
+];
+
+// 神易数:ShenYiShuMain.state 默认 hourSource='auto' manualHour=0 seasonSource='auto' manualSeason='夏'。
+const SHENYISHU_FIELDS = [
+	{ name: 'hourSource', label: '时辰来源', type: 'select', default: 'auto', group: '起盘', options: [
+		{ value: 'auto', label: '自动(由起课时间推)' },
+		{ value: 'manual', label: '手动指定' },
+	]},
+	{ name: 'manualHour', label: '手动小时 (0-23,仅 hourSource=manual 生效)', type: 'number', default: 0, group: '起盘' },
+	{ name: 'seasonSource', label: '季令来源', type: 'select', default: 'auto', group: '起盘', options: [
+		{ value: 'auto', label: '自动(由起课时间推)' },
+		{ value: 'manual', label: '手动指定' },
+	]},
+	{ name: 'manualSeason', label: '手动季令 (仅 seasonSource=manual 生效)', type: 'select', default: '夏', group: '起盘', options: [
+		{ value: '春', label: '春' },
+		{ value: '夏', label: '夏' },
+		{ value: '秋', label: '秋' },
+		{ value: '冬', label: '冬' },
+	]},
+];
+
 // 六壬起课法：buildLiuRengSnapshotText 第 8 参 castOpts 直接读这些键 + guireng/wuxing 走顶层。
 const LIURENG_FIELDS = [
 	// 起课法：复用 LiuRengMain 导出的 QI_METHODS（25 法，值/名与排盘引擎同源，杜绝手写错值）。
@@ -466,8 +507,8 @@ const PLANETARY_ARC_FIELDS = [
 	...scanRangeDatetimeFields('区间扫描'),
 ];
 
-// 推运·波斯向运（persian directed）：速率(波斯/Prophected/Naibod) + 方向(顺/逆)。
-// builder buildPersianDirectedSnapshotText(chartObj,opts) 加 opts。默认 persian/direct === 无头现状。
+// 推运·波斯向运（persian directed）：速率(波斯/Prophected/Naibod) + 方向(顺/逆) + 应期年数(50/90/120/150/200)。
+// builder buildPersianDirectedSnapshotText(chartObj,opts) 加 opts。默认 persian/direct/90 === 无头现状。
 const PERSIAN_DIRECTED_FIELDS = [
 	{ name: 'rateKey', label: '速率', type: 'select', default: 'persian', group: '向运',
 		options: Object.keys(PERSIAN_RATE_LABEL).map((k)=>({ value: k, label: PERSIAN_RATE_LABEL[k] })) },
@@ -475,6 +516,10 @@ const PERSIAN_DIRECTED_FIELDS = [
 		{ value: 'direct', label: '顺向（+°/年）' },
 		{ value: 'converse', label: '逆向（−°/年）' },
 	] },
+	// 应期年数：与组件右栏一致的 5 档；默认 90 → prune 丢弃 → builder/aiAnalysisContext 缺省 90 = 现状不变。
+	// 数字型 select，prune 走字符串化比较（`90`===`90`）天然可用。
+	{ name: 'maxYears', label: '应期年数', type: 'select', default: 90, group: '向运',
+		options: [50, 90, 120, 150, 200].map((y)=>({ value: y, label: `${y} 年` })) },
 ];
 
 // 推运·恒星推运（vedic）/ 赤纬推运（jayne）：目标日期 + 时刻。
@@ -530,10 +575,13 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	astrochart_like: { kind: 'record', fields: ASTRO_CHART_FIELDS },
 	indiachart: { kind: 'record', fields: INDIA_CHART_FIELDS, emptyHint: '印度盘按出生信息起盘，可调岁差制/分宫制。' },
 	suzhan: { kind: 'record', fields: ASTRO_CHART_FIELDS },
-	// 演禽/策天/皇极：经 ken 后端按出生 fields 起盘，跟随时间换算。
+	// 演禽/策天：经 ken 后端按出生 fields 起盘，跟随时间换算（纯命盘类、无事盘）。
 	xianqin: { kind: 'record', fields: TIME_FIELDS },
 	cetian: { kind: 'record', fields: TIME_FIELDS },
-	huangji: { kind: 'record', fields: TIME_FIELDS },
+	// 皇极经世：双栖——命盘侧按出生重算(buildHuangJiSnapshotForFields)，又可存事盘(报数/起例确定性结果)。
+	// 与五兆/太玄/荆诀/神易数 同列 sectionsOnly：事盘按 payload.snapshot 出正文不重算，且去掉事盘上误显的
+	// TIME_FIELDS 覆盖(对已定型存案无意义、覆盖重算会落空)；命盘侧重算不受 schema.kind 影响(buildTechniqueContext chart 分支仍重算)。
+	huangji: { kind: 'sectionsOnly', reason: '皇极经世按时间确定起盘(命盘侧按出生重算、事盘读已存结果)，仅可勾选纳入内容、不按挂载覆盖重算。' },
 
 	// ---- A 类：星运（主限法 + 三分主星 / Balbillus / 关键点 可调；其余推运参数固定=现状则空 schema）----
 	// 拆分（P5）：表格用年限范围(pdYears,无 datetime)，盘用单一时刻(datetime,无 pdYears)。
@@ -643,10 +691,13 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	// 报数/揲蓍 等确定性起卦术（均已在 CASE_TYPE_OPTIONS 可存为事盘 + saveModuleAISnapshot 存模块快照）：
 	// 此前可存事盘却挂不上，补登记 sectionsOnly（挂载走缓存、不重算），与 sixyao/tongshefa/mundane 同范式。
 	// 注：otherbu(骰子,随机)/fengshui(风水)/jieqi(节气盘) 暂不在 CASE_TYPE_OPTIONS（无事盘存储），不在此补挂载——见 windows/AGENTS 交接。
-	wuzhao: { kind: 'sectionsOnly', reason: '五兆为揲蓍/报数确定性起卦，仅可勾选纳入内容、不重算。' },
-	taixuan: { kind: 'sectionsOnly', reason: '太玄筮法为揲蓍/报数确定性起卦，仅可勾选纳入内容、不重算。' },
-	jingjue: { kind: 'sectionsOnly', reason: '荆诀为报数确定性起课，仅可勾选纳入内容、不重算。' },
-	shenyishu: { kind: 'sectionsOnly', reason: '神易数为报数确定性起盘，仅可勾选纳入内容、不重算。' },
+	// 起课时间挂载补全后,4 个数算技法 builder 收 opts → 可按用户挂载设置真重算:
+	// taixuan/jingjue: seed 覆盖时间派生; wuzhao: mode/number/manual; shenyishu: hourSource/manualHour/seasonSource/manualSeason。
+	// 默认值与各 Main.js state.* 同 → 不改时与现状字节级一致(守「默认即现状」)。
+	wuzhao: { kind: 'payload', optionsPath: '', fields: WUZHAO_FIELDS },
+	taixuan: { kind: 'payload', optionsPath: '', fields: TAIXUAN_FIELDS },
+	jingjue: { kind: 'payload', optionsPath: '', fields: JINGJUE_FIELDS },
+	shenyishu: { kind: 'payload', optionsPath: '', fields: SHENYISHU_FIELDS },
 };
 
 // 星运系里「参数固定 = 现状」的纯推运技法：无可调重算项，但仍登记（显式 emptySchema）让自检无遗漏、UI 显示「仅内容勾选」。

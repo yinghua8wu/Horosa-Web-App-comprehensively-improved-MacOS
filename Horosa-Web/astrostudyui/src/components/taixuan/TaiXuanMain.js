@@ -94,6 +94,22 @@ function buildSnapshotText(pan){
 	return lines.join('\n').trim();
 }
 
+// AI 起课时间挂载入口:把当前时间/地点 fields 推到 kentang taixuan 后端起一盘 → 返回快照文本。
+// seed 默认由起课时间的 yyyyMMddHHmm 派生(不随 Date.now() 漂移),保证同一时间反复挂载得同一卦,符合「时间起卦」语义。
+// opts.seed(用户在挂载设置里覆盖) 优先级最高;opts.seed===undefined 或 0 仍走时间派生。
+export async function buildTaiXuanSnapshotForFields(fields, opts){
+	const dt = parseFieldsDateTime(fields);
+	if(!dt){ return ''; }
+	try{
+		const optSeed = opts && opts.seed !== undefined && opts.seed !== null && opts.seed !== '' ? Number(opts.seed) : null;
+		const seed = (Number.isFinite(optSeed) && optSeed > 0)
+			? Math.floor(optSeed) % 1000000000
+			: (parseInt(dt.date.replace(/-/g, ''), 10) * 10000 + dt.hour * 100 + dt.minute) % 1000000000;
+		const pan = await postTaiXuan('pan', { ...dt, seed });
+		return buildSnapshotText(pan);
+	}catch(e){ return ''; }
+}
+
 class TaiXuanMain extends Component{
 	constructor(props){
 		super(props);

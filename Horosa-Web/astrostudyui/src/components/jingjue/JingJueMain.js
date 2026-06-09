@@ -94,6 +94,20 @@ function buildSnapshotText(pan){
 	return lines.join('\n').trim();
 }
 
+// AI 起课时间挂载入口:同 taixuan 范式,seed 默认由起课时间派生; opts.seed 可被用户在挂载设置里覆盖。
+export async function buildJingJueSnapshotForFields(fields, opts){
+	const dt = parseFieldsDateTime(fields);
+	if(!dt){ return ''; }
+	try{
+		const optSeed = opts && opts.seed !== undefined && opts.seed !== null && opts.seed !== '' ? Number(opts.seed) : null;
+		const seed = (Number.isFinite(optSeed) && optSeed > 0)
+			? Math.floor(optSeed) % 1000000000
+			: (parseInt(dt.date.replace(/-/g, ''), 10) * 10000 + dt.hour * 100 + dt.minute) % 1000000000;
+		const pan = await postJingJue('pan', { ...dt, seed });
+		return buildSnapshotText(pan);
+	}catch(e){ return ''; }
+}
+
 class JingJueMain extends Component{
 	constructor(props){
 		super(props);

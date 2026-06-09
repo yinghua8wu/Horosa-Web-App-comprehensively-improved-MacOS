@@ -911,6 +911,87 @@ node -e 'const p=require(process.argv[1]);if((p.dependencies||{})["pinyin-pro"]|
 [ "${CITY_BAD}" = "0" ] && ok "[36] cityMatch + 折叠表 + citiesFull(简体+拼音) + GeoCoordSelector 委托 + 构建依赖隔离 均在"
 
 
+# [37] 起课时间挂载 13 技法 + 5 builder opts 透传 + buildFieldObject divTime 兜底 (2026-06-08)
+echo "[37] 起课时间挂载 13 技法 + builder opts 透传 + divTime 兜底"
+T37_BAD=0
+T37_AICTX="${REPO_ROOT}/Horosa-Web/astrostudyui/src/utils/aiAnalysisContext.js"
+T37_TMS="${REPO_ROOT}/Horosa-Web/astrostudyui/src/utils/techniqueMountSettings.js"
+T37_TMS_TEST="${REPO_ROOT}/Horosa-Web/astrostudyui/src/utils/__tests__/techniqueMountSettings.test.js"
+T37_AICTX_TEST="${REPO_ROOT}/Horosa-Web/astrostudyui/src/utils/__tests__/aiAnalysisContext.test.js"
+T37_TAIXUAN="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/taixuan/TaiXuanMain.js"
+T37_JINGJUE="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/jingjue/JingJueMain.js"
+T37_WUZHAO="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/wuzhao/WuZhaoMain.js"
+T37_SHENYI="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/shenyishu/ShenYiShuMain.js"
+if [ -f "${T37_AICTX}" ]; then
+  for k in huangji taixuan jingjue wuzhao shenyishu; do
+    awk '/TIMEPOINT_CASTABLE_SET =/' "${T37_AICTX}" | grep -q "${k}" || { bad "[37] TIMEPOINT_CASTABLE_SET 缺 ${k}(下拉能选但显「缺失」)"; T37_BAD=1; }
+  done
+  grep -q "record.birth || record.divTime" "${T37_AICTX}" || { bad "[37] buildFieldObject 未兜底 record.divTime → timepoint 源 5 法时间出 NaN-undefined"; T37_BAD=1; }
+  for k in huangji taixuan jingjue wuzhao shenyishu; do
+    grep -qE "case '${k}':" "${T37_AICTX}" || { bad "[37] regenerateCaseTechniqueSnapshot 缺 case '${k}'(改 settings 不重算)"; T37_BAD=1; }
+  done
+fi
+{ [ -f "${T37_TAIXUAN}" ] && grep -q "buildTaiXuanSnapshotForFields(fields, opts)" "${T37_TAIXUAN}"; } || { bad "[37] TaiXuanMain 缺 buildTaiXuanSnapshotForFields(fields, opts)"; T37_BAD=1; }
+{ [ -f "${T37_JINGJUE}" ] && grep -q "buildJingJueSnapshotForFields(fields, opts)" "${T37_JINGJUE}"; } || { bad "[37] JingJueMain 缺 buildJingJueSnapshotForFields(fields, opts)"; T37_BAD=1; }
+{ [ -f "${T37_WUZHAO}" ] && grep -q "buildWuZhaoSnapshotForFields(fields, opts)" "${T37_WUZHAO}"; } || { bad "[37] WuZhaoMain 缺 buildWuZhaoSnapshotForFields(fields, opts)"; T37_BAD=1; }
+{ [ -f "${T37_SHENYI}" ] && grep -q "buildShenYiShuSnapshotForFields(fields, opts)" "${T37_SHENYI}"; } || { bad "[37] ShenYiShuMain 缺 buildShenYiShuSnapshotForFields(fields, opts)"; T37_BAD=1; }
+if [ -f "${T37_TMS}" ]; then
+  for k in taixuan jingjue wuzhao shenyishu; do
+    grep -qE "${k}: \{ kind: 'payload'" "${T37_TMS}" || { bad "[37] techniqueMountSettings ${k} 必 kind:'payload'(sectionsOnly 不调 regenerate)"; T37_BAD=1; }
+  done
+fi
+if [ -f "${T37_TMS_TEST}" ]; then
+  awk '/SECTIONS_ONLY =/' "${T37_TMS_TEST}" | grep -q "sixyao" || { bad "[37] SECTIONS_ONLY 常量被改"; T37_BAD=1; }
+fi
+[ -f "${T37_AICTX_TEST}" ] && grep -q "timepoint) 必含全 13 项" "${T37_AICTX_TEST}" || { bad "[37] aiAnalysisContext.test.js 缺 13 项 timepoint 锁定断言"; T37_BAD=1; }
+[ "${T37_BAD}" = "0" ] && ok "[37] timepoint 13 技法 + 4 builder opts + divTime 兜底 + 5 switch case + 4 payload schema + 测试锁 均到位"
+
+
+# [38] 合盘 (AstroRelative) 端点 :9999 + 子盘交互全链路 + 黄道 Select 局部定宽 (2026-06-08)
+echo "[38] 合盘端点 + 子盘交互全链路 + 黄道 Select 定宽"
+R38_BAD=0
+R38_REL="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/astro/AstroRelative.js"
+R38_LESS="${REPO_ROOT}/Horosa-Web/astrostudyui/src/layouts/app.less"
+R38_INDEX="${REPO_ROOT}/Horosa-Web/astrostudyui/src/pages/index.js"
+if [ -f "${R38_REL}" ]; then
+  grep -q "Constants.ServerRoot}/modern/relative" "${R38_REL}" || { bad "[38] AstroRelative 合盘端点必走 :9999 Java"; R38_BAD=1; }
+  # 检查非注释行(忽略 // 开头的历史解释注释)
+  grep -vE "^\s*//" "${R38_REL}" | grep -q "resolveKentangServiceRoot" && { bad "[38] AstroRelative 残留 resolveKentangServiceRoot active 代码(:8899 不解密)"; R38_BAD=1; }
+  grep -q "handleRelativeOnChange" "${R38_REL}" || { bad "[38] AstroRelative 缺 handleRelativeOnChange"; R38_BAD=1; }
+  grep -q "ResizeObserver" "${R38_REL}" || { bad "[38] AstroRelative 缺 ResizeObserver(子盘下端空白真因)"; R38_BAD=1; }
+fi
+if [ -f "${R38_INDEX}" ]; then
+  awk '/<AstroRelative/,/\/>/' "${R38_INDEX}" | grep -q "chartStyle={chartStyle}" || { bad "[38] index.js AstroRelative 缺 chartStyle 透传"; R38_BAD=1; }
+  awk '/<AstroRelative/,/\/>/' "${R38_INDEX}" | grep -q "onChange={changeCond}" || { bad "[38] index.js AstroRelative 缺 onChange"; R38_BAD=1; }
+fi
+for f in AstroSynastry AstroMarks AstroComposite AstroTimeSpace; do
+  FP="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/relative/${f}.js"
+  [ -f "${FP}" ] || continue
+  grep -q "hidezodiacal={1}" "${FP}" && { bad "[38] ${f} 仍有 hidezodiacal={1}(popover 空白)"; R38_BAD=1; }
+  grep -q "hidehsys={1}" "${FP}" && { bad "[38] ${f} 仍有 hidehsys={1}"; R38_BAD=1; }
+  awk '/function paramsToFields/,/^}/' "${FP}" | grep -q "value: param.zodiacal" && { bad "[38] ${f} paramsToFields 仍覆盖 zodiacal(左栏改了显示不变)"; R38_BAD=1; }
+done
+if [ -f "${R38_LESS}" ]; then
+  grep -q ".horosa-relative-page .horosa-field-block .ant-select-selector" "${R38_LESS}" || { bad "[38] app.less 缺合盘局部 Select CSS"; R38_BAD=1; }
+fi
+[ "${R38_BAD}" = "0" ] && ok "[38] 合盘 :9999 + 5 props 透传 + handleRelativeOnChange + ResizeObserver + paramsToFields 净化 + 黄道局部定宽 均到位"
+
+
+# [39] Python helper 接受数值 geo (地图选点存浮点) (2026-06-08)
+echo "[39] Python helper 接受数值 geo"
+GE39_BAD=0
+GE39_HELP="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/helper.py"
+GE39_REAL="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/jieqi/realsuntime.py"
+if [ -f "${GE39_HELP}" ]; then
+  grep -q "isinstance(lon," "${GE39_HELP}" || { bad "[39] helper.py 缺 isinstance(lon, ...)"; GE39_BAD=1; }
+  grep -q "isinstance(lat," "${GE39_HELP}" || { bad "[39] helper.py 缺 isinstance(lat, ...)"; GE39_BAD=1; }
+fi
+if [ -f "${GE39_REAL}" ]; then
+  grep -q "isinstance(zone," "${GE39_REAL}" || { bad "[39] realsuntime.py 缺 isinstance(zone, ...)"; GE39_BAD=1; }
+fi
+[ "${GE39_BAD}" = "0" ] && ok "[39] helper.py + realsuntime.py 数值 geo 容错 均在"
+
+
 echo "== 结果 =="
 if [ "${fail}" -ne 0 ]; then echo "pre-flight 有 ❌,先修再发。" >&2; exit 1; fi
 echo "pre-flight 全部通过 ✅(注意:功能层 e2e 仍需另测,如 AI 用真 key、八字切换显示)。"

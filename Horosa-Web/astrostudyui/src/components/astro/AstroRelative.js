@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { Row, Col, } from 'antd';
 import { XQButton as Button, XQSearch as Search, XQTabs as Tabs } from '../xq-ui';
 import ChartSearchModal from './ChartSearchModal'
@@ -9,7 +9,6 @@ import AstroTimeSpace from '../relative/AstroTimeSpace'
 import AstroMarks from '../relative/AstroMarks'
 import AstroRelativeScore from '../relative/AstroRelativeScore'
 import * as Constants from '../../utils/constants';
-import { resolveKentangServiceRoot } from '../../integrations/kentang/serviceRoot';
 import request from '../../utils/request';
 import * as AstroText from '../../constants/AstroText';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
@@ -232,6 +231,13 @@ class AstroRelative extends Component{
 		this.genParams = this.genParams.bind(this);
 		this.saveRelativeSnapshot = this.saveRelativeSnapshot.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+		this.handleRelativeOnChange = this.handleRelativeOnChange.bind(this);
+		// 子盘高度动态测量:props.height 来自 models/astro.js 硬编码 660 从不随窗口尺寸变,
+		// 导致大屏下「比较/组合/影响/时空中点/马克斯」5 子盘底部出现大块空白(原 fallback 760 同病)。
+		// ResizeObserver 测真实 chart-row 容器高度,优先用测量值,既向后兼容(无值时仍用 props/旧 fallback)
+		// 又自适应明暗主题/窗口缩放/侧栏开合。
+		this.chartRowRef = React.createRef();
+		this.measuredHeight = null;
 
 		if(this.props.hook){
 			this.props.hook.fun = (fields)=>{
@@ -249,12 +255,56 @@ class AstroRelative extends Component{
 		if(typeof window !== 'undefined' && window.addEventListener){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
+		// 测真实 chart-row 容器高度并随窗口/侧栏变化自适应。
+		if(typeof window !== 'undefined' && typeof window.ResizeObserver === 'function' && this.chartRowRef && this.chartRowRef.current){
+			const el = this.chartRowRef.current;
+			const measure = ()=>{
+				try{
+					const h = el.getBoundingClientRect().height;
+					if(h > 0 && Math.abs((this.measuredHeight || 0) - h) > 2){
+						this.measuredHeight = h;
+						this.forceUpdate();
+					}
+				}catch(e){}
+			};
+			measure();
+			this.chartRowObserver = new window.ResizeObserver(measure);
+			this.chartRowObserver.observe(el);
+		}
 	}
 
 	componentWillUnmount(){
+		if(this.chartRowObserver){
+			try{ this.chartRowObserver.disconnect(); }catch(e){}
+			this.chartRowObserver = null;
+		}
 		if(typeof window !== 'undefined' && window.removeEventListener){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
+	}
+
+	// 子盘左栏「黄道/分宫制/恒星 ayanāṃśa」onChange:不能复用 changeCond(会先去 fetchByFields 拉一次本命盘,
+	// 而本命盘 fields 与当前合盘用户视图无关→返回非 200 时静默不更新,fields 永远不变,中央盘没反应——本轮真因)。
+	// 此处直接 astro/save 写入 fields,componentDidUpdate 会感知到字段变化并自动 doChart(),重拉 /modern/relative。
+	handleRelativeOnChange(values){
+		if(!values || !this.props.dispatch || !this.props.fields){
+			return;
+		}
+		const flds = { ...this.props.fields };
+		if(values.hsys !== undefined && values.hsys !== null && flds.hsys){
+			flds.hsys = { ...flds.hsys, value: values.hsys };
+		}
+		if(values.zodiacal !== undefined && values.zodiacal !== null && flds.zodiacal){
+			flds.zodiacal = { ...flds.zodiacal, value: values.zodiacal };
+		}
+		if(values.siderealAyanamsa !== undefined && values.siderealAyanamsa !== null){
+			const cur = flds.siderealAyanamsa || { value: '', name: ['siderealAyanamsa'] };
+			flds.siderealAyanamsa = { ...cur, value: values.siderealAyanamsa };
+		}
+		this.props.dispatch({
+			type: 'astro/save',
+			payload: { fields: flds },
+		});
 	}
 
 	componentDidUpdate(prevProps, prevState){
@@ -266,6 +316,18 @@ class AstroRelative extends Component{
 			|| prevState.hook !== this.state.hook
 		){
 			this.saveRelativeSnapshot();
+		}
+		// 用户在子盘左栏改「黄道/分宫制/恒星 ayanāṃśa」→ models/astro.js fields 全局更新 → 经 props 流到本组件。
+		// 但 doChart() 已绑定旧 fields,需在此 watch 并自动重新拉合盘,否则中央盘不会随选择变(用户反馈「点了没反应」真因之二)。
+		const prevF = (prevProps && prevProps.fields) || {};
+		const curF = (this.props && this.props.fields) || {};
+		const fieldChanged = (
+			(prevF.zodiacal && curF.zodiacal && prevF.zodiacal.value !== curF.zodiacal.value)
+			|| (prevF.hsys && curF.hsys && prevF.hsys.value !== curF.hsys.value)
+			|| ((prevF.siderealAyanamsa && curF.siderealAyanamsa && prevF.siderealAyanamsa.value !== curF.siderealAyanamsa.value))
+		);
+		if(fieldChanged && this.state.chartA && this.state.chartB){
+			this.doChart();
 		}
 	}
 
@@ -360,13 +422,24 @@ class AstroRelative extends Component{
 			return;
 		}
 
-		// 合盘(含时空中点盘)的 /modern/relative 复用端口兜底：本地 :9999 不可达时落到 chart 服务 :8899（与太乙/奇门一致；线上 ServerRoot 非 :9999 时原样返回，零回归）。
-		const data = await request(`${resolveKentangServiceRoot('taiyi')}/modern/relative`, {
-			body: JSON.stringify(params),
-		});
+		// 合盘(含时空中点盘) 必须走主排盘后端 :9999(Constants.ServerRoot)：request() 会对 body 做 RSA 加密，
+		// 仅 Java 后端有解密拦截器并回标准 {result} 信封；chart 服务 :8899(Python) 既不解密(收到密文→json_in 400→无 CORS→net::ERR_FAILED)
+		// 也不回 {result} 信封。v2.6.1(fc7ab74) 误把此处改成 resolveKentangServiceRoot('taiyi')(→:8899) 导致「合盘每个技法都用不了」，此处恢复 :9999。
+		// 后端未就绪/请求失败时 request 可能抛错或返回 undefined → 必须优雅吞掉，否则 `data[ResultKey]` 抛错让整个合盘组件崩成空白、横幅自动重试也救不回。
+		let data = null;
+		try{
+			data = await request(`${Constants.ServerRoot}/modern/relative`, {
+				body: JSON.stringify(params),
+			});
+		}catch(e){
+			data = null;
+		}
+		if(!data || data[Constants.ResultKey] === undefined || data[Constants.ResultKey] === null){
+			return; // 服务未就绪 → 保持上次状态、等横幅自动重试再 doChart，不崩
+		}
 
 		const res = data[Constants.ResultKey];
-		
+
 		let hook = this.state.hook;
 		hook[this.state.currentTab].result = res;
 		const st = {
@@ -455,8 +528,15 @@ class AstroRelative extends Component{
 
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 50
+		// 优先用实测容器高度(随窗口缩放/侧栏开合自适应);未测出时回退 props.height(原行为) 再回退 760。
+		// -50 是给上方输入条留出空间,实测高度已是 chart-row 自身,不需要再减。
+		let height;
+		if(this.measuredHeight && this.measuredHeight > 0){
+			height = Math.round(this.measuredHeight);
+		}else{
+			height = this.props.height ? this.props.height : 760;
+			height = height - 50;
+		}
 
 		let chartAtxt = this.state.chartA ? this.state.chartA.txt : null;
 		let chartBtxt = this.state.chartB ? this.state.chartB.txt : null;
@@ -480,7 +560,7 @@ class AstroRelative extends Component{
 						<Button onClick={this.clickDoChart}>排盘</Button>
 					</Col>
 				</Row>
-				<Row className="horosa-relative-chart-row" gutter={12} style={{marginTop: 10}}>
+				<Row className="horosa-relative-chart-row" gutter={12} style={{marginTop: 10}} ref={this.chartRowRef}>
 					<Col span={24}>
 						<Tabs 
 							defaultActiveKey={this.state.currentTab} tabPosition='right'
@@ -497,7 +577,10 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-										lotsDisplay={this.props.lotsDisplay}	
+										lotsDisplay={this.props.lotsDisplay}
+										chartStyle={this.props.chartStyle}
+										dispatch={this.props.dispatch}
+										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.Comp}	
@@ -512,7 +595,10 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-										lotsDisplay={this.props.lotsDisplay}	
+										lotsDisplay={this.props.lotsDisplay}
+										chartStyle={this.props.chartStyle}
+										dispatch={this.props.dispatch}
+										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.Composite}	
@@ -527,7 +613,10 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-										lotsDisplay={this.props.lotsDisplay}	
+										lotsDisplay={this.props.lotsDisplay}
+										chartStyle={this.props.chartStyle}
+										dispatch={this.props.dispatch}
+										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.Synastry}	
@@ -542,7 +631,10 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-										lotsDisplay={this.props.lotsDisplay}	
+										lotsDisplay={this.props.lotsDisplay}
+										chartStyle={this.props.chartStyle}
+										dispatch={this.props.dispatch}
+										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.TimeSpace}	
@@ -557,7 +649,10 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-										lotsDisplay={this.props.lotsDisplay}	
+										lotsDisplay={this.props.lotsDisplay}
+										chartStyle={this.props.chartStyle}
+										dispatch={this.props.dispatch}
+										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.Marks}	

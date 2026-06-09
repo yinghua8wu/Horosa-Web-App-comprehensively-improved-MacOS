@@ -3,6 +3,7 @@ import DateTime from '../comp/DateTime';
 import { fetchPlanetariumState } from '../../services/planetarium';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
+import { dstAwareZoneAt } from '../../utils/timezone';
 import XQIcon from '../xq-icons';
 import { eclipticToEquatorial, projectedEquatorialItem } from './planetariumProjection';
 import { nearestPointToRay, buildStarIndex, findStarByName, starDisplayLabel } from './planetariumStarSearch';
@@ -3016,7 +3017,23 @@ class PlanetariumBabylon extends Component{
 		}
 		const gpsLat = rec.gpsLat !== undefined && rec.gpsLat !== null ? rec.gpsLat : rec.lat;
 		const gpsLon = rec.gpsLng !== undefined && rec.gpsLng !== null ? rec.gpsLng : rec.lng;
+		// 选新观测点 → 按新坐标自动校正时区（GeoCoordModal 未手改时区时只传坐标、由上层推断，
+		// 与全 App 地点→时区口径一致：ZiWeiInput/NongLi/CnTradition）。rec.zone(手改)优先。
+		// setZone 仅改时区标签、保留钟面时刻、不移位时间；applyFastSceneChange 会按新 time 重算天象。
+		const time = this.state.time && this.state.time.clone ? this.state.time.clone() : this.state.time;
+		if(time && time.setZone){
+			try{
+				if(rec.zone){
+					time.setZone(rec.zone);
+				}else{
+					const ds = time.format ? time.format('YYYY-MM-DD') : null;
+					const z = dstAwareZoneAt(gpsLat, gpsLon, ds);
+					if(z && z.offset){ time.setZone(z.offset); }
+				}
+			}catch(e){ /* 推断失败保留原时区 */ }
+		}
 		this.setState({
+			time,
 			observerOverride: {
 				lat: convertLatToStr(rec.lat),
 				lon: convertLonToStr(rec.lng),

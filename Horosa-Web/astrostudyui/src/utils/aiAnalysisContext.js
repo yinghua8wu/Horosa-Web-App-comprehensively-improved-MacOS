@@ -63,6 +63,10 @@ import { buildZodialReleaseSnapshotText } from '../components/astro/AstroZR';
 import { buildDecennialsSnapshotText } from '../components/astro/AstroDecennials';
 import { buildKinAstroSnapshotForFields } from '../components/kinastro/KinAstroMain';
 import { buildHuangJiSnapshotForFields } from '../components/huangji/HuangJiMain';
+import { buildTaiXuanSnapshotForFields } from '../components/taixuan/TaiXuanMain';
+import { buildJingJueSnapshotForFields } from '../components/jingjue/JingJueMain';
+import { buildWuZhaoSnapshotForFields } from '../components/wuzhao/WuZhaoMain';
+import { buildShenYiShuSnapshotForFields } from '../components/shenyishu/ShenYiShuMain';
 import { buildGuolaoSnapshotForFields } from '../components/guolao/GuoLaoChartMain';
 import { buildSuzhanSnapshotText } from '../components/suzhan/SuZhanMain';
 import { buildGermanySnapshotForFields } from '../components/germany/AstroMidpoint';
@@ -171,8 +175,9 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 
 // AI 分析「使用技法」命盘类下拉。仅收录能按本盘数据返回结构化快照的技法。
 // 仍排除（命盘类无法复用 builder）：relative(合盘,需两张盘)、cntradition(辅助,无可复用 builder)。
-// 注：wuzhao/taixuan/jingjue/shenyishu 已在 CASE_TYPE_OPTIONS 可存事盘 + 存模块快照，此前可存却挂不上，
-//   现并入 ANALYSIS_CASE_TECHNIQUES 走 sectionsOnly 缓存挂载（不重算）。
+// 注：wuzhao/taixuan/jingjue/shenyishu/huangji 均在 CASE_TYPE_OPTIONS 可存事盘，存案 payload 带 snapshot 字符串。
+//   挂载走 ANALYSIS_CASE_TECHNIQUES 的 case 分支：getTechniqueSnapshotFromPayload 经 extractSnapshotText 读 payload.snapshot
+//   字符串出正文(确定性、不重算)；事盘列表预览须 extractCaseSnapshotText 同样认字符串(原只认对象 .content → 修)。
 //   jieqi(节气盘,非单盘/多次取数)、otherbu(骰子,随机不可复算)、fengshui(风水) 暂无事盘存储(不在 CASE_TYPE_OPTIONS)→ 仍只导出不挂载。
 // 标签仍保留在 ANALYSIS_TECHNIQUE_LABELS（导出/他处可能引用）。
 export const ANALYSIS_CHART_TECHNIQUES = [
@@ -226,11 +231,15 @@ export const ANALYSIS_CASE_TECHNIQUES = [
 	'horary',
 	'election',
 	'mundane',
-	// 报数/揲蓍 确定性起卦术：均已在 CASE_TYPE_OPTIONS 可存事盘 + 存模块快照，sectionsOnly 缓存挂载（此前可存却挂不上）。
+	// 报数/揲蓍/起例 确定性术：均在 CASE_TYPE_OPTIONS 可存事盘，存案 payload 带 snapshot 字符串 + 起算时定型的
+	// 时间设置(fieldSnapshot)；case 分支按 payload.snapshot 出正文(不重算)，与 sixyao/mundane 同范式。
+	// huangji 此前只登 ANALYSIS_CHART_TECHNIQUES → 其事盘不被列为可挂技法(listAnalysisTechniqueOptions 给 CASE 集) →
+	// 补登于此(同时保留 CHART 登记：命盘侧按出生重算 buildHuangJiSnapshotForFields 不变)。
 	'wuzhao',
 	'taixuan',
 	'jingjue',
 	'shenyishu',
+	'huangji',
 ];
 
 // 「时间确定式法」：盘面完全由起课时间 + 默认设置(含地点)决定，可即时起盘。
@@ -241,7 +250,12 @@ export const TIME_CASTABLE_DIVINATION = ['liureng', 'jinkou', 'qimen', 'taiyi', 
 const TIME_CASTABLE_SET = new Set(TIME_CASTABLE_DIVINATION);
 // 「起课时间」源额外允许六爻——时间起卦是确定性式法（时间即输入，非伪造摇卦）；
 // 但「已存事盘」源仍不按时间重算六爻（保持 case 护栏，见 getAnalysisTechniqueContexts）。
-const TIMEPOINT_CASTABLE_SET = new Set([...TIME_CASTABLE_DIVINATION, 'sixyao']);
+// 时间确定/时间派种(seed/数据全由时间派生)式法均纳入「起课时间」源白名单:
+// · sixyao 六爻(时间起卦)、huangji 皇极经世(元会运世按时间确定);
+// · taixuan/jingjue 报数法用起课时间 yyyyMMddHHmm 派生 seed,反复挂载确定;
+// · wuzhao 干支起例(纯时间)/shenyishu hourSource=auto seasonSource=auto 全由时间推断。
+// 仍排除 tongshefa/suzhan/mundane —— 需用户手动选盘或事先存盘(凭时间起会得无意义默认值,不如显示「缺失」让用户去事盘存好再挂载)。
+const TIMEPOINT_CASTABLE_SET = new Set([...TIME_CASTABLE_DIVINATION, 'sixyao', 'huangji', 'taixuan', 'jingjue', 'wuzhao', 'shenyishu']);
 
 function safeParseJson(txt, defVal = null){
 	if(!txt){
@@ -300,7 +314,12 @@ function normalizePdYearsValue(value){
 }
 
 function buildFieldObject(record){
-	const birth = parseBirthString(record.birth, record.zone);
+	// 起课时间合成的 timepoint record 用 divTime 不用 birth(参 AIAnalysisMain.js:1029),
+	// 旧实现只读 record.birth → 撞 fallback `new DateTime({zone})` 用当前系统时间起盘,
+	// 太玄/荆诀/五兆/神易数 等 backend 拿到时再格式化就出 NaN-undefined-undefined。
+	// 兜底 birth ?? divTime,两者皆同口径 'YYYY-MM-DD HH:mm:ss' 即可被 parseBirthString 正确匹配。
+	const birthText = record.birth || record.divTime || '';
+	const birth = parseBirthString(birthText, record.zone);
 	return {
 		cid: { value: record.cid || null },
 		ad: { value: birth.ad },
@@ -816,6 +835,27 @@ async function regenerateCaseTechniqueSnapshot(record, moduleName, payload){
 		return regenerateElectionSnapshot(record, p);
 	case 'sixyao':
 		return regenerateSixyaoSnapshot(record);
+	case 'huangji':
+		return buildHuangJiSnapshotForFields(buildFieldObject(record));
+	case 'taixuan':
+		// 用户在挂载设置改 seed → 经 mergeOptionsIntoPayload optionsPath:'' 进 payload 顶层。
+		return buildTaiXuanSnapshotForFields(buildFieldObject(record), { seed: p.seed });
+	case 'jingjue':
+		return buildJingJueSnapshotForFields(buildFieldObject(record), { seed: p.seed });
+	case 'wuzhao':
+		return buildWuZhaoSnapshotForFields(buildFieldObject(record), {
+			mode: p.mode,
+			number: p.number,
+			manual: p.manual,
+			manualSplits: p.manualSplits,
+		});
+	case 'shenyishu':
+		return buildShenYiShuSnapshotForFields(buildFieldObject(record), {
+			hourSource: p.hourSource,
+			manualHour: p.manualHour,
+			seasonSource: p.seasonSource,
+			manualSeason: p.manualSeason,
+		});
 	default:
 		return '';
 	}
@@ -1559,9 +1599,9 @@ async function regenerateChartTechniqueSnapshot(record, key){
 		}
 		case 'persiandirected': {
 			// 波斯向运：黄经象征向运(1°/年,宫头不动)，应期 hit-list 纯前端算术，读本命盘。
-			// 挂载齿轮可调 速率/方向 → record.* → opts（未改时 undefined，builder 回默认 persian/direct=现状）。
+			// 挂载齿轮可调 速率/方向/应期年数 → record.* → opts（未改时 undefined，builder 回默认 persian/direct/90=现状）。
 			const chartObj = await fetchChartResultForRecord(record);
-			return chartObj ? (buildPersianDirectedSnapshotText(chartObj, { rateKey: record.rateKey, direction: record.direction }) || '') : '';
+			return chartObj ? (buildPersianDirectedSnapshotText(chartObj, { rateKey: record.rateKey, direction: record.direction, maxYears: record.maxYears }) || '') : '';
 		}
 		case 'jaynesprog': {
 			// Jayne 赤纬推运：推运后看赤纬平行/反平行。内部 fetch /astroextra/jaynesprog。
@@ -1751,9 +1791,12 @@ function extractCaseSnapshotText(record){
 			snapshotStatus: 'generated',
 		};
 	}
+	// payload.snapshot 可能是对象 {content/text}（世俗/卜卦），也可能是纯字符串
+	// （kentang 报数法：五兆/皇极/太玄/荆诀/神易数 存 `snapshot: buildSnapshotText(...)`）。
+	// 用 extractSnapshotText 统一识别字符串/对象/嵌套 —— 旧式 `.content/.text` 对字符串取属性得 undefined，
+	// 会把真盘文本误判为空 → 退回 summarizeCasePayload 泛化摘要（源选择器看着「没接好」）。
 	const snapshot =
-		(payload.snapshot && payload.snapshot.content) ||
-		(payload.snapshot && payload.snapshot.text) ||
+		extractSnapshotText(payload.snapshot) ||
 		payload.aiExport ||
 		payload.aiSnapshot ||
 		(payload.result && payload.result.aiSnapshot) ||
@@ -2601,7 +2644,9 @@ export async function getAnalysisTechniqueContextWithOptions(source, techniqueKe
 export function listAnalysisTechniqueOptions(source){
 	let keys;
 	if(source && source.sourceType === 'timepoint'){
-		keys = [...TIME_CASTABLE_DIVINATION, 'sixyao']; // 起课时间额外提供六爻(时间起卦)
+		// 起课时间源:与上方 TIMEPOINT_CASTABLE_SET 保持一致 —— 时间确定式法 + 六爻(时间起卦) + 皇极经世 +
+		// 报数/起例类(太玄/荆诀 seed 由时间派 / 五兆干支起例 / 神易数 hourSource=auto seasonSource=auto)。
+		keys = [...TIME_CASTABLE_DIVINATION, 'sixyao', 'huangji', 'taixuan', 'jingjue', 'wuzhao', 'shenyishu'];
 	}else if(source && source.sourceType === 'case'){
 		keys = ANALYSIS_CASE_TECHNIQUES;
 	}else{

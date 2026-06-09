@@ -94,6 +94,21 @@ function buildSnapshotText(pan){
 	return lines.join('\n').trim();
 }
 
+// AI 起课时间挂载入口:hourSource/seasonSource 默认 'auto';opts 允许挂载设置里覆盖。
+export async function buildShenYiShuSnapshotForFields(fields, opts){
+	const dt = parseFieldsDateTime(fields);
+	if(!dt){ return ''; }
+	try{
+		const o = opts || {};
+		const hourSource = o.hourSource === 'manual' ? 'manual' : 'auto';
+		const manualHour = o.manualHour !== undefined && o.manualHour !== null ? Number(o.manualHour) || 0 : 0;
+		const seasonSource = o.seasonSource === 'manual' ? 'manual' : 'auto';
+		const manualSeason = ['春', '夏', '秋', '冬'].indexOf(o.manualSeason) >= 0 ? o.manualSeason : '夏';
+		const pan = await postShenYiShu('pan', { ...dt, hourSource, manualHour, seasonSource, manualSeason });
+		return buildSnapshotText(pan);
+	}catch(e){ return ''; }
+}
+
 class ShenYiShuMain extends Component{
 	constructor(props){
 		super(props);

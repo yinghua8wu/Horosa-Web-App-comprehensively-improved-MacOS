@@ -97,18 +97,28 @@ class AstroEphemeris extends Component{
 
 	renderDaily(rows){
 		const planets = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+		// 逐日行数 = 选定天数。上限 1500（~4 年）兼顾 SmallTable 无虚拟化的渲染性能：
+		// 常见范围（含 1–2 年）不截断；仅极端长区间触发上限并给提示，杜绝静默丢弃（同波斯向运范式）。
+		const all = rows || [];
+		const MAX_DAILY = 1500;
+		const shown = all.length > MAX_DAILY ? all.slice(0, MAX_DAILY) : all;
 		return (
-			<SmallTable
-				rows={(rows || []).slice(0, 370)}
-				columns={[
-					{key: 'date', title: '日期'},
-					...planets.map((id)=>({
-						key: id,
-						title: astroSymbol(id),
-						render: (_v, row)=>row.positions && row.positions[id] ? fmtDegree(row.positions[id]) : '-',
-					})),
-				]}
-			/>
+			<div>
+				<SmallTable
+					rows={shown}
+					columns={[
+						{key: 'date', title: '日期'},
+						...planets.map((id)=>({
+							key: id,
+							title: astroSymbol(id),
+							render: (_v, row)=>row.positions && row.positions[id] ? fmtDegree(row.positions[id]) : '-',
+						})),
+					]}
+				/>
+				{all.length > shown.length ? (
+					<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginTop: 4 }}>逐日行数过多，已显示前 {shown.length} 行（缩小日期范围以查看全部）。</div>
+				) : null}
+			</div>
 		);
 	}
 

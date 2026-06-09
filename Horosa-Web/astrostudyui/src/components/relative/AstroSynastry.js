@@ -5,6 +5,9 @@ import AstroChartMain from '../astro/AstroChartMain';
 const TabPane = Tabs.TabPane;
 
 function paramsToFields(param, flds){
+	// 本命 record 提供 date/time/zone/lat/lon(出生数据),但 hsys/zodiacal/siderealAyanamsa
+	// 必须保留用户在左栏当前选择的全局 flds 值,否则左栏 Select 会被 record 老快照覆盖回原来,
+	// 显示与刚改的不一致(用户反馈「左栏改了之后显示选项还是没变」真因)。
 	let fields = {
 		...flds,
 		date:{
@@ -24,15 +27,6 @@ function paramsToFields(param, flds){
 		},
 		lon:{
 			value: param.lon
-		},
-		hsys:{
-			value: param.hsys
-		},
-		zodiacal:{
-			value: param.zodiacal
-		},
-		siderealAyanamsa:{
-			value: param.siderealAyanamsa
 		},
 	}
 	return fields;
@@ -106,14 +100,15 @@ class AstroSynastry extends Component{
 									<AstroChartMain 
 										value={chartAobj} 
 									fields={fieldsA} 
-									hidezodiacal={1}
-									hidehsys={1}
 									hidedateselector={1}
 									hidelots={1}
 									height={height - 40} 
 									chartDisplay={this.props.chartDisplay}
 										planetDisplay={this.props.planetDisplay}
 										lotsDisplay={this.props.lotsDisplay}
+										chartStyle={this.props.chartStyle}
+										dispatch={this.props.dispatch}
+										onChange={this.props.onChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
 									/>
@@ -129,14 +124,15 @@ class AstroSynastry extends Component{
 									<AstroChartMain 
 										value={chartBobj} 
 									fields={fieldsB} 
-									hidezodiacal={1}
-									hidehsys={1}
 									hidedateselector={1}
 									hidelots={1}
 									height={height - 40} 
 									chartDisplay={this.props.chartDisplay}
 										planetDisplay={this.props.planetDisplay}
 										lotsDisplay={this.props.lotsDisplay}
+										chartStyle={this.props.chartStyle}
+										dispatch={this.props.dispatch}
+										onChange={this.props.onChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
 									/>

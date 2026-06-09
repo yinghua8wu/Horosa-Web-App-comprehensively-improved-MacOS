@@ -92,29 +92,31 @@ const mainTabIcons = {
     管理工具: <XQIcon name="admin" />,
 };
 
+// keywords：该模块内部的术法/别名串（简体 + 常见叫法），供导航搜索匹配「模块内术法」。
+// 例：搜「卜卦盘」命中「辅盘」、搜「金口诀」命中「其他(卜)」。新增模块/术法须同步补此处（见 实现说明）。
 const navigationPages = [
-    { label: '占星', key: 'astrochart', icon: 'astro', group: '命' },
-    { label: '星运', key: 'direction', icon: 'direction', group: '命' },
-    { label: '八字', key: 'bazi', icon: 'bazi', group: '命' },
-    { label: '紫微', key: 'ziwei', icon: 'ziwei', group: '命' },
-    { label: '七政', key: 'guolao', icon: 'qizheng', group: '命' },
-    { label: '印占', key: 'indiachart', icon: 'vedic', group: '命' },
-    { label: '辅盘', key: 'auxchart', icon: 'aux', group: '命' },
-    { label: '合盘', key: 'relativechart', icon: 'composite', group: '命' },
-    { label: '数算', key: 'shusuan', icon: 'quickPrimary', group: '命' },
-    { label: '其他', key: 'mingother', icon: 'other', group: '命' },
-    { label: '三式', key: 'sanshiunited', icon: 'sanshi', group: '卜' },
-    { label: '六壬', key: 'liureng', icon: 'liureng', group: '卜' },
-    { label: '遁甲', key: 'dunjia', icon: 'qimen', group: '卜' },
-    { label: '六爻', key: 'guazhan', icon: 'liuyao', group: '卜' },
-    { label: '太乙', key: 'taiyi', icon: 'taiyi', group: '卜' },
-    { label: '分至', key: 'jieqichart', icon: 'solstice', group: '卜' },
-    { label: '风水', key: 'fengshui', icon: 'fengshui', group: '卜' },
-    { label: '其他', key: 'cnyibu', icon: 'other', group: '卜' },
-    { label: 'AI分析', key: 'aianalysis', icon: 'ai', group: '工具' },
-    { label: '天文馆', key: 'planetarium', icon: 'globe', group: '工具' },
-    { label: '黄历', key: 'calendar', icon: 'calendar', group: '工具' },
-    { label: '辅助', key: 'cntradition', icon: 'support', group: '工具' },
+    { label: '占星', key: 'astrochart', icon: 'astro', group: '命', keywords: '西洋占星 本命盘 占星地图 ACG 星体地图 希腊星术 古典占星 寿命 界推运 12分度 主宰链 阿拉伯点 容许度' },
+    { label: '星运', key: 'direction', icon: 'direction', group: '命', keywords: '推运 主限法 太阳弧 波斯向运 法达星限 十年大运 黄道星释 行星弧 小限法 流年法 太阳返照 月亮返照 三分主星 Balbillus 赤纬推运 恒星推运 二次推运 行星年龄 129年系统 数字相位 月相推运 多重回归 关键点 回归轴 年龄推进点 星历' },
+    { label: '八字', key: 'bazi', icon: 'bazi', group: '命', keywords: '八字 四柱 子平 盲派 滴天髓 大运 流年' },
+    { label: '紫微', key: 'ziwei', icon: 'ziwei', group: '命', keywords: '紫微斗数 飞星 大限 小限 流年 四化 命宫' },
+    { label: '七政', key: 'guolao', icon: 'qizheng', group: '命', keywords: '七政四余 政余 五星 果老星宗 二十八宿 宿度' },
+    { label: '印占', key: 'indiachart', icon: 'vedic', group: '命', keywords: '印度占星 吠陀 Vedic 分宫制 岁差 ayanamsa 月宿 nakshatra' },
+    { label: '辅盘', key: 'auxchart', icon: 'aux', group: '命', keywords: '卜卦盘 择日盘 世俗盘 十三分盘 调波盘 谐波盘 龙盘 中点盘 量化盘 汉堡盘 卜卦 择日' },
+    { label: '合盘', key: 'relativechart', icon: 'composite', group: '命', keywords: '合盘 关系盘 比较盘 synastry' },
+    { label: '数算', key: 'shusuan', icon: 'quickPrimary', group: '命', keywords: '邵子神数 铁板神数 河洛理数 参评数 北极神数 南极神数 蠢子数' },
+    { label: '其他', key: 'mingother', icon: 'other', group: '命', keywords: '演禽 仙禽 策天 策天飞星' },
+    { label: '三式', key: 'sanshiunited', icon: 'sanshi', group: '卜', keywords: '三式合一 六壬 奇门 太乙' },
+    { label: '六壬', key: 'liureng', icon: 'liureng', group: '卜', keywords: '大六壬 六壬 三传 四课 神煞 七政' },
+    { label: '遁甲', key: 'dunjia', icon: 'qimen', group: '卜', keywords: '奇门遁甲 奇门 法奇门' },
+    { label: '六爻', key: 'guazhan', icon: 'liuyao', group: '卜', keywords: '六爻 纳甲 卜卦 摇卦 装卦' },
+    { label: '太乙', key: 'taiyi', icon: 'taiyi', group: '卜', keywords: '太乙神数 太乙' },
+    { label: '分至', key: 'jieqichart', icon: 'solstice', group: '卜', keywords: '节气盘 分至 二分二至' },
+    { label: '风水', key: 'fengshui', icon: 'fengshui', group: '卜', keywords: '风水 纳气盘 八卦阳宅 玄空 阳宅' },
+    { label: '其他', key: 'cnyibu', icon: 'other', group: '卜', keywords: '金口诀 五兆 太玄 荆诀 神易数 皇极经世 宿占 统摄法' },
+    { label: 'AI分析', key: 'aianalysis', icon: 'ai', group: '工具', keywords: 'AI 分析 挂载 报告 大模型' },
+    { label: '天文馆', key: 'planetarium', icon: 'globe', group: '工具', keywords: '天文馆 星空 观星 星图 babylon' },
+    { label: '黄历', key: 'calendar', icon: 'calendar', group: '工具', keywords: '黄历 农历 老黄历 择日 宜忌 节气' },
+    { label: '辅助', key: 'cntradition', icon: 'support', group: '工具', keywords: '辅助 工具 真太阳时' },
 ];
 
 const fullHeightWorkspaceTabs = new Set([
@@ -488,16 +490,18 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
                 <TabPane tab={mainTab('合盘', null, { hidden: true })} key="relativechart">
 	                    <AstroRelative
-                        fields={fields} 
+                        fields={fields}
                         fieldsAry={aryfields}
-                        height={height} 
+                        height={height}
                         chartDisplay={chartDisplay}
                         planetDisplay={planetDisplay}
 	                        lotsDisplay={lotsDisplay}
+	                        chartStyle={chartStyle}
 	                        showPlanetHouseInfo={showPlanetHouseInfo}
 	                        showAstroMeaning={showAstroMeaning}
 	                        hook={predictHook.relativechart}
 	                        dispatch={dispatch}
+	                        onChange={changeCond}
 	                        currentSubTab={currentSubTab}
                     />
                 </TabPane>

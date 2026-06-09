@@ -1,6 +1,7 @@
 import React from 'react';
 import { Avatar, Dropdown, message, Tooltip } from 'antd';
 import blogo from '../../assets/blogo.jpg';
+import appIcon from '../../assets/appicon.png';
 import {
 	getAppearanceLabel,
 	getNextAppearanceMode,
@@ -751,7 +752,7 @@ function PageHeader(props){
 				>
 					<div className={styles.aboutBody}>
 						<div className={styles.aboutHeadRow}>
-							<div className={styles.aboutLogo}><XQIcon name="astro" /></div>
+							<div className={styles.aboutLogo}><img src={appIcon} alt="星阙 Horosa" /></div>
 							<div>
 								<div className={styles.aboutName}>星阙 Horosa</div>
 								<div className={styles.aboutVersion}>{aboutVersion ? `版本 v${aboutVersion}` : '玄学与星座云平台'}</div>

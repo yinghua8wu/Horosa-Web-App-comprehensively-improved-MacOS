@@ -159,6 +159,15 @@ def getOffsetBylonstr(monthday, lonstr, baseLon):
     return getOffset(monthday, londeg, baseLon)
 
 def getBaseLonByZone(zone):
+    # 数值时区(小时偏移,如 8 / -5 / 5.5)直接换算基准经度;纯数值字符串亦容错。
+    # 否则 zone[0:1] 索引会对 int/float 时区崩溃(「'int' object is not subscriptable」)。
+    if isinstance(zone, (int, float)):
+        return zone * 15
+    if zone[0:1] not in ('+', '-') and (':' not in str(zone)):
+        try:
+            return float(zone) * 15
+        except (TypeError, ValueError):
+            return 0
     sym = zone[0:1]
     hour = zone[1:3]
     if hour[0] == '0':

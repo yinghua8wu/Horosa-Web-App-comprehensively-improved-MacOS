@@ -9,12 +9,12 @@
 **把占星与中国术数，收进一个原生 macOS 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native macOS workstation*
 
-[![Version](https://img.shields.io/badge/version-2.6.4-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.4)
+[![Version](https://img.shields.io/badge/version-2.6.5-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.5)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.4)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.4)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.5)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.5)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.4/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.5/Horosa-Installer-macos-arm64-offline.pkg) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -33,7 +33,7 @@
 
 > Regular users grab the offline installer and open it like any finished macOS app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.4/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.5/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合：Apple Silicon · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -91,19 +91,19 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.6.4 beta
+## 本次更新 · What's New in v2.6.5 beta
 
-这一版主线是**恒星黄道（sidereal）全面补齐**，并把 AI 分析的导出/挂载/储存全部同步到位；另合并两套此前完成的功能。默认行为与 v2.6.3 逐位一致：
+这一版主线是**合盘交互链全面重建 + AI「起课时间」挂载 8→13 技法**，把上版残留的合盘失能与卜卦/数算时间起盘缺失一并补齐；默认行为与 v2.6.4 逐位一致：
 
-- **恒星黄道 · 47 种岁差全补** —— 所有西洋占星盘（命占/合盘/中点/三维/卜卦/三式/节气）的「黄道」从 回归/恒星 二元扩为 **回归 + 47 种 ayanāṃśa**（Lahiri/Raman/Fagan-Bradley/KP… 分组下拉），每种经 Swiss Ephemeris 真实位移；盘圈标注岁差名。向后兼容，默认仍是回归。
-- **西洋盘月宿（Nakshatra）** —— 选恒星黄道时，行星卡片新增 27 宿 + 宿主 + pada。
-- **印度占星补齐** —— 左栏下拉遮挡修复；岁差制 6→47、分宫制 4→24（全走 pyswisseph）。
-- **AI 分析四同步** —— 双盘技法（返照/小限/太阳弧/流年/行星弧/主限法盘/Vedic·Jayne 推运）挂载与导出补「本命盘 + 时段盘」双配置；印占/七政/西洋盘挂载设置补齐；波斯向运加「应期年数」开关（50–200）；AI 导出段同步（版本 23→24 自动迁移）。
-- **修复** —— AI 快照签名纳入具体岁差（换制不误用旧快照）、择日时势合参子盘随主盘岁差、主限法盘表单字段保真。
-- **合并 · AI 分析「报告」生成** —— 八字/紫微 6 套预置模板（8/12/20 节），分节流式生成，章节可嵌入命盘截图，4 种导出（Markdown/Word/PDF/HTML）。
-- **合并 · 启动健壮性加固（Mac #12）** —— 排盘服务未就绪透明重试 30s、富错误对话框、右下角后端健康灯、分阶段启动文案。
+- **合盘 5 子盘端到端可用** —— v2.6.1 误把 `/modern/relative` 端点切到了 chart 服务（加密 body 不解密 → 全部「用不了」），本版恢复到 Java :9999；同时 `AstroRelative` 用 ResizeObserver 实测容器高度，根治影响盘/马克斯盘下端大片空白；左栏交互链 `chartStyle/dispatch/onChange` 全链路透传 + `handleRelativeOnChange` 直写 fields 绕开本命盘 fetch（修「点了没反应」），componentDidUpdate watch fields 自动重算；「宫位制与黄道」popover 空白根治（删 hide 标志 + paramsToFields 不再覆盖 hsys/zodiacal）；长 ayanāṃśa 名（如 Lahiri ICRC（官定2022））触发框 50/50 局部 CSS 防撑大。
+- **AI 分析「起课时间」挂载补全** —— 此前下拉只有 8 项（六壬/金口诀/奇门/太乙/三式合一/卜卦盘/择日盘/六爻），本版 + 5 项：**皇极经世 / 太玄筮法 / 荆诀 / 五兆 / 神易数**。4 个数算/起例法各导出 `buildXxxSnapshotForFields(fields, opts)`，挂载设置真接入：太玄/荆诀 起筮种子可改、五兆 起例模式/报数/手动分爻可改、神易数 时辰/季令 auto/manual 可改；用户在挂载齿轮改的每一项都会**真重算**（不是只显「已自定义」徽章），AI 四同步（导出/导出设置/挂载/储存）全到位。
+- **Python 真太阳时辅助接受数值经纬度** —— 地图选点存的浮点 `lon:116.4074 lat:39.9042` 此前直崩 `'float' object has no attribute lower`；`convertLonStrToDegree/convertLatStrToDegree` + `getBaseLonByZone` 加 isinstance 数值分支，字符串路径原样（向后兼容字节级一致）。
+- **AI 起课时间「合成 record」时间 NaN-undefined 修复** —— 起课时间源 record 用 `divTime` 字段（不是事盘的 `birth`），`buildFieldObject` 此前只读 `record.birth` 走 fallback `new DateTime({zone})` 用当前系统时间 → 后端格式化时显示 `NaN-undefined-undefined`；改为 `record.birth || record.divTime`。
+- **导航搜索 + 关于框图标** —— 全 22 模块加 keywords 索引（搜「卜卦盘」出辅盘、「皇极经世」出其他卜）；关于星阙换软件真 icon（不再是占位）。
+- **波斯向运「应期年数」表格联动** —— 改年数后右侧表格按新年数重算（v2.6.4 漏改）；事盘字符串快照在 AI 分析里被认（之前只认对象式）。
+- **工程** —— 后端 Python 排盘组件更新（runtime `2.6.5-runtime1`，自动下载）；jest 657→658、preflight 36→39 个 sentinel 块（[37] timepoint 13 技法 + builder opts + divTime 兜底 / [38] 合盘端点+交互链全检 / [39] Python helper 数值 geo）。
 
-> This release's headline is the **sidereal zodiac, fully built out**, with AI Analysis export/mount/storage kept in sync, plus two previously-finished feature sets folded in. Default behavior is bit-for-bit identical to v2.6.3. Sidereal — all 47 ayanāṃśas — every Western chart's zodiac selector goes from binary tropical/sidereal to tropical + 47 ayanāṃśas (Lahiri/Raman/Fagan-Bradley/KP…), each computed through Swiss Ephemeris and shifting the chart; the ring labels the active ayanāṃśa. Backward compatible. Western Nakshatra — under sidereal, each planet card gains the 27-mansion + lord + pada. Indian astrology — clipped left-panel dropdowns fixed; ayanāṃśa 6→47, house systems 4→24 (all via pyswisseph). AI Analysis four-way sync — dual-chart techniques (returns, solar arc, profection, given-year, planetary arc, primary-directions chart, Vedic/Jayne progressions) now mount/export a full natal + period config; Indian/Qizheng/Western mount settings expose all options; Persian Directed gains a 50–200 year switch; export sections sync (settings 23→24, auto-migrated). Fixes — natal AI-snapshot signature distinguishes the specific ayanāṃśa; electional time-context sub-charts follow the main ayanāṃśa; primary-directions form fidelity. Folded in · AI report generation — BaZi/ZiWei, 6 templates at 8/12/20 sections, streamed, optional embedded chart screenshots, Markdown/Word/PDF/HTML export. Folded in · Startup robustness (Mac #12) — transparent 30s retry, rich error dialog, backend health dot, staged startup messaging.
+> This release's headline is **Synastry chain rebuilt end-to-end + AI "Set-Time" mount expanded from 8 → 13 techniques**, fixing the carry-over Synastry breakage and the missing time-cast paths for divinatory/numerical methods. Default behavior is bit-for-bit identical to v2.6.4. Synastry — v2.6.1 had silently moved `/modern/relative` to the chart service (encrypted body never decrypted → "doesn't work" across every sub-chart); restored to the Java service. `AstroRelative` now uses a ResizeObserver to measure the real container height, fixing the large blank below Synastry/Marks; the left-panel interaction chain (chartStyle / dispatch / onChange) is forwarded end-to-end, and `handleRelativeOnChange` writes the fields directly (bypassing the natal-chart fetch that silently swallowed the change), with componentDidUpdate watching the fields to re-cast automatically; the "Houses & Zodiac" popover is no longer empty (removed the hide flags + paramsToFields no longer overrides hsys/zodiacal); long ayanāṃśa names (e.g. "Lahiri ICRC（官定2022）") now wrap with ellipsis at a fixed 50/50 grid via Synastry-scoped CSS that does not touch the natal pages. AI Analysis "Set-Time" mount — the source dropdown previously showed only 8 techniques (Liureng / Jinkou / Qimen / Taiyi / Sanshi / Horary / Election / Sixyao); this release adds **HuangJi / TaiXuan / JingJue / WuZhao / ShenYiShu**. Each of the four numerological/casting modules now exports `buildXxxSnapshotForFields(fields, opts)`; mount settings actually feed through — change the divination seed for TaiXuan/JingJue, the casting mode/seed-number/manual split for WuZhao, the hour/season auto-or-manual for ShenYiShu, and the snapshot is **truly recomputed** (not just badged "customized"). All four AI mirrors (export / export settings / mount / case storage) stay in sync. Python true-solar-time helpers accept numeric lon/lat/zone — chart records saved via map picker stored decimal-degree floats and used to crash with `'float' object has no attribute lower`; the converters now detect numeric input while leaving the DMS string path bit-for-bit unchanged. Set-Time `divTime` time NaN — the synthetic Set-Time source `record` keeps the time in `divTime` (not the case-store `birth`); `buildFieldObject` now falls back through `record.birth || record.divTime`. Engineering — Python runtime updated (`2.6.5-runtime1`, auto-downloaded on upgrade); jest 657→658; preflight 36→39 sentinel blocks ([37] Set-Time 13 techniques + builder opts + divTime fallback / [38] Synastry endpoint + interaction chain + zodiac select width / [39] Python helper numeric geo).
 ## 技术构成 · Under the Hood
 
 - **前端 Frontend** — React 17 + Umi 3 + TypeScript，Ant Design；D3 绘盘，Babylon.js / Three.js 三维，Plotly 星体地图，Monaco 编辑 AI 导出模板。

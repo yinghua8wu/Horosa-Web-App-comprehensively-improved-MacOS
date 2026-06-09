@@ -147,7 +147,9 @@ export const gridStyle = {
 	gap: 8,
 };
 
-export function SmallTable({columns, rows, rowKey}){
+// rowStyle(row, idx)→style 与 rowRef(node, row, idx) 均为可选；不传时行为与旧版逐字一致。
+// 供「当前时刻高亮 + 锚点行定位」等场景按行注入样式/捕获 DOM 节点（如波斯向运应期长表）。
+export function SmallTable({columns, rows, rowKey, rowStyle, rowRef}){
 	return (
 		<table style={{width: '100%', borderCollapse: 'collapse', fontSize: 12}}>
 			<thead>
@@ -161,7 +163,9 @@ export function SmallTable({columns, rows, rowKey}){
 			</thead>
 			<tbody>
 				{(rows || []).map((row, idx)=>(
-					<tr key={rowKey ? rowKey(row, idx) : idx}>
+					<tr key={rowKey ? rowKey(row, idx) : idx}
+						ref={rowRef ? (node)=>rowRef(node, row, idx) : undefined}
+						style={rowStyle ? rowStyle(row, idx) : undefined}>
 						{columns.map((col)=>(
 							<td key={col.key} style={{borderBottom: '1px solid rgba(148,163,184,.16)', padding: '6px 4px', verticalAlign: 'top'}}>
 								{col.render ? col.render(row[col.key], row, idx) : row[col.key]}

@@ -5044,6 +5044,24 @@
         gap: 7px;
     }
 
+    // 合盘左栏 黄道 / 宫制 触发框:维持 50/50 (与占星页面一致),不论选哪个 ayanāṃśa 都按列宽截 + '...'。
+    // 触发框定宽靠 minmax(0,1fr) 强制 0 下限 + Select/Selector/Item 全链 overflow:hidden min-width:0
+    // → flex 子元素无法把父级撑大,长名必走 ellipsis。仅作用 .horosa-relative-page 后代,占星等 0 影响。
+    .horosa-workspace-shell .horosa-relative-page .horosa-field-block .ant-select,
+    .horosa-workspace-shell .horosa-relative-page .horosa-field-block .ant-select-selector {
+        overflow: hidden;
+        min-width: 0;
+        width: 100%;
+    }
+    .horosa-workspace-shell .horosa-relative-page .horosa-field-block .ant-select-selection-item {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
     .horosa-workspace-shell .horosa-astro-redesign .xq-select:not(.ant-select-customize-input) .ant-select-selector,
     .horosa-workspace-shell .horosa-astro-redesign .ant-select:not(.ant-select-customize-input) .ant-select-selector {
         display: flex;
@@ -12570,7 +12588,8 @@
     .horosa-workspace-shell .horosa-kinastro-cetian-cell div span {
         color: var(--horosa-huangji-accent);
         font-size: 12px;
-        font-weight: 700;
+        // 大运宫位名/干支等加粗到 700 后笔画糊在一起看不清（用户反馈）→ 降到常规字重，靠颜色区分。
+        font-weight: 500;
     }
 
     .horosa-workspace-shell .horosa-kinastro-palace-card strong,
@@ -12579,7 +12598,8 @@
         margin-top: 4px;
         color: var(--horosa-huangji-text);
         font-size: 16px;
-        font-weight: 800;
+        // 800 过粗、密集汉字糊成一团 → 降到中等字重保层级又清晰（用户反馈「加粗就看不清」）。
+        font-weight: 600;
     }
 
     .horosa-workspace-shell .horosa-kinastro-cetian-grid {
@@ -14248,6 +14268,34 @@
     }
 
     .horosa-workspace-shell .horosa-relative-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane-active > * {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    /* 命盘设置左栏 / 宫位制与黄道 popover 的 Select 触发框:固定宽度内长名(如 Lahiri ICRC(官定2022))走 ellipsis 而非硬切。
+       配合 inline style maxWidth:160 + dropdownMatchSelectWidth=false → 触发框不变宽,下拉面板自动展全名。 */
+    .horosa-workspace-shell .horosa-field-block .ant-select-selection-item,
+    .horosa-workspace-shell .horosa-settings-form-grid .ant-select-selection-item {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+
+    /* 影响盘/马克斯盘内层 chartA/chartB Tabs:让 TabPane 撑满 chart-row 实测高度,
+       根治外层 Tabs 已 1073px 但内层 TabPane 仍只占自身 content 高度的「下半空白」回归。
+       同时让 TabPane 直接子级以 flex 撑满,与外层 horosa-relative-tabs 规则呼应。 */
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-content,
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-tabpane-active {
+        height: 100% !important;
+        min-height: 0;
+    }
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-tabpane-active {
+        display: flex;
+        flex-direction: column;
+    }
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-tabpane-active > * {
         flex: 1 1 auto;
         min-height: 0;
     }
