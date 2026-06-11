@@ -30,28 +30,23 @@ class ChartComp:
                     'id': innerObj.id,
                     'aspect': -1
                 }
-                delta = obj.lon - innerObj.lon if obj.lon >= innerObj.lon else innerObj.lon - obj.lon
+                # 归一化到 [0,180] 最短分离角(同 perpredict.getAspects 修正):
+                # 跨 0° 合相不再漏报,且不再依赖 300/270/240 补角分支。
+                delta = abs(obj.lon - innerObj.lon)
+                if delta > 180:
+                    delta = 360 - delta
                 if delta < 1:
                     natasp['aspect'] = 0
                     natasp['delta'] = delta
-                elif abs(delta - 60) < 1 or abs(delta - 300) < 1:
-                    tmpdelta = abs(delta - 60)
-                    if tmpdelta > 1:
-                        tmpdelta = abs(delta - 300)
+                elif abs(delta - 60) < 1:
                     natasp['aspect'] = 60
-                    natasp['delta'] = tmpdelta
-                elif abs(delta - 90) < 1 or abs(delta - 270) < 1:
-                    tmpdelta = abs(delta - 90)
-                    if tmpdelta > 1:
-                        tmpdelta = abs(delta - 270)
+                    natasp['delta'] = abs(delta - 60)
+                elif abs(delta - 90) < 1:
                     natasp['aspect'] = 90
-                    natasp['delta'] = tmpdelta
-                elif abs(delta - 120) < 1 or abs(delta - 240) < 1:
-                    tmpdelta = abs(delta - 120)
-                    if tmpdelta > 1:
-                        tmpdelta = abs(delta - 240)
+                    natasp['delta'] = abs(delta - 90)
+                elif abs(delta - 120) < 1:
                     natasp['aspect'] = 120
-                    natasp['delta'] = tmpdelta
+                    natasp['delta'] = abs(delta - 120)
                 elif abs(delta - 180) < 1:
                     natasp['aspect'] = 180
                     natasp['delta'] = abs(delta - 180)
@@ -70,28 +65,21 @@ class ChartComp:
                     'id': outerObj.id,
                     'aspect': -1
                 }
-                delta = obj.lon - outerObj.lon if obj.lon >= outerObj.lon else outerObj.lon - obj.lon
+                delta = abs(obj.lon - outerObj.lon)
+                if delta > 180:
+                    delta = 360 - delta
                 if delta < 1:
                     natasp['aspect'] = 0
                     natasp['delta'] = delta
-                elif abs(delta - 60) < 1 or abs(delta - 300) < 1:
-                    tmpdelta = abs(delta - 60)
-                    if tmpdelta > 1:
-                        tmpdelta = abs(delta - 300)
+                elif abs(delta - 60) < 1:
                     natasp['aspect'] = 60
                     natasp['delta'] = abs(delta - 60)
-                elif abs(delta - 90) < 1 or abs(delta - 270) < 1:
-                    tmpdelta = abs(delta - 90)
-                    if tmpdelta > 1:
-                        tmpdelta = abs(delta - 270)
+                elif abs(delta - 90) < 1:
                     natasp['aspect'] = 90
-                    natasp['delta'] = tmpdelta
-                elif abs(delta - 120) < 1 or abs(delta - 240) < 1:
-                    tmpdelta = abs(delta - 120)
-                    if tmpdelta > 1:
-                        tmpdelta = abs(delta - 240)
+                    natasp['delta'] = abs(delta - 90)
+                elif abs(delta - 120) < 1:
                     natasp['aspect'] = 120
-                    natasp['delta'] = tmpdelta
+                    natasp['delta'] = abs(delta - 120)
                 elif abs(delta - 180) < 1:
                     natasp['aspect'] = 180
                     natasp['delta'] = abs(delta - 180)
@@ -121,6 +109,9 @@ class ChartComp:
                 if objA.id == objB.id:
                     continue
                 delta = abs(objA.lon - objB.antisciaPoint["lon"])
+                # 跨 0° 的映点接触需折回最短分离角
+                if delta > 180:
+                    delta = 360 - delta
                 if delta < 1:
                     obj = {
                         'idA': objA.id,
@@ -137,6 +128,8 @@ class ChartComp:
                 if objA.id == objB.id:
                     continue
                 delta = abs(objA.lon - objB.cantisciaPoint["lon"])
+                if delta > 180:
+                    delta = 360 - delta
                 if delta < 1:
                     obj = {
                         'idA': objA.id,

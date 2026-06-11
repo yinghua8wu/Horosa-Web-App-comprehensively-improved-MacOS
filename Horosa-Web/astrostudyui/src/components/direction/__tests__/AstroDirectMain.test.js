@@ -105,9 +105,10 @@ describe('AstroDirectMain primary direction sync', ()=>{
 				pdYears: 100,
 				pdtype: 0,
 				pdDirect: 1,
-				pdConverse: false,
-				pdAntiscia: false,
-				pdTerms: false,
+				// 0/1 数字编码(原布尔混编:PD 链下游 `x === 0 ? 0 : 1` 惯例会把 false 错判成 1)
+				pdConverse: 0,
+				pdAntiscia: 0,
+				pdTerms: 0,
 			},
 		});
 		expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({

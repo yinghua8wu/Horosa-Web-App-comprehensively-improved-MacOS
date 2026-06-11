@@ -156,6 +156,7 @@ class AcgD3Map extends Component {
 			prevProps.value !== this.props.value || prevProps.lines !== this.props.lines ||
 			prevProps.showGeo !== this.props.showGeo || prevProps.showLS !== this.props.showLS ||
 			prevProps.showParans !== this.props.showParans || prevProps.showLabels !== this.props.showLabels ||
+			prevProps.paranAll !== this.props.paranAll ||
 			prevProps.clickMarker !== this.props.clickMarker
 		) {
 			this.drawAll();
@@ -222,6 +223,10 @@ class AcgD3Map extends Component {
 
 		this.zoomBehavior = d3.zoom().scaleExtent([1, 14]).on('zoom', (ev) => root.attr('transform', ev.transform));
 		sel.call(this.zoomBehavior);
+		// d3-zoom 状态存在 svg 节点(__zoom),selectAll('*').remove() 清不掉:
+		// 缩放后切主题/投影/resize 重建,新 root 在原点而 zoomTransform 仍是旧值 →
+		// 点击反演坐标错位 + 首个滚轮手势跳回旧缩放。重建时把旧 transform 重放到新 root。
+		sel.call(this.zoomBehavior.transform, d3.zoomTransform(svg));
 
 		sel.on('click', (ev) => {
 			if (!this.props.onMapClick || !this.projection) return;

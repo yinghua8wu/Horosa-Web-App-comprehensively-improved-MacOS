@@ -707,9 +707,11 @@ export default class AstroChartCircle {
 						.attr('font-family', AstroConst.AstroChartFont)
 						.attr('font-size', fontSize).attr('font-weight', fontWeight).attr('stroke', labelColor)
 						.text(termtxt);
-				let txtang = -(term[1] + delta) - 30*i;
+				// 旋转角对齐界段「中点」(平移就在 stangle+demiStep):原 term[1]+delta 是段尾,
+				// 每个界字按半段宽歪斜(埃及界最宽 12° → 歪 6°);邻band(su27/houses)都用中点口径。
+				let txtang = -(term[1] + delta/2) - 30*i;
 				let txtrot = 'rotate(' + txtang + ')';
-				lbl.attr('transform', txtrot);		
+				lbl.attr('transform', txtrot);
 			}
 	
 		}
@@ -1146,7 +1148,9 @@ export default class AstroChartCircle {
 					let offset = getPlanetTextOffset(idx, hasRetrograde);
 					let x = -(txtPosR - offset) * Math.sin(lon);
 					let y = -(txtPosR - offset) * Math.cos(lon);
-					let angle = -pnt.lon;
+					// 旋转角要用防重叠后的显示经度 tmplon(与上面定位同源):
+					// 用原始 pnt.lon 时,星群被推开的字列会按原射线旋转 → 越推越歪。
+					let angle = -tmplon;
 					if(house1Ang !== undefined && house1Ang !== null && txtforward){
 						angle = 90 - house1Ang;
 					}
@@ -1309,7 +1313,7 @@ export default class AstroChartCircle {
 			let x2 = -(r - len) * Math.sin(lonrad);
 			let y2 = -(r - len) * Math.cos(lonrad);
 			let path = labelHDgrp.append('line')
-				.attr('stroke-dashanray', '3,3')
+				.attr('stroke-dasharray', '3,3')
 				.attr('stroke', AstroConst.AstroColor['Stroke']);
 			path.attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2);	
 	
@@ -1475,7 +1479,7 @@ export default class AstroChartCircle {
 			let x2 = -(r - len) * Math.sin(lonrad);
 			let y2 = -(r - len) * Math.cos(lonrad);
 			let path = angglegroup.append('line')
-				.attr('stroke-dashanray', '3,3')
+				.attr('stroke-dasharray', '3,3')
 				.attr('stroke-width', 2)
 				.attr('stroke', AstroConst.AstroColor['Stroke']);
 			path.attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2);	
@@ -1704,7 +1708,9 @@ export default class AstroChartCircle {
 			for(let i = 0; i<keyplanets.length; i++){
 				let obj = this.getObject(chartObj, keyplanets[i]);
 				let lon = obj.lon;
-				if(house.lon <= lon && lon <= house.lon + house.size){
+				// 宫位跨 0° 白羊点(lon+size>360)时线性比较永不命中 → 用宫首相对弧判定
+				const rel = ((lon - house.lon) % 360 + 360) % 360;
+				if(rel <= house.size){
 					hasKey = true;
 					break;
 				}

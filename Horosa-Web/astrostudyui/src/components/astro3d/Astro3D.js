@@ -246,11 +246,16 @@ class Astro3D {
 		};
 		let json = localStorage.getItem(ChartOptKey);
 		if(json){
-			let opt = JSON.parse(json);
-			this.chartOpt = {
-				...this.chartOpt,
-				...opt,
-			};
+			// 本地值损坏不能让 3D 视图挂载抛错 → 忽略走默认
+			try{
+				let opt = JSON.parse(json);
+				if(opt && typeof opt === 'object'){
+					this.chartOpt = {
+						...this.chartOpt,
+						...opt,
+					};
+				}
+			}catch(e){ /* ignore */ }
 		}
 		this.chartOpt.maxEarthRadius = this.radius - 20;
 

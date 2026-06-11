@@ -1172,6 +1172,9 @@ class PerChart:
             for star in stars:
                 plaObj = self.chart.get(planet)
                 delta = abs(plaObj.lon - star.lon)
+                # 跨 0° 白羊点的合相(如 359.7 vs 0.3,差 359.4)需折回最短分离角
+                if delta > 180:
+                    delta = 360 - delta
                 if delta < 1:
                     obj = [star.id, star.sign, star.signlon, delta, star.name]
                     fixstars['stars'].append(obj)
@@ -1279,20 +1282,23 @@ class PerChart:
                     except:
                         continue
                     edgeOrbB = props.object.orb[planetB.id]
-                    orb = edgeOrbA + edgeOrbB
+                    # 用独立变量存「对的合并容许度」:原先复用外层 orb(=27),第一对之后
+                    # 外层 deltaA 过滤/回绕窗口全被上一对的值污染,围攻判定随迭代顺序漂移。
+                    pairOrb = edgeOrbA + edgeOrbB
                     for aspB in aspectlist:
                         sigB = self.getSign(planetB, aspB)
                         pntB = (planetB.lon + aspB + 360) % 360
                         deltaB = (pntB - planet.lon + 360) % 360
                         deltaB = deltaB if deltaB <= 180 else 360 - deltaB
-                        if deltaA > orb or deltaA > orb:
+                        # 原 `deltaA > orb or deltaA > orb` 为复制粘贴笔误,第二项应查 deltaB
+                        if deltaA > pairOrb or deltaB > pairOrb:
                             continue
 
                         deltaAB = (pntA - pntB + 360) % 360
                         deltaAB = deltaAB if deltaAB <= 180 else 360 - deltaAB
-                        if deltaAB <= orb and deltaA <= edgeOrbA and deltaB <= edgeOrbB:
+                        if deltaAB <= pairOrb and deltaA <= edgeOrbA and deltaB <= edgeOrbB:
                             congPnt = (planet.lon + 180) % 360
-                            if (pntA <= planet.lon <= pntB <= congPnt or congPnt <= pntA <= planet.lon <= pntB) or (360-orb <= pntA <= planet.lon <= 360 and 0<= pntB <= orb) or (360-orb <= pntA and 0<= planet.lon <=pntB <= orb):
+                            if (pntA <= planet.lon <= pntB <= congPnt or congPnt <= pntA <= planet.lon <= pntB) or (360-pairOrb <= pntA <= planet.lon <= 360 and 0<= pntB <= pairOrb) or (360-pairOrb <= pntA and 0<= planet.lon <=pntB <= pairOrb):
                                 atk = [{
                                     'aspect': aspA,
                                     'id': objA,
@@ -1832,7 +1838,9 @@ class PerChart:
                     if objA in res['contraParallel']:
                         res['contraParallel'][objA].add(objB)
                     else:
+                        # 原先建空 set 后漏 add(objB):每颗行星的第一个反平行伙伴被静默丢弃
                         res['contraParallel'][objA] = set()
+                        res['contraParallel'][objA].add(objB)
 
         return res
 
@@ -1898,7 +1906,10 @@ class PerChart:
         sunT = tstrparts[1]
         sunTparts = sunT.split(':')
         sunH = int(sunTparts[0]) + float(sunTparts[1])/60 + float(sunTparts[2])/3600
-        delta = int(h) - int(sunH)
+        # 日出后第 N 个小时:floor(经过时长)。原 int(h)-int(sunH) 数的是「跨过几个整点」,
+        # 日出 6:50 生于 7:10(仅过 20 分钟)会被错算成第 2 小时;日出前出生 floor 给负数,
+        # (timerIdx-2)%7 与「前一日第 22 时」在 7 星循环下同余,口径自洽。
+        delta = int(math.floor(h - sunH))
         idx = (timerIdx + delta + 28) % 7
         star = timerStar[idx]
         return star

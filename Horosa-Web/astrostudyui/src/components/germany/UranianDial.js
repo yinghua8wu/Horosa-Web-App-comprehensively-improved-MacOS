@@ -42,7 +42,7 @@ export default class UranianDial extends Component {
 			this.draw();
 		}
 	}
-	componentWillUnmount(){ this._detach(); }
+	componentWillUnmount(){ if(this._raf){ cancelAnimationFrame(this._raf); this._raf = null; } this._detach(); }
 
 	rings(){ return (this.props.rings && this.props.rings.length) ? this.props.rings : [{ key: 'natal', label: '本命', points: this.props.points || [] }]; }
 
@@ -248,9 +248,12 @@ export default class UranianDial extends Component {
 		this._pointerG = pg;
 		const drawArrow = (group, deg, col, w, op) => {
 			const [tipx, tipy] = polar(cx, cy, R + 3, deg), [bx, by] = polar(cx, cy, R - 16, deg);
-			const a = deg / 360 * TAU, perp = a + Math.PI / 2;
+			// polar 是反向极坐标(x=cx-R·sin a, y=cy-R·cos a),其切向单位向量为 (cos a, -sin a)。
+			// 原 perp=a+π/2 套标准圆 sin/cos 偏出来的是「径向」→ 三点共线,箭头零面积不可见。
+			const a = deg / 360 * TAU;
+			const tx = Math.cos(a), ty = -Math.sin(a);
 			group.append('line').attr('x1', cx).attr('y1', cy).attr('x2', bx).attr('y2', by).attr('stroke', col).attr('stroke-width', w).attr('opacity', op);
-			group.append('polygon').attr('points', `${tipx},${tipy} ${bx + 7 * Math.cos(perp)},${by + 7 * Math.sin(perp)} ${bx - 7 * Math.cos(perp)},${by - 7 * Math.sin(perp)}`).attr('fill', col).attr('opacity', op);
+			group.append('polygon').attr('points', `${tipx},${tipy} ${bx + 7 * tx},${by + 7 * ty} ${bx - 7 * tx},${by - 7 * ty}`).attr('fill', col).attr('opacity', op);
 		};
 		drawArrow(pg, 0, POINTER_COLOR, 1.6, 0.9);
 		drawArrow(pg, 180, POINTER_COLOR, 1.2, 0.5);

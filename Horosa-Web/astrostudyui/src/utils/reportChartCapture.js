@@ -56,11 +56,14 @@ async function loadHtmlToImage(){
 const CAPTURE_LOCK_TIMEOUT_MS = 30000;
 let captureLock = Promise.resolve();
 function withCaptureLock(fn){
-	const lockTimeout = new Promise((resolve)=>setTimeout(resolve, CAPTURE_LOCK_TIMEOUT_MS));
-	const next = Promise.race([
-		captureLock.then(()=>fn()).catch(()=>fn()),
-		lockTimeout.then(()=>fn()), // 若 lock 卡 30s 就强行跑下一个
+	// 串行化且 fn 恰好执行一次:timeout 只用于「放行」(防前一个任务卡死把队列永久锁住)。
+	// 原实现把 fn 塞进 race 的两臂 + catch 兜底 → 每次截图 30s 后整管线被弃跑第二遍、
+	// 失败再跑一遍,与在共享 hiddenHost 上防的并发 unmount 竞态自相矛盾。
+	const release = Promise.race([
+		captureLock,
+		new Promise((resolve)=>setTimeout(resolve, CAPTURE_LOCK_TIMEOUT_MS)),
 	]);
+	const next = release.then(()=>fn());
 	captureLock = next.catch(()=>{}).then(()=>{}); // 防止 lock 链条被 reject 卡死
 	return next;
 }

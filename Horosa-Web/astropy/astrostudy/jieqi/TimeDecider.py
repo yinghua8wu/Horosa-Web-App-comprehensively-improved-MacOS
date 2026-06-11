@@ -1,3 +1,6 @@
+from flatlib.datetime import Datetime
+from flatlib.geopos import GeoPos
+
 
 class TimeDecider:
 

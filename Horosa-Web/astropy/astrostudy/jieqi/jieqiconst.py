@@ -320,15 +320,16 @@ def getJieQiInterval(lon):
         }
     }
     for jq in JieQi:
-        if JieQiLon[jq] < lon:
+        # JieQiLon[jq] 是 dict({'lon':…}),原直接与数值比较在 Py3 抛 TypeError(一调即崩)
+        if JieQiLon[jq]['lon'] < lon:
             continue
-        elif JieQiLon[jq] >= lon:
+        elif JieQiLon[jq]['lon'] >= lon:
             res['end']['jieqi'] = jq
-            res['end']['lon'] = JieQiLon[jq]
+            res['end']['lon'] = JieQiLon[jq]['lon']
             idx = JieQi.index(jq)
             idx = (idx - 1 + 24) % 24
             prevjq = JieQi[idx]
             res['start']['jieqi'] = prevjq
-            res['start']['lon'] = JieQiLon[prevjq]
+            res['start']['lon'] = JieQiLon[prevjq]['lon']
             break
     return res

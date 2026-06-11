@@ -1,5 +1,4 @@
 import { Component } from 'react';
-import { randomStr } from '../../utils/helper';
 import NongLiDate from './NongLiDate';
 import {Week} from '../../msg/types';
 import DateTime from '../comp/DateTime';
@@ -30,6 +29,16 @@ class NongLi extends Component{
 		let dt = new DateTime();
 		dt = dt.parse(date.birth, 'yyyy-MM-dd HH:mm:ss');
 		return dt.month;
+	}
+
+	// 行循环按固定 42 格索引取数;days/prevDays 短缺时(如 prevDays 未就绪)对应格为
+	// undefined,直接进 genDateCol 会在 date.birth 上抛错白屏 → 以空占位格兜底。
+	genDateColSafe(resdays, i, focusDate){
+		const obj = resdays[i];
+		if(obj === undefined || obj === null){
+			return (<div key={`nl-empty-${i}`} className="horosa-calendar-cell-wrap" />);
+		}
+		return this.genDateCol(obj, i % 7, focusDate);
 	}
 
 	genDateCol(date, ord, focusDate){
@@ -93,45 +102,45 @@ class NongLi extends Component{
 
 		let row0cols = [];
 		for(let i=0; i<7; i++){
-			let col = this.genDateCol(resdays[i], i%7, focusDate);
+			let col = this.genDateColSafe(resdays, i, focusDate);
 			row0cols.push(col);
 		}
 
 		let row1cols = [];
 		for(let i=7; i<14; i++){
-			let col = this.genDateCol(resdays[i], i%7, focusDate);
+			let col = this.genDateColSafe(resdays, i, focusDate);
 			row1cols.push(col);
 			
 		}
 
 		let row2cols = [];
 		for(let i=14; i<21; i++){
-			let col = this.genDateCol(resdays[i], i%7, focusDate);
+			let col = this.genDateColSafe(resdays, i, focusDate);
 			row2cols.push(col);
 			
 		}
 
 		let row3cols = [];
 		for(let i=21; i<28; i++){
-			let col = this.genDateCol(resdays[i], i%7, focusDate);
+			let col = this.genDateColSafe(resdays, i, focusDate);
 			row3cols.push(col);
 			
 		}
 
 		let row4cols = [];
 		for(let i=28; i<35; i++){
-			let col = this.genDateCol(resdays[i], i%7, focusDate);
+			let col = this.genDateColSafe(resdays, i, focusDate);
 			row4cols.push(col);			
 		}
 
 		let row5cols = [];
 		for(let i=35; i<resdays.length; i++){
-			let col = this.genDateCol(resdays[i], i%7, focusDate);
+			let col = this.genDateColSafe(resdays, i, focusDate);
 			row5cols.push(col);			
 		}
 
 		let rows = [row0cols, row1cols, row2cols, row3cols, row4cols];
-		if(resdays[35].isOther === false){
+		if(resdays[35] && resdays[35].isOther === false){
 			rows.push(row5cols);
 		}
 

@@ -8,6 +8,8 @@ import {
 	mergeOptionsIntoRecord,
 	mergeOptionsIntoPayload,
 	applyLocalStorageSettings,
+	snapshotLocalStorageSettings,
+	restoreLocalStorageSettings,
 	pruneOptionsToNonDefault,
 } from './techniqueMountSettings';
 
@@ -2616,9 +2618,16 @@ export async function getAnalysisTechniqueContextWithOptions(source, techniqueKe
 	let text = '';
 	try{
 		if(schema.kind === 'localStorage'){
-			// C 类:写全局显示选项(builder 自读)，再按命盘强制重算。
-			applyLocalStorageSettings(key, opts);
-			text = await regenerateChartTechniqueSnapshot(mergeOptionsIntoRecord(record, key, opts), key);
+			// C 类:临时写全局显示选项(builder 自读)强制重算,用毕 finally 还原现值——
+			// 与紫微流派「临时切换 + 用毕还原」同口径;否则一次挂载覆盖会永久改写
+			// 用户的七政全局设置(命度/罗计/宿度制),且渗入 doubingSu28 共享请求。
+			const prior = snapshotLocalStorageSettings(key);
+			try{
+				applyLocalStorageSettings(key, opts);
+				text = await regenerateChartTechniqueSnapshot(mergeOptionsIntoRecord(record, key, opts), key);
+			}finally{
+				restoreLocalStorageSettings(prior);
+			}
 		}else if(isChartTechnique(key)){
 			// A 类:把 options merge 进 record.*(buildFieldObject 读)，强制重算。
 			const mergedRecord = mergeOptionsIntoRecord(record, key, opts);

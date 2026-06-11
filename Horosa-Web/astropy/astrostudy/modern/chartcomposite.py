@@ -14,14 +14,20 @@ class ChartComposite:
         innerChart = PerChart(self.innerData)
         outerChart = PerChart(self.outerData)
 
+        # 组合中点须取短弧中点(germany/midpoint.py 同口径):直接平均在跨 0° 白羊点时
+        # 会落到对面(355°+5° 给 180° 而非 0°),整对行星翻到对宫。
         for objA in innerChart.chart.objects:
             objB = outerChart.chart.getObject(objA.id)
             deg = (objA.lon + objB.lon) / 2
+            if abs(deg - objA.lon) > 90:
+                deg = (deg + 180) % 360
             objA.relocate(deg)
 
         for objA in innerChart.chart.angles:
             objB = outerChart.chart.getAngle(objA.id)
             deg = (objA.lon + objB.lon) / 2
+            if abs(deg - objA.lon) > 90:
+                deg = (deg + 180) % 360
             objA.relocate(deg)
 
         asc = innerChart.chart.getAngle(const.ASC)

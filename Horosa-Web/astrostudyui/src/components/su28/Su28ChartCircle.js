@@ -594,11 +594,15 @@ class Su28ChartCircle {
 		let hmap = this.houseMap;
 		let sigraList = this.chartObj.signsRA;
 		let eastRa = this.getEastRa();
-		let angoffset = r >= this.rThreshold ? 5 : 11;
+		// 先捕获大图判定:下面 d3 回调是 function(){},内部 this 是 DOM 文本节点,
+		// this.rThreshold 取出 undefined → 比较永假,所有行星永远走小图字号/小间距。
+		const wideChart = r >= this.rThreshold;
+		let angoffset = wideChart ? 5 : 11;
 		let tmpra = pnt.ra;
-		if(degSet.length > 0 && distanceInCircleAbs(degSet[degSet.length-1], tmpra) < angoffset || 
+		if(degSet.length > 0 && distanceInCircleAbs(degSet[degSet.length-1], tmpra) < angoffset ||
 			(degSet.length > 0 && degSet[degSet.length-1] + angoffset > tmpra)){
-			tmpra = degSet[degSet.length-1] + angoffset;
+			// %360 防止 0° 跨界推挤把位置推出 [0,360)(如 359°+5°→4° 而非 364°)
+			tmpra = (degSet[degSet.length-1] + angoffset) % 360;
 		}
 		if(tmpra > 180 && pnt.ra < 180){
 			tmpra = pnt.ra;
@@ -619,11 +623,11 @@ class Su28ChartCircle {
 			.attr("text-anchor", "middle")
 			.attr('font-size', function(d, idx){
 				if(idx === 0 || idx === 4 || (startxt.length === 2 && idx === 1)){
-					return r >= this.rThreshold ? 15 : 13;
+					return wideChart ? 15 : 13;
 				}else if(idx === 2){
-					return r >= this.rThreshold ? 13 : 12;
+					return wideChart ? 13 : 12;
 				}else{
-					return r >= this.rThreshold ? 13 : 11;
+					return wideChart ? 13 : 11;
 				}
 			})
 			.attr('font-family', function(d, idx){
@@ -641,7 +645,7 @@ class Su28ChartCircle {
 			})
 			.attr('font-weight', 100)
 			.attr('transform', function(d, idx){
-				let offset = r >= this.rThreshold ? 20 : 13;
+				let offset = wideChart ? 20 : 13;
 				let x = -(txtPosR - idx * offset) * Math.sin(lon);
 				let y = -(txtPosR - idx * offset) * Math.cos(lon);
 				let angle = -pnt.ra;

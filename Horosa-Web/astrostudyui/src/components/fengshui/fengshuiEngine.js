@@ -412,8 +412,18 @@ export default class FengShuiEngine {
 		if (!host) return;
 		const w = Math.max(320, host.clientWidth);
 		const h = Math.max(320, host.clientHeight);
-		this.canvas.width = w;
-		this.canvas.height = h;
+		// Retina：backing store 按 dpr 放大、CSS 保持逻辑像素、坐标系 setTransform 回逻辑像素
+		//（本应用仅 macOS=全 2x 屏,不处理则罗盘/户型图/canvas 文字永远半分辨率发虚;
+		//  3D 视图早已同款处理）。布局/鼠标仍用逻辑 viewW/viewH(getBoundingClientRect 本就是 CSS px)。
+		const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+		this.dpr = dpr;
+		this.viewW = w;
+		this.viewH = h;
+		this.canvas.width = Math.round(w * dpr);
+		this.canvas.height = Math.round(h * dpr);
+		this.canvas.style.width = w + 'px';
+		this.canvas.style.height = h + 'px';
+		this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 		if (this.imgLoaded) {
 			this.scale = Math.min((w * 0.92) / this.img.width, (h * 0.92) / this.img.height);
 			this.recenter();
@@ -424,8 +434,8 @@ export default class FengShuiEngine {
 	recenter() {
 		const c = this.getCombinedScale();
 		this.viewOffset = {
-			x: (this.canvas.width - this.img.width * c) / 2,
-			y: (this.canvas.height - this.img.height * c) / 2,
+			x: ((this.viewW || this.canvas.width) - this.img.width * c) / 2,
+			y: ((this.viewH || this.canvas.height) - this.img.height * c) / 2,
 		};
 	}
 
@@ -433,7 +443,7 @@ export default class FengShuiEngine {
 		const clamped = Math.max(0.4, Math.min(3.0, newScale));
 		const combined = this.getCombinedScale();
 		const nextCombined = this.scale * clamped;
-		const point = anchor || { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+		const point = anchor || { x: (this.viewW || this.canvas.width) / 2, y: (this.viewH || this.canvas.height) / 2 };
 		const imgX = (point.x - this.viewOffset.x) / combined;
 		const imgY = (point.y - this.viewOffset.y) / combined;
 		this.viewScale = clamped;
@@ -704,34 +714,38 @@ export default class FengShuiEngine {
 		}
 	}
 
-	drawMarkers(ctx, sf, off) {
+	drawMarkers(ctx, sf, off, visualScale = 1) {
+		// visualScale：标记圆点/字号/描边的「视觉尺寸」缩放。屏上恒为 1(常量像素);
+		// 导出走图片原生分辨率(sf=1、坐标即图片 px),3000px 级户型照若仍用 7px 圆点
+		// 和 11px 字会小到不可见 → 由调用方按比例放大。
+		const vs = Math.max(1, visualScale || 1);
 		this.currentModeMarkers().forEach((marker) => {
 			const x = marker.x * sf + off.x;
 			const y = marker.y * sf + off.y;
 			const selected = marker.id === this.selectedMarkerId;
-			const radius = selected ? 9 : 7;
+			const radius = (selected ? 9 : 7) * vs;
 			ctx.beginPath();
 			ctx.arc(x, y, radius, 0, Math.PI * 2);
 			ctx.fillStyle = marker.color;
 			ctx.fill();
 			if ((marker.mode || 'naqi') === 'bagua') {
 				ctx.strokeStyle = selected ? '#c0883a' : '#fff';
-				ctx.lineWidth = 2; ctx.stroke();
+				ctx.lineWidth = 2 * vs; ctx.stroke();
 				// 圈下方写角色/格局名（白描边 + 深字，覆于户型图上始终清晰）
 				const cap = marker.kind === 'member' ? marker.role : marker.label;
-				ctx.font = 'bold 11px "PingFang SC"';
+				ctx.font = 'bold ' + Math.round(11 * vs) + 'px "PingFang SC"';
 				ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-				ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-				ctx.strokeText(cap, x, y + radius + 2);
-				ctx.fillStyle = '#2a2018'; ctx.fillText(cap, x, y + radius + 2);
+				ctx.lineWidth = 3 * vs; ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+				ctx.strokeText(cap, x, y + radius + 2 * vs);
+				ctx.fillStyle = '#2a2018'; ctx.fillText(cap, x, y + radius + 2 * vs);
 			} else {
 				const ev = this.evaluateMarker(marker);
 				ctx.strokeStyle = !ev.ok && ev.expected !== 'neutral' ? '#b14032' : '#fff';
-				ctx.lineWidth = 2; ctx.stroke();
+				ctx.lineWidth = 2 * vs; ctx.stroke();
 				ctx.fillStyle = '#fff';
-				ctx.font = 'bold 11px sans-serif';
+				ctx.font = 'bold ' + Math.round(11 * vs) + 'px sans-serif';
 				ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-				ctx.fillText(marker.short, x, y + 0.5);
+				ctx.fillText(marker.short, x, y + 0.5 * vs);
 			}
 		});
 	}
@@ -866,7 +880,8 @@ export default class FengShuiEngine {
 		ectx.drawImage(this.img, 0, 0);
 		if (this.rect.w !== 0 && this.rect.h !== 0) this.drawRotatedRect(ectx, 1, { x: 0, y: 0 });
 		if (this.rect.active) this.drawDisk(ectx, 1, { x: 0, y: 0 });
-		this.drawMarkers(ectx, 1, { x: 0, y: 0 });
+		// 标记视觉尺寸按「图片 px / 屏幕逻辑 px」放大,使导出图上看到的圆点/字号与屏上一致
+		this.drawMarkers(ectx, 1, { x: 0, y: 0 }, 1 / Math.max(0.0001, this.getCombinedScale()));
 		return ex;
 	}
 

@@ -539,7 +539,8 @@ export function distanceInCircleAbs(ang1, ang2){
 
 	let delta = Math.abs(ang2 - ang1);
 	if(delta > 180){
-		delta = 360 - 180;
+		// 原 `360 - 180` 把所有 >180 的分离一律折成常量 180(应为 360-delta)
+		delta = 360 - delta;
 	}
 	return delta;
 }

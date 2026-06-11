@@ -891,6 +891,40 @@ export function applyLocalStorageSettings(key, options){
 	});
 }
 
+// C 类配套：施加覆盖前快照全局 key 现值（含「不存在」= null），用毕由调用方还原。
+// 没有这一对，一次 AI 挂载覆盖就会永久改写用户的全局显示设置（builder 自读的正是这些 key），
+// 且 applyLocalStorageSettings 只写不删、改回默认也清不掉残值。
+export function snapshotLocalStorageSettings(key){
+	const schema = getTechniqueSettingsSchema(key);
+	if(!schema || schema.kind !== 'localStorage' || typeof window === 'undefined' || !window.localStorage){
+		return null;
+	}
+	const snap = {};
+	schema.fields.forEach((field)=>{
+		if(!field.storageKey){
+			return;
+		}
+		try{ snap[field.storageKey] = window.localStorage.getItem(field.storageKey); }catch(e){ snap[field.storageKey] = null; }
+	});
+	return snap;
+}
+
+export function restoreLocalStorageSettings(snapshot){
+	if(!snapshot || typeof window === 'undefined' || !window.localStorage){
+		return;
+	}
+	Object.keys(snapshot).forEach((storageKey)=>{
+		try{
+			const prev = snapshot[storageKey];
+			if(prev === null || prev === undefined){
+				window.localStorage.removeItem(storageKey);
+			}else{
+				window.localStorage.setItem(storageKey, prev);
+			}
+		}catch(e){ /* ignore */ }
+	});
+}
+
 // 审计矩阵（供五同步自检 + UI）：技法 → kind / 字段数 / 是否可重算。
 export function getMountableTechniqueAuditEntry(key){
 	const schema = getTechniqueSettingsSchema(key);

@@ -390,6 +390,9 @@ export async function buildZiweiSnapshotForParams(params){
 	if(overrideSchool && overrideSchool !== prevSchool){
 		ZWConst.ZWSchool.school = overrideSchool;
 		ZWConst.refreshActiveSiHua();
+		// P1-A 不变量:切流派必须同时失效四化缓存(getSiHua 懒初始化,不清不会按新表重建),
+		// 否则快照里星曜级四化仍是旧流派、与 p.sihua 自相矛盾(ZiWeiInput.applySihuaSchool 同口径)。
+		ZiWeiHelper.resetHuaMap();
 	}
 	try{
 		const p = { ...params };
@@ -413,6 +416,7 @@ export async function buildZiweiSnapshotForParams(params){
 		if(overrideSchool && overrideSchool !== prevSchool){
 			ZWConst.ZWSchool.school = prevSchool;
 			ZWConst.refreshActiveSiHua();
+			ZiWeiHelper.resetHuaMap();
 		}
 	}
 }

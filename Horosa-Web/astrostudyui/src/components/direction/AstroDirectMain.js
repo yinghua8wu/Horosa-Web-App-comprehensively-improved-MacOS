@@ -1044,9 +1044,11 @@ class AstroDirectMain extends Component{
 				pdYears: resolvedPdYears,
 				pdtype: opt.pdtype === 1 ? 1 : 0,
 				pdDirect: opt.direct === false ? 0 : 1,
-				pdConverse: !!opt.converse,
-				pdAntiscia: !!opt.antiscia,
-				pdTerms: !!opt.terms,
+				// 统一 0/1 数字编码:此前混入布尔,而 PD 链下游惯例是 `x === 0 ? 0 : 1`,
+				// 布尔 false 会被错判成 1(开),埋给未来消费者的雷。
+				pdConverse: opt.converse ? 1 : 0,
+				pdAntiscia: opt.antiscia ? 1 : 0,
+				pdTerms: opt.terms ? 1 : 0,
 			},
 		});
 		const nextFields = buildPrimaryDirectionFetchFields(

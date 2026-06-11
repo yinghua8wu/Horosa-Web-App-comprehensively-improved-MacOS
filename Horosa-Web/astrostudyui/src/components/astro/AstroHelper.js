@@ -261,6 +261,10 @@ export function getSuHouse(chartObj, suid){
 }
 
 
+// ⚠️ 自此往下的整套 SVG 绘图管线(signsBand/desposeStars/desposeAspects/drawChart/drawDoubleChart…)
+// 站内已无调用——活渲染器是 AstroChartCircle 类(AstroChart/AstroDoubleChart 用)。本文件仅上方的
+// 字符串/坐标工具仍在用。这套旧管线含已知未修缺陷(0° 跨界防重叠涂抹、txtforward 失效等),
+// 勿在新代码 import;要改图去 AstroChartCircle。
 export function signsBand(svg, r, rStep, flags, isDiurnal, house1Ang){
 	let txtforward = (flags & AstroConst.CHART_TXTPLANETFORWARD) === 0 ? false : true;
 	let samecolorwithsign = (flags & AstroConst.CHART_PLANETCOLORWITHSIGN) === 0 ? false : true;
@@ -933,7 +937,7 @@ export function labelHousesDeg(svg, r, len, houses, flags){
 		let x2 = -(r - len) * Math.sin(lonrad);
 		let y2 = -(r - len) * Math.cos(lonrad);
 		let path = labelHDgrp.append('line')
-			.attr('stroke-dashanray', '3,3')
+			.attr('stroke-dasharray', '3,3')
 			.attr('stroke', AstroConst.AstroColor['Stroke']);
 		path.attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2);	
 
@@ -1103,7 +1107,7 @@ export function drawAngles(svg, r, len, chartObj, flags){
 		let x2 = -(r - len) * Math.sin(lonrad);
 		let y2 = -(r - len) * Math.cos(lonrad);
 		let path = angglegroup.append('line')
-			.attr('stroke-dashanray', '3,3')
+			.attr('stroke-dasharray', '3,3')
 			.attr('stroke-width', 2)
 			.attr('stroke', AstroConst.AstroColor['Stroke']);
 		path.attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2);	

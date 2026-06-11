@@ -85,17 +85,15 @@ def convertLatStrToDegree(lat):
     if len(parts) == 1:
         parts = latstr.split('s')
         positive = -1
-    min = parts[1]
-    if len(parts[1]) == 2:
-        if parts[1][0:1] == '0':
-            min = min[1:3]
-        min = int(min)
-    else:
-        min = int(min) * 10
+    # 标准 度+分/60。原实现 `deg + 1.0/min`(应为 min/60) + else 分支 `*10` 均错
+    # ('39n54'→39.0185 而非 39.9),致真太阳时经度差/时空中点盘定位偏。
+    # 与前端 AstroHelper.convertLatStrToDegree、perpredict._coreParseCoord 同口径。
+    try:
+        min = int(parts[1]) if parts[1] else 0
+    except ValueError:
+        min = 0
     deg = int(parts[0])
-    if min != 0:
-        deg = deg + (1.0 / min)
-    return deg * positive
+    return (deg + min / 60.0) * positive
 
 
 def convertLonStrToDegree(lon):
@@ -114,23 +112,27 @@ def convertLonStrToDegree(lon):
     if len(parts) == 1:
         parts = lonstr.split('w')
         positive = -1
-    min = parts[1]
-    if len(parts[1]) == 2:
-        if parts[1][0:1] == '0':
-            min = min[1:3]
-        min = int(min)
-    else:
-        min = int(min) * 10
+    # 标准 度+分/60(同 convertLatStrToDegree 的修正,'116e24'→116.4 而非 116.04)。
+    try:
+        min = int(parts[1]) if parts[1] else 0
+    except ValueError:
+        min = 0
     deg = int(parts[0])
-    if min != 0:
-        deg = deg + (1.0 / min)
-    return deg * positive
+    return (deg + min / 60.0) * positive
 
 def splitDegree(degree):
     res = []
-    res.append(int(degree))
-    minute = (degree - res[0]) * 60
-    res.append(int(round(minute)))
+    deg = int(degree)
+    minute = int(round((degree - deg) * 60))
+    # 59.99′ 四舍五入到 60 时进位,防序列化出 '39n60' 这类非法分值
+    if minute >= 60:
+        deg += 1
+        minute -= 60
+    elif minute <= -60:
+        deg -= 1
+        minute += 60
+    res.append(deg)
+    res.append(minute)
     return res
 
 def convertLatToStr(degree):
@@ -138,7 +140,8 @@ def convertLatToStr(degree):
     latdeg = deg[0] if deg[0] >= 0 else -deg[0]
     latmin = deg[1] if deg[1] >= 0 else -deg[1]
     dir = 'n' if deg[0] >= 0 else 's'
-    latmin = str(latmin) if latmin > 10 else '0' + str(latmin)
+    # >= 10:原 `> 10` 把恰好 10 分串成 '010'(3 位),回读解析错位
+    latmin = str(latmin) if latmin >= 10 else '0' + str(latmin)
     return str(latdeg) + dir + str(latmin)
 
 def convertLonToStr(degree):
@@ -146,7 +149,7 @@ def convertLonToStr(degree):
     londeg = deg[0] if deg[0] >= 0 else -deg[0]
     lonmin = deg[1] if deg[1] >= 0 else -deg[1]
     dir = 'e' if deg[0] >= 0 else 'w'
-    lonmin = str(lonmin) if lonmin > 10 else '0' + str(lonmin)
+    lonmin = str(lonmin) if lonmin >= 10 else '0' + str(lonmin)
     return str(londeg) + dir + lonmin
 
 
@@ -222,29 +225,16 @@ def getChartJson(data, perchart):
     return res
 
 def distance(ang1, ang2):
-    if ang1 >= 270 and ang2 <= 90:
-        delta = 360 - ang1 + ang2
-        return -delta
-
-    if ang2 >= 270 and ang1 <= 90:
-        delta = 360 - ang2 + ang1
-        return delta
-
-    return ang1 - ang2
+    # 有符号最短弧 ang1-ang2,范围 (-180, 180]。
+    # 原实现只在 270°/90° 两个窗口做回绕,中段大分离(如 100,300)返回 -200 而非 +160,
+    # 致日返寻根从年初种子倒走、收敛到上一年返照。本式对原正确分支逐值相等,只救中段。
+    return (ang1 - ang2 + 180) % 360 - 180
 
 def absDistance(ang1, ang2):
-    if ang1 >= 270 and ang2 <= 90:
-        delta = 360 - ang1 + ang2
-        return delta
-
-    if ang2 >= 270 and ang1 <= 90:
-        delta = 360 - ang2 - ang1
-        return delta
-
-    if ang1 < ang2:
-        return ang2 - ang1
-    else:
-        return 360 - ang1 + ang2
+    # ang1 → ang2 的顺行弧长 [0, 360)。原通用分支即此语义,但第二窗口
+    # `360 - ang2 - ang1` 把 +ang1 误写成 -ang1(如 (10,350) 得 0 而非 340),
+    # 致月返寻根在该窗口种子步长归零、把种子时间当返照返回。本式对原正确分支逐值相等。
+    return (ang2 - ang1) % 360
 
 def isLeap(year):
     if year == 4:

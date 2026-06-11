@@ -351,15 +351,6 @@ export default {
                 },
             });    
 
-            let page = localStorage.getItem(Constants.HomePageKey);
-            if(page){
-                page = JSON.parse(page);
-                yield put({
-                    type: 'astro/setHomePage',
-                    payload: page,
-                });                               
-            }
-
        },
 
         *register({payload: values}, {call, put}){
@@ -394,15 +385,6 @@ export default {
                     ...usrdata,
                 },
             });
-
-            let page = localStorage.getItem(Constants.HomePageKey);
-            if(page){
-                page = JSON.parse(page);
-                yield put({
-                    type: 'astro/setHomePage',
-                    payload: page,
-                });                               
-            }
             
         },
 
@@ -435,17 +417,21 @@ export default {
             const param = {};
             let setupJson = localStorage.getItem(Constants.GlobalSetupKey);
             if(setupJson){
-                let json = normalizeGlobalSetup(JSON.parse(setupJson));
+                let json = null;
+                // 本地 globalSetup 损坏不能炸掉本 effect:它在 token 校验之前,炸了 = 每次启动静默登出 + 全局设置全不生效
+                try{ json = normalizeGlobalSetup(JSON.parse(setupJson)); }catch(e){ json = null; }
                 if(json && json.colorTheme !== undefined){
                     json.colorTheme = AstroConst.normalizeColorThemeIndex(json.colorTheme);
                 }
                 if(json && json.appearanceMode !== undefined){
                     json.appearanceMode = normalizeAppearanceMode(json.appearanceMode);
                 }
-                yield put({
-                    type: 'save',
-                    payload: json,
-                });
+                if(json){
+                    yield put({
+                        type: 'save',
+                        payload: json,
+                    });
+                }
             }
 
             const rsp = yield call(appService.checkUser, param);
@@ -528,15 +514,6 @@ export default {
                 },
             });
 
-            let page = localStorage.getItem(Constants.HomePageKey);
-            if(page){
-                page = JSON.parse(page);
-                yield put({
-                    type: 'astro/setHomePage',
-                    payload: page,
-                });                               
-            }
-
         },
 
         *checkOnlyUser({ payload: values }, { call, put }) {
@@ -546,17 +523,20 @@ export default {
             };
             let setupJson = localStorage.getItem(Constants.GlobalSetupKey);
             if(setupJson){
-                let json = normalizeGlobalSetup(JSON.parse(setupJson));
+                let json = null;
+                try{ json = normalizeGlobalSetup(JSON.parse(setupJson)); }catch(e){ json = null; }
                 if(json && json.colorTheme !== undefined){
                     json.colorTheme = AstroConst.normalizeColorThemeIndex(json.colorTheme);
                 }
                 if(json && json.appearanceMode !== undefined){
                     json.appearanceMode = normalizeAppearanceMode(json.appearanceMode);
                 }
-                yield put({
-                    type: 'save',
-                    payload: json,
-                });
+                if(json){
+                    yield put({
+                        type: 'save',
+                        payload: json,
+                    });
+                }
             }
 
             const rsp = yield call(appService.checkUser, param);
@@ -628,15 +608,6 @@ export default {
                     admin: false,
                 },
             });
-
-            let page = localStorage.getItem(Constants.HomePageKey);
-            if(page){
-                page = JSON.parse(page);
-                yield put({
-                    type: 'astro/setHomePage',
-                    payload: page,
-                });                               
-            }
 
         },
 
@@ -730,7 +701,14 @@ export default {
                 aspects = AstroConst.DEFAULT_ASPECTS;
                 localStorage.setItem(AstroConst.AspKey, JSON.stringify(aspects));
             }else{
-                aspects = JSON.parse(aspects);
+                // 启动订阅里的损坏值会让整个 app 起不来 → 回默认并自愈重写(画盘端读取已有同款守卫)
+                try{ aspects = JSON.parse(aspects); }catch(e){
+                    aspects = AstroConst.DEFAULT_ASPECTS;
+                    try{ localStorage.setItem(AstroConst.AspKey, JSON.stringify(aspects)); }catch(e2){ /* ignore */ }
+                }
+            }
+            if(!Array.isArray(aspects)){
+                aspects = AstroConst.DEFAULT_ASPECTS;
             }
             const syncWorkspaceHeight = (extraPayload = {})=>{
                 const nextViewportHeight = document.documentElement.clientHeight;
@@ -767,6 +745,13 @@ export default {
 
             syncWorkspaceHeight({
                 aspects: aspects,
+            });
+            // 启动加载的相位集也要进 app model:pages/index 是从 app 取 aspects 传给
+            // AstroChartMain/AspSelector 的,原先只随上面进了 astro model,app.aspects
+            // 重启后一直停在默认值(被 AspSelector 自读 localStorage 掩盖,但 props 消费者拿到的是错的)。
+            dispatch({
+                type: 'save',
+                payload: { aspects: aspects },
             });
 
             dispatch({
