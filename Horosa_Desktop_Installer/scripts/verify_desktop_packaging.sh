@@ -4,7 +4,8 @@ set -euo pipefail
 INSTALLER_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_ROOT="${INSTALLER_ROOT}/dist"
 BUILD_ROOT="${INSTALLER_ROOT}/build"
-read -r APP_NAME RUNTIME_ASSET DESKTOP_ASSET DESKTOP_PKG DESKTOP_PKG_ZIP DESKTOP_OFFLINE_PKG DESKTOP_OFFLINE_PKG_ZIP UPDATE_MANIFEST_NAME <<EOF
+# TAB 分隔交接:appName 可含空格,空格分词会让全部字段右移一位(同 build 脚本既往坑)。
+IFS=$'\t' read -r APP_NAME RUNTIME_ASSET DESKTOP_ASSET DESKTOP_PKG DESKTOP_PKG_ZIP DESKTOP_OFFLINE_PKG DESKTOP_OFFLINE_PKG_ZIP UPDATE_MANIFEST_NAME <<EOF
 $(INSTALLER_ROOT_ENV="${INSTALLER_ROOT}" python3 - <<'PYCONF'
 import json, os, pathlib
 root = pathlib.Path(os.environ['INSTALLER_ROOT_ENV'])
@@ -18,6 +19,7 @@ print(
     config['desktopOfflinePkgName'],
     config['desktopOfflinePkgZipName'],
     config['updateManifestName'],
+    sep='\t',
 )
 PYCONF
 )

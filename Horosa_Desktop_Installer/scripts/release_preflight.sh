@@ -1103,7 +1103,7 @@ grep -rn "360 - ang2 - ang1" "${R41_PY}" --include="*.py" >/dev/null && { bad "[
 #      RUNTIME_ASSET 变成名字后半截 → "missing runtime archive" 假报,打包中断)
 echo "[42] 发布脚本 config 交接 TAB 安全"
 S42_BAD=0
-for S42_F in build_desktop_release.sh verify_github_release_end_to_end.sh; do
+for S42_F in build_desktop_release.sh verify_github_release_end_to_end.sh verify_desktop_packaging.sh; do
   S42_P="${REPO_ROOT}/Horosa_Desktop_Installer/scripts/${S42_F}"
   [ -f "${S42_P}" ] || continue
   grep -Eq "IFS=.+ read -r APP_NAME" "${S42_P}" || { bad "[42] ${S42_F} 的 APP_NAME read 缺 IFS 限定(空格 appName 会右移)"; S42_BAD=1; }
