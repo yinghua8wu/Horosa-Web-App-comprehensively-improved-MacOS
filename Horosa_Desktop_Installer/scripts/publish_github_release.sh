@@ -517,7 +517,24 @@ else
 fi
 LATEST_MANIFEST=""
 for _ in $(seq 1 20); do
-  if LATEST_MANIFEST="$(curl -fsSL -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "${LATEST_MANIFEST_URL}" 2>/dev/null)"; then
+  LATEST_MANIFEST="$(curl -fsSL -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "${LATEST_MANIFEST_URL}" 2>/dev/null || true)"
+  if [ -z "${LATEST_MANIFEST}" ]; then
+    # 匿名 download URL 可能 404(CDN 未就绪或仓库可见性受限) —— 回退走带凭证的 API 资产端点。
+    MANIFEST_ASSET_API_URL="$(api_json "${API_ROOT}/releases/tags/${TAG_NAME}" 2>/dev/null | UPDATE_MANIFEST_NAME_ENV="${UPDATE_MANIFEST_NAME}" python3 - <<'PYURL' || true
+import json, os, sys
+data = json.load(sys.stdin)
+name = os.environ['UPDATE_MANIFEST_NAME_ENV']
+for asset in data.get('assets', []):
+    if asset.get('name') == name:
+        print(asset.get('url') or '')
+        break
+PYURL
+)"
+    if [ -n "${MANIFEST_ASSET_API_URL}" ]; then
+      LATEST_MANIFEST="$(curl -fsSL "${auth_header[@]}" -H 'Accept: application/octet-stream' "${MANIFEST_ASSET_API_URL}" 2>/dev/null || true)"
+    fi
+  fi
+  if [ -n "${LATEST_MANIFEST}" ]; then
     if python3 - <<'PY' "${LATEST_MANIFEST}" "${VERSION}" "${TAG_NAME}" >/dev/null 2>&1
 import json, sys
 manifest = json.loads(sys.argv[1])
