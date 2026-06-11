@@ -6,7 +6,8 @@ WORK_ROOT="${INSTALLER_ROOT}/build/github-release-e2e"
 DOWNLOAD_ROOT="${WORK_ROOT}/downloads"
 APP_UNZIP_ROOT="${WORK_ROOT}/app-unzip"
 INSTALLER_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-read -r APP_NAME DESKTOP_OFFLINE_PKG DESKTOP_ASSET RUNTIME_ASSET TAG_NAME RELEASE_CHANNEL <<EOF
+# TAB 分隔交接:appName 可含空格,空格分词会让字段右移(同 build_desktop_release.sh 修正)
+IFS=$'\t' read -r APP_NAME DESKTOP_OFFLINE_PKG DESKTOP_ASSET RUNTIME_ASSET TAG_NAME RELEASE_CHANNEL <<EOF
 $(INSTALLER_ROOT_ENV="${INSTALLER_ROOT}" python3 - <<'PYCONF'
 import json, os, pathlib
 root = pathlib.Path(os.environ['INSTALLER_ROOT_ENV'])
@@ -19,6 +20,7 @@ print(
     config['runtimeAssetName'],
     f"{config['releaseTagPrefix']}{version}",
     config.get('releaseChannel', 'stable'),
+    sep='\t',
 )
 PYCONF
 )

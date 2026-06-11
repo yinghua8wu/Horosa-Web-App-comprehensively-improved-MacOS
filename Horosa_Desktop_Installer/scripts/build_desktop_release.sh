@@ -77,7 +77,9 @@ if [ "${HOROSA_PUBLIC_DISTRIBUTION}" = "1" ] && [ "${PUBLIC_SIGNING_READY}" = "1
   exit 1
 fi
 
-read -r APP_NAME RUNTIME_ASSET DESKTOP_ASSET DESKTOP_PKG DESKTOP_PKG_ZIP DESKTOP_OFFLINE_PKG DESKTOP_OFFLINE_PKG_ZIP UPDATE_MANIFEST_NAME APP_RELEASE_TAG RUNTIME_VERSION RUNTIME_RELEASE_TAG SUPPORTED_ARCH <<EOF
+# TAB 分隔交接:appName 可含空格,空格分词会让全部字段右移一位
+# (RUNTIME_ASSET 变成名字后半截 → "missing runtime archive" 假报)。
+IFS=$'\t' read -r APP_NAME RUNTIME_ASSET DESKTOP_ASSET DESKTOP_PKG DESKTOP_PKG_ZIP DESKTOP_OFFLINE_PKG DESKTOP_OFFLINE_PKG_ZIP UPDATE_MANIFEST_NAME APP_RELEASE_TAG RUNTIME_VERSION RUNTIME_RELEASE_TAG SUPPORTED_ARCH <<EOF
 $(INSTALLER_ROOT_ENV="${INSTALLER_ROOT}" python3 - <<'PYCONF'
 import json, os, pathlib
 root = pathlib.Path(os.environ['INSTALLER_ROOT_ENV'])
@@ -99,6 +101,7 @@ print(
     runtime_version,
     f"{config['releaseTagPrefix']}{runtime_version}",
     config.get('supportedArch', 'arm64'),
+    sep='\t',
 )
 PYCONF
 )
