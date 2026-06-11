@@ -86,7 +86,8 @@
 
 .btnPrimary {
 	padding: 7px 16px;
-	color: #fff;
+	// accent 实底必须配 on-accent(暗色下 accent 是浅金,白字会隐形)
+	color: var(--horosa-on-accent, #fff);
 	background: linear-gradient(180deg, var(--horosa-accent, #2f7df1), var(--horosa-accent-strong, #2666cf));
 	box-shadow: 0 6px 16px rgba(47, 125, 241, 0.32);
 

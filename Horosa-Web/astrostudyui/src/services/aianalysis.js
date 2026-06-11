@@ -135,9 +135,14 @@ function withTimeout(promiseFactory, timeoutMs, externalSignal){
 	const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
 	const cleanup = [];
 	if(controller && externalSignal && typeof externalSignal.addEventListener === 'function'){
-		const abortListener = ()=>controller.abort();
-		externalSignal.addEventListener('abort', abortListener, { once: true });
-		cleanup.push(()=>externalSignal.removeEventListener('abort', abortListener));
+		if(externalSignal.aborted){
+			// 调用方已取消（如用户刚点停止）→ 立刻熄火，别再发请求。addEventListener 对已 abort 的 signal 不会再触发。
+			controller.abort();
+		}else{
+			const abortListener = ()=>controller.abort();
+			externalSignal.addEventListener('abort', abortListener, { once: true });
+			cleanup.push(()=>externalSignal.removeEventListener('abort', abortListener));
+		}
 	}
 	let timer = null;
 	if(controller && timeout){

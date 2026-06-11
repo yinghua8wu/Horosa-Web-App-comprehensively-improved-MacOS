@@ -523,12 +523,14 @@ class BaZi extends Component{
 
 		let bzopt = localStorage.getItem(BaZiOptKey);
 		if(bzopt){
-			bzopt = JSON.parse(bzopt);
-		}else{
+			// 本地值损坏不能让构造函数抛错白屏 → 回默认选项
+			try{ bzopt = JSON.parse(bzopt); }catch(e){ bzopt = null; }
+		}
+		if(!bzopt){
 			bzopt = {
 				onlyZiGanShen: true,
 			};
-		}	
+		}
 
 		this.state = {
 			result: null,

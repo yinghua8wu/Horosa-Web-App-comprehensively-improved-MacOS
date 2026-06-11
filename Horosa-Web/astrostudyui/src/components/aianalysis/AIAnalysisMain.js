@@ -150,6 +150,7 @@ import {
 	getProviderDisplayName,
 	getProviderPreset,
 	getProviderProtocolFamily,
+	isOpenAiFamily,
 	splitProviderModels,
 	THINKING_LEVELS,
 	applyThinkingLevel,
@@ -1996,14 +1997,14 @@ function AIAnalysisMain(props){
 		const stopList = `${stopSequences || ''}`.split(/[\n,，]/g).map((s)=>s.trim()).filter(Boolean);
 		if(stopList.length){
 			if(protoFamily === 'anthropic'){ chatProviderOptions.stop_sequences = stopList; }
-			else if(protoFamily === 'openai'){ chatProviderOptions.stop = stopList; }
+			else if(isOpenAiFamily(protoFamily)){ chatProviderOptions.stop = stopList; }
 		}
-		if(protoFamily === 'openai' && !isReasoningModel(model)){
+		if(isOpenAiFamily(protoFamily) && !isReasoningModel(model)){
 			if(typeof frequencyPenalty === 'number'){ chatProviderOptions.frequency_penalty = frequencyPenalty; }
 			if(typeof presencePenalty === 'number'){ chatProviderOptions.presence_penalty = presencePenalty; }
 		}
 		if(jsonMode){
-			if(protoFamily === 'openai'){ chatProviderOptions.response_format = { type: 'json_object' }; }
+			if(isOpenAiFamily(protoFamily)){ chatProviderOptions.response_format = { type: 'json_object' }; }
 			else if(protoFamily === 'gemini'){ chatProviderOptions.response_format = { type: 'json_object' }; /* 后端会把它翻成 generationConfig.responseMimeType */ }
 		}
 		try{
@@ -2211,7 +2212,10 @@ function AIAnalysisMain(props){
 		if(sending){
 			return;
 		}
-		const trimmed = `${(overrideText != null ? overrideText : prompt) || ''}`.trim();
+		// overrideText 只认字符串：onClick={handleSend} 这类直挂会把点击事件对象塞进来，
+		// 模板串化后用户消息就成了 "[object Object]"（Windows #24/#25 实锅）——非字符串一律回落输入框内容。
+		const overrideStr = typeof overrideText === 'string' ? overrideText : null;
+		const trimmed = `${(overrideStr != null ? overrideStr : prompt) || ''}`.trim();
 		const sendImages = pendingImages.map((p)=>p.url).filter(Boolean);
 		if(!trimmed && !sendImages.length){
 			message.warning('请输入要分析的问题');
@@ -4325,7 +4329,7 @@ function AIAnalysisMain(props){
 					</Space>
 					<div className={styles.composerSend}>
 						<Text type="secondary" className={styles.composerHint}>Enter 发送 · Shift+Enter 换行</Text>
-						<Button type="primary" shape="circle" icon={<XQIcon name="send" />} loading={sending} disabled={!canSend} onClick={handleSend} />
+						<Button type="primary" shape="circle" icon={<XQIcon name="send" />} loading={sending} disabled={!canSend} onClick={()=>handleSend()} />
 					</div>
 				</div>
 			</div>

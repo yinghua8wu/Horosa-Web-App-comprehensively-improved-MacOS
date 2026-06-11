@@ -30,7 +30,12 @@ class LonInput extends Component{
 			parts = this.props.value.split('w');
 			dir = 'w';
 		}
+		if(parts.length < 2){
+			// 值里既无 e 也无 w(畸形输入) → 回默认,防 parts[1] 取 undefined 抛错
+			return ['e', 119, 19];
+		}
 		let deg = parseInt(parts[0]);
+		if(isNaN(deg)){ deg = 0; }
 		let degmin = parts[1];
 		if(deg < 0){
 			deg = -deg;

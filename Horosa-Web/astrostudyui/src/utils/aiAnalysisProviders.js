@@ -155,6 +155,14 @@ export function getProviderProtocolFamily(providerType = 'openai'){
 	return getProviderPreset(providerType).protocolFamily;
 }
 
+// OpenAI 接口家族判定（openai 自家 + 各家 openai-compatible 网关共用 stop/penalties/response_format 等请求键）。
+// 预设里 protocolFamily 实际取值是 'openai-compatible'，散落各处的 `=== 'openai'` 判断永远不成立
+// （停止序列/频率·存在惩罚/JSON 模式因此静默失效）—— 一律改走本判定。
+export function isOpenAiFamily(protocolFamily){
+	const pf = `${protocolFamily || ''}`.trim().toLowerCase();
+	return pf === 'openai' || pf === 'openai-compatible';
+}
+
 // 模型选择编码：把「接口配置 id」+「模型名」编成单一下拉值 `profileId::model`，
 // 供跨接口（多 API key）的统一模型下拉用。AIAnalysisMain 与报告功能共用同一份，避免漂移/循环依赖。
 export function encodeModelSelection(profileId, model){
@@ -277,8 +285,9 @@ export function applyThinkingLevel(opts, level, providerType, model, maxTokens){
 		if(cap && cap <= 1536){ return o; }
 		if(cap){ budget = Math.max(1024, Math.min(budget, cap - 512)); }
 		o.thinking = { type: 'enabled', budget_tokens: budget };
-	}else if(/(^|\/)(gpt-5|gpt6|o1|o3|o4|o5)/.test(('' + (model || '')).toLowerCase())){
-		// OpenAI reasoning_effort 仅认 low|medium|high → 更高档(xhigh/max)封顶为 high
+	}else if(/(^|\/)(gpt-?[567]|o[13-7])/.test(('' + (model || '')).toLowerCase())){
+		// OpenAI o/gpt-5+ 系（与 isReasoningModel 的 OpenAI 半边同口径；勿再收窄——曾漏 gpt-6/7、o6/7 致思考档静默失效）。
+		// reasoning_effort 仅认 low|medium|high → 更高档(xhigh/max)封顶为 high
 		o.reasoning_effort = (level === 'xhigh' || level === 'max') ? 'high' : level;
 	}else if(providerType === 'gemini'){
 		o.generationConfig = { ...(o.generationConfig || {}), thinkingConfig: { thinkingBudget: budget } };

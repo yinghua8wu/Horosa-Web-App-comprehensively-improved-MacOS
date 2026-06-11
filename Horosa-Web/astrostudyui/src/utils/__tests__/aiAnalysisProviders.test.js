@@ -4,6 +4,7 @@ import {
 	getProviderDisplayName,
 	getProviderPreset,
 	getProviderProtocolFamily,
+	isOpenAiFamily,
 	isReasoningModel,
 	splitProviderModels,
 	applyThinkingLevel,
@@ -74,5 +75,26 @@ describe('aiAnalysisProviders', ()=>{
 
 	test('applyThinkingLevel: Gemini 写入 generationConfig.thinkingConfig.thinkingBudget', ()=>{
 		expect(applyThinkingLevel({}, 'max', 'gemini', 'gemini-2.5-pro').generationConfig.thinkingConfig.thinkingBudget).toBe(32768);
+	});
+
+	test('isOpenAiFamily: openai-compatible 也算 OpenAI 家族（预设实际取值就是它；曾因 === "openai" 永假致 stop/惩罚/JSON 模式静默失效）', ()=>{
+		expect(isOpenAiFamily('openai')).toBe(true);
+		expect(isOpenAiFamily('openai-compatible')).toBe(true);
+		expect(isOpenAiFamily(getProviderProtocolFamily('openai'))).toBe(true);
+		expect(isOpenAiFamily(getProviderProtocolFamily('deepseek'))).toBe(true);
+		expect(isOpenAiFamily('anthropic')).toBe(false);
+		expect(isOpenAiFamily('gemini')).toBe(false);
+		expect(isOpenAiFamily('ollama')).toBe(false);
+		expect(isOpenAiFamily('')).toBe(false);
+		expect(isOpenAiFamily(null)).toBe(false);
+	});
+
+	test('applyThinkingLevel: reasoning_effort 覆盖与 isReasoningModel 同口径（曾漏 gpt-5.5/gpt-6/7、o6/7 致思考档静默失效）', ()=>{
+		for(const m of ['gpt-5.5', 'gpt-6', 'gpt-7', 'o6', 'o7-mini', 'openrouter/openai/gpt-6']){
+			expect(applyThinkingLevel({}, 'high', 'openai', m).reasoning_effort).toBe('high');
+		}
+		// 非 OpenAI 推理系不带 reasoning_effort（gpt-4o 非推理；deepseek-reasoner 无该参数,友好降级）
+		expect(applyThinkingLevel({}, 'high', 'openai', 'gpt-4o').reasoning_effort).toBeUndefined();
+		expect(applyThinkingLevel({}, 'high', 'deepseek', 'deepseek-reasoner').reasoning_effort).toBeUndefined();
 	});
 });

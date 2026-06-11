@@ -11,12 +11,13 @@ import { ServerRoot } from '../../utils/constants';
 
 const headerBoxStyle = { padding: '8px 10px', background: '#fff7e6', border: '1px solid #ffe7a3', borderRadius: 6, marginBottom: 10, color: '#8a5800' };
 const codeChipStyle = { background: 'rgba(0,0,0,0.06)', padding: '1px 5px', borderRadius: 3 };
-const ulStyle = { margin: '0 0 8px 18px', padding: 0, fontSize: 12.5, color: '#555' };
-const hintStyle = { fontSize: 12, color: '#888' };
+// 弹窗体走主题变量:Modal 容器在暗色下是深底(app.less 已暗化),硬编码浅色会让正文隐形/按钮刺眼。
+const ulStyle = { margin: '0 0 8px 18px', padding: 0, fontSize: 12.5, color: 'var(--horosa-text-soft, #555)' };
+const hintStyle = { fontSize: 12, color: 'var(--horosa-muted, #888)' };
 const footerWrap = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' };
 const footerLeft = { display: 'flex', gap: 6, flexWrap: 'wrap' };
 const footerRight = { display: 'flex', gap: 6 };
-const btn = { padding: '4px 12px', fontSize: 13, borderRadius: 6, border: '1px solid #d9d9d9', background: '#fff', cursor: 'pointer' };
+const btn = { padding: '4px 12px', fontSize: 13, borderRadius: 6, border: '1px solid var(--horosa-border, #d9d9d9)', background: 'var(--horosa-surface-solid, #fff)', color: 'var(--horosa-text, #262626)', cursor: 'pointer' };
 
 // audit 修:tauriInvoke 之前不等不报错,用户点完没反馈不知道有没有发出。
 // 现在 await + try/catch + message 反馈。

@@ -15,7 +15,8 @@ export default class GuaSymDesc extends Component{
         let gua64 = null;
         let gua64Inverse = null;
         if(json && json !== ''){
-            data = JSON.parse(json);
+            // 本地值损坏 → 清掉自愈,按无数据渲染,别在构造期抛错白屏
+            try{ data = JSON.parse(json); }catch(e){ data = null; localStorage.removeItem(guaDataKey); }
         }
         if(data){
             let type = data.guaType;
@@ -137,7 +138,7 @@ export default class GuaSymDesc extends Component{
         let gua64 = null;
         let gua64Inverse = null;
         if(json && json !== ''){
-            data = JSON.parse(json);
+            try{ data = JSON.parse(json); }catch(e){ data = null; localStorage.removeItem(guaDataKey); }
         }
         if(data){
             let type = data.guaType;

@@ -656,7 +656,7 @@ class ZiWeiMain extends Component{
 				btntype = 'primary';
 			}
 			let rad = (
-				<Col span={8} key={randomStr(8)}>
+				<Col span={8} key={idx}>
 					<Button 
 						className="horosa-ziwei-direction-button"
 						type={btntype}

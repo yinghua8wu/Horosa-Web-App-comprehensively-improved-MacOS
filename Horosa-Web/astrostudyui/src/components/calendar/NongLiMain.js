@@ -162,7 +162,7 @@ class NongLiMain extends Component{
 		}
 
 		let row = (
-			<Row key={randomStr(8)}>
+			<Row key={date.birth}>
 				<Col span={24}>
 					<span>{parts[0]}</span>&nbsp;
 					<span>{Week[date.dayOfWeek+'']}</span>

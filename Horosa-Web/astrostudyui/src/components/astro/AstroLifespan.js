@@ -81,7 +81,8 @@ class AstroLifespan extends Component {
 								cursor: 'pointer', fontSize: 12, padding: '2px 10px', borderRadius: 6,
 								border: '1px solid rgba(148,163,184,.4)',
 								background: this.state.method === m.value ? 'var(--horosa-accent, #6c5ce7)' : 'transparent',
-								color: this.state.method === m.value ? '#fff' : 'inherit',
+								// accent 实底必须配 on-accent(暗色下 accent 是浅金,白字会隐形)
+								color: this.state.method === m.value ? 'var(--horosa-on-accent, #fff)' : 'inherit',
 							}}
 						>{m.label}</span>
 					))}

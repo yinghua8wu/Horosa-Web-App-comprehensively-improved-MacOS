@@ -524,6 +524,12 @@ export async function generateReport(opts){
 					});
 					content = res.content || '';
 					usage = res.usage;
+					// 上游 SSE 中途发 error 事件时 streamSectionReply 不抛、错误带在 errorMessage 里返回；
+					// 此前这里没读它 → 半截内容被标成 done、错误被吞。统一抛出走重试/分类
+					// （可重试类自动再试；不可重试按错误收尾，已流出的部分内容保留展示）。
+					if(res && res.errorMessage){
+						throw new Error(res.errorMessage);
+					}
 					if(section.retryOnEmpty && isContentEmpty(content) && attemptIdx < maxAttempts){
 						continue; // 空回退 → 用 retryFallbackPrompt 再试一次
 					}

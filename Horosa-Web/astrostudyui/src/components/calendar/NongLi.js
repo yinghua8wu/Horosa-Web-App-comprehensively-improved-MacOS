@@ -39,7 +39,8 @@ class NongLi extends Component{
 			hightlight = true;
 		}
 		let col = (
-			<div key={randomStr(8)} className={`horosa-calendar-cell-wrap ${ord === 0 || ord === 6 ? 'is-weekend' : ''}`}>
+			// key 用日期本身:randomStr 每次渲染都变,整列子树反复重挂(丢状态+白耗)
+			<div key={date.birth} className={`horosa-calendar-cell-wrap ${ord === 0 || ord === 6 ? 'is-weekend' : ''}`}>
 				<NongLiDate 						
 					date={date}
 					hightLight={hightlight}
@@ -61,11 +62,15 @@ class NongLi extends Component{
 			focusDate = this.props.focusDate.format('YYYY-MM-DD');
 		}
 
-		let prevdays = this.props.prevDays;
+		let prevdays = this.props.prevDays || [];
 		let first = days[0].dayOfWeek;
 		let resdays = [];
 		for(let i=first-1; i>=0; i--){
 			let obj = prevdays[i];
+			// prevDays 尚未就绪/长度不足时跳过补位格,别抛错(后一个 days 循环本就有同款守卫)
+			if(obj === undefined || obj === null){
+				continue;
+			}
 			obj.isOther = true;
 			resdays.push(obj);
 		}

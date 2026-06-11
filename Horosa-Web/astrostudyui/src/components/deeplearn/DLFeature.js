@@ -70,15 +70,16 @@ class DLFeature extends Component{
 		let cols = [];
 		let lblspan = 8;
 		let ctxspan = 4;
+		// key 用事件字段名(evts 内唯一):randomStr 每次渲染都变,Select/InputNumber 反复重挂会丢焦点/输入态
 		for(let key in evts){
 			let rec = evts[key];
 			let lbldom = (
-				<Col span={lblspan} key={randomStr(8)}>{rec.label}</Col>
+				<Col span={lblspan} key={`${key}-lbl`}>{rec.label}</Col>
 			);
 			cols.push(lbldom);
 			if(rec.type === 0){
 				let ctxdom = (
-					<Col span={ctxspan} key={randomStr(8)}>
+					<Col span={ctxspan} key={`${key}-ctx`}>
 						<Select value={vals[key]} size='small' style={{width: '80%'}} onChange={(val)=>{ this.changeEvt(vals, key, val); }}>
 							<Option value={0}>否</Option>
 							<Option value={1}>是</Option>
@@ -88,7 +89,7 @@ class DLFeature extends Component{
 				cols.push(ctxdom);
 			}else if(rec.type === 1){
 				let ctxdom = (
-					<Col span={ctxspan} key={randomStr(8)}>
+					<Col span={ctxspan} key={`${key}-ctx`}>
 						<InputNumber min={0} step={1} value={vals[key]} size='small' style={{width: '80%'}} onChange={(val)=>{ this.changeEvt(vals, key, val); }}/>
 					</Col>
 				);
@@ -97,7 +98,7 @@ class DLFeature extends Component{
 		}
 
 		let dom = (
-			<Row key={randomStr(8)} gutter={6}>
+			<Row gutter={6}>
 				{cols}
 			</Row>
 		);

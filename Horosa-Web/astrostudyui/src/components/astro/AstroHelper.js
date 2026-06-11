@@ -802,8 +802,10 @@ export function desposeAspects(svg, r, chartObj, planetDisplay, needThreePlanetA
 	if(asps === undefined || asps === null){
 		asps = AstroConst.DEFAULT_ASPECTS;
 	}else{
-		asps = JSON.parse(asps);
+		// 写入端(AspSelector)已 try/catch,读取端同样兜底:相位配置损坏回默认,别让画盘崩
+		try{ asps = JSON.parse(asps); }catch(e){ asps = AstroConst.DEFAULT_ASPECTS; }
 	}
+	if(!Array.isArray(asps)){ asps = AstroConst.DEFAULT_ASPECTS; }
 	let aspset = new Set();
 	for(let i=0; i<asps.length; i++){
 		aspset.add(asps[i]);

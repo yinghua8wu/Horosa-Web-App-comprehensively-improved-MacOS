@@ -34,12 +34,15 @@ class BookReader extends Component{
 		if(theme === undefined || theme === null){
 			theme = ColorTheme[0];
 		}else{
-			theme = JSON.parse(theme);
+			// 本地值损坏不能让构造函数抛错白屏 → 回默认主题
+			try{ theme = JSON.parse(theme); }catch(e){ theme = ColorTheme[0]; }
 		}
 
 		let ttsopt = localStorage.getItem(TTSOptKey);
 		if(ttsopt){
-			ttsopt = JSON.parse(ttsopt);
+			try{ ttsopt = JSON.parse(ttsopt); }catch(e){ ttsopt = null; }
+		}
+		if(ttsopt){
 			if(ttsopt.voice === undefined || ttsopt.voice === null){
 				ttsopt.voice = 'pinyin-huang';
 			}
@@ -126,22 +129,25 @@ class BookReader extends Component{
 	readLocalStorage(bookid, ord){
 		let str = localStorage.getItem(bookid);
 		if(str){
-			let rec = JSON.parse(str);
-			let chapter = rec.chapter;
+			let rec = null;
+			// 缓存损坏 → 清掉自愈、走网络重取，别抛错断掉翻章
+			try{ rec = JSON.parse(str); }catch(e){ localStorage.removeItem(bookid); return false; }
+			let chapter = rec && rec.chapter;
 			if(chapter){
 				if(bookid === chapter.bookId && ord === chapter.ord){
 					const st = {
 						chapter: chapter,
 						showCatalog: false,
 					};
-			
+
 					this.setState(st, ()=>{
-						document.getElementById(this.state.divId).scrollTop = rec.scroll;
+						const el = document.getElementById(this.state.divId);
+						if(el){ el.scrollTop = rec.scroll; }
 						this.lineNo = this.getLineNo();
 					});
 					return true;
 				}
-	
+
 			}
 		}
 		return false;
@@ -160,16 +166,20 @@ class BookReader extends Component{
 		let chapter = result.Chapter;
 		if(chapter){
 			if(chapter.content){
+				let contentOk = true;
 				if(typeof chapter.content === 'string'){
-					chapter.content = JSON.parse(chapter.content);
+					// 服务端字段异常时不白屏：内容置空、且不把坏数据写进缓存
+					try{ chapter.content = JSON.parse(chapter.content); }catch(e){ chapter.content = []; contentOk = false; }
 				}
-				let rec = {
-					chapter: chapter,
-					scroll: 0,
+				if(contentOk){
+					let rec = {
+						chapter: chapter,
+						scroll: 0,
+					}
+					localStorage.setItem(bookid, JSON.stringify(rec));
 				}
-				localStorage.setItem(bookid, JSON.stringify(rec));	
 			}
-			this.props.book.currentOrd = ord;	
+			this.props.book.currentOrd = ord;
 		}
 
 		const st = {
@@ -180,7 +190,8 @@ class BookReader extends Component{
 
 		this.setState(st, ()=>{
 			this.updateReadProgress(bookid, ord);
-			document.getElementById(this.state.divId).scrollTop = 0;
+			const el = document.getElementById(this.state.divId);
+			if(el){ el.scrollTop = 0; }
 			this.lineNo = 0;
 			if(this.state.tts){
 				let txt = this.getTTSText(0);
@@ -207,7 +218,7 @@ class BookReader extends Component{
 		const result = data[Constants.ResultKey];
 		result.Books.map((book, idx)=>{
 			if(typeof book.catalog === 'string'){
-				book.catalog = JSON.parse(book.catalog);
+				try{ book.catalog = JSON.parse(book.catalog); }catch(e){ book.catalog = []; }
 			}
 		});
 		let books = result.Books;

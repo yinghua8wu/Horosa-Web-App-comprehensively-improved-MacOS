@@ -138,7 +138,7 @@ export default function BackendStatusDot() {
         <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginRight: 6 }} />
         {label}{latencyMs != null && online ? ` (${latencyMs}ms)` : ''}
       </div>
-      <div style={{ color: '#888', wordBreak: 'break-all', marginTop: 4 }}>地址: {ServerRoot}</div>
+      <div style={{ color: 'var(--horosa-muted, #888)', wordBreak: 'break-all', marginTop: 4 }}>地址: {ServerRoot}</div>
       <div style={{ marginTop: 10 }}>
         <Space size={6} wrap>
           <Button size="small" loading={retrying} onClick={handleRetry}>立即重试</Button>

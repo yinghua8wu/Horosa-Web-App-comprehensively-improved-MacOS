@@ -30,7 +30,12 @@ class LatInput extends Component{
 			parts = this.props.value.split('s');
 			dir = 's';
 		}
+		if(parts.length < 2){
+			// 值里既无 n 也无 s(畸形输入) → 回默认,防 parts[1] 取 undefined 抛错
+			return ['n', 26, 4];
+		}
 		let deg = parseInt(parts[0]);
+		if(isNaN(deg)){ deg = 0; }
 		let degmin = parts[1];
 		if(deg < 0){
 			deg = -deg;

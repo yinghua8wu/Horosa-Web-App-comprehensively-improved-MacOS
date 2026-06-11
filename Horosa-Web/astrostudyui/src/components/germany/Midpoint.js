@@ -63,7 +63,7 @@ class Midpoint extends Component{
 	}
 
 	genMidsDom(midpoints){
-		if(midpoints === undefined || midpoints === null){
+		if(midpoints === undefined || midpoints === null || midpoints.length === 0){
 			return null;
 		}
 		let divs = [];
@@ -73,8 +73,8 @@ class Midpoint extends Component{
 			let middom = this.genOneMidDom(obj);
 			if(obj.sign !== lastsig){
 				let spacedom = (
-					<Col key={randomStr(8)} span={24}>
-					<div key={randomStr(8)}>
+					<Col key={`sp-${obj.sign}-${i}`} span={24}>
+					<div>
 						<span>&nbsp;</span>
 					</div>
 					</Col>
@@ -83,7 +83,7 @@ class Midpoint extends Component{
 				divs.push(spacedom);
 			}
 			let dom = (
-				<Col key={randomStr(8)} span={24}>{middom}</Col>
+				<Col key={`mid-${i}`} span={24}>{middom}</Col>
 			);
 			divs.push(dom);
 		}
