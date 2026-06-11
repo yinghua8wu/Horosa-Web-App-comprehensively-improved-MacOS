@@ -15,7 +15,7 @@ python3 -m http.server 8080
 
 ## macOS App 版本（Tauri）
 
-已在 `~/Documents/project-src/naqi-tauri` 准备好 Tauri 工程，可打包为 `.app`。
+已在 `naqi-tauri` 准备好 Tauri 工程，可打包为 `.app`。
 参考该目录下的 `README.md` 完成 Rust 与 CLI 安装后即可构建。
 
 ## Windows 版本（Tauri）
@@ -23,7 +23,7 @@ python3 -m http.server 8080
 Windows 版本需要在 Windows 机器上构建（Tauri 不能跨平台打包）。
 
 1. 安装 Node.js（建议 18+）与 Rust（rustup）。
-2. 进入 `~/Documents/project-src/naqi-tauri` 目录执行：
+2. 进入 `naqi-tauri` 目录执行：
 
 ```bash
 npm install

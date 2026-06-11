@@ -4,7 +4,7 @@
 // v1.16 根治方案:**所有节都注入完整 ground-truth**,不止单宫节
 //   1. 紫微: 任何节都注入【全 12 宫 overview + 命/身宫块 + 生年四化全表】基础三件套
 //   2. palace/daxian/liunian/sihua/gegu 节额外叠加专属块
-//   3. 八字: 用真实后端字段 bazi.mainDirection[] + bazi.direction[].subDirect[](不再用错误的 bazi.luckyDecade)
+//   3. 八字: 用真实后端字段 bazi.direction[](FateDirect: mainDirect.ganzi=大运干支 + subDirect[]=流年)(不再用错误的 bazi.mainDirection/luckyDecade)
 
 const GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
 const ZHI = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
@@ -46,6 +46,13 @@ function findZwPalaceIndex(chart, palaceCn){
 		if(name.indexOf(palaceCn) >= 0) return i;
 	}
 	return -1;
+}
+
+// 🔴 紫微 houses[] 不按固定地支排序（houses[0] 地支随盘而变）。「地支 → houses 下标」必须搜 ganzi.charAt(1)，
+//    绝不能用地支序号(0=子…)当下标，否则流年命宫/流迁移/财帛/官禄全部错位。与主盘 ZWLuckPanel.houseIdxByBranch 同口径。
+function zwHouseIdxByBranch(chart, zhi){
+	if(!chart || !chart.houses || !zhi) return -1;
+	return chart.houses.findIndex((h)=> h && h.ganzi && h.ganzi.charAt(1) === zhi);
 }
 
 // 收集某宫位所有星曜(主/辅/煞/桃花/杂)+亮度+四化标注
@@ -170,7 +177,7 @@ export function extractZwCurrentDaxian(chart, currentAge){
 	return {
 		mingIdx,
 		ageRange: range,
-		ageRangeText: `${range[0]}~${range[1]}岁`,
+		ageRangeText: `${range[0]}-${range[1]}岁`,
 		palaces: [
 			buildPalaceObj(chart, mingIdx, '运命宫'),
 			buildPalaceObj(chart, (mingIdx+6) % 12, '运迁移宫'),
@@ -190,13 +197,13 @@ export function extractZwAllDaxian(chart){
 			houseIndex: i,
 			palaceName: getHouseName(h),
 			ganZhi: getHouseGanZhi(h),
-			ageRangeText: `${h.direction[0]}~${h.direction[1]}岁`,
+			ageRangeText: `${h.direction[0]}-${h.direction[1]}岁`,
 			stars: collectAllStarsZw(h),
 		});
 	}
 	out.sort((a, b)=>{
-		const sa = parseInt(a.ageRangeText.split('~')[0], 10);
-		const sb = parseInt(b.ageRangeText.split('~')[0], 10);
+		const sa = parseInt(a.ageRangeText.split('-')[0], 10);
+		const sb = parseInt(b.ageRangeText.split('-')[0], 10);
 		return sa - sb;
 	});
 	return out;
@@ -216,8 +223,10 @@ export function extractZwLiunianSeries(chart, currentYear, currentAge, count){
 	const out = [];
 	for(let i=0; i<N; i++){
 		const year = currentYear + i;
-		const { gan, zhi, ganZhi, zhiIdx } = yearToGanZhi(year);
-		const liuMingIdx = zhiIdx;
+		const { gan, zhi, ganZhi } = yearToGanZhi(year);
+		// 🔴 流年命宫 = 地支==流年地支 的宫位（按 ganzi 搜，不能用地支序号当下标）。
+		const liuMingIdx = zwHouseIdxByBranch(chart, zhi);
+		if(liuMingIdx < 0) continue; // 找不到对应地支宫位 → 跳过该年，不臆造错位数据
 		out.push({
 			year,
 			age: currentAge != null ? currentAge + i : null,
@@ -245,7 +254,7 @@ export function formatZw12PalacesOverview(chart){
 		const gz = getHouseGanZhi(h);
 		const stars = collectAllStarsZw(h);
 		const starsText = stars.length ? stars.join('、') : '(无主辅星)';
-		const dir = h.direction && h.direction.length === 2 ? `[大限${h.direction[0]}~${h.direction[1]}岁]` : '';
+		const dir = h.direction && h.direction.length === 2 ? `[大限${h.direction[0]}-${h.direction[1]}岁]` : '';
 		lines.push(`  ${name}【${gz}】${dir}：${starsText}`);
 	}
 	return lines.join('\n');
@@ -428,11 +437,29 @@ export function buildZiweiSectionData(chart, sectionKey, currentAge, currentYear
 
 // ============ 八字 (v1.16 字段名根治) ============
 
-// 用真实后端字段 bazi.mainDirection[]
+// 🔴 后端 /bazi/direct 的真实大运字段是 bazi.direction[]（FateDirect：{startYear, age=起运岁,
+//    mainDirect:{ganzi=大运干支}, subDirect[]=该运 10 个流年}），**没有** bazi.mainDirection 字段。
+//    历史 bug：大运 extractor 误读不存在的 bazi.mainDirection → 永远空 → 报告里「当前大运无法定位/命盘未含 mainDirection」。
+//    统一规范器：优先 bazi.direction[]，回退旧别名(mainDirection/luckyDecade/dayun/lucky)，产出 {ganzi, year, age} 列表。
+//    （流年 extractor extractBaziLiunianFromBackend 早已读对 bazi.direction[].subDirect，本修复让大运与之同源。）
+export function resolveBaziDayunList(bazi){
+	if(!bazi) return [];
+	if(Array.isArray(bazi.direction) && bazi.direction.length){
+		return bazi.direction.map((d)=>({
+			ganzi: (d && d.mainDirect && (d.mainDirect.ganzi || d.mainDirect.ganZhi)) || (d && (d.ganzi || d.ganZhi)) || '',
+			year: (d && d.startYear != null) ? Number(d.startYear) : ((d && d.year != null) ? Number(d.year) : null),
+			age: (d && d.age != null) ? Number(d.age) : null,
+			raw: d,
+		})).filter((x)=>x.ganzi || x.year != null);
+	}
+	const legacy = bazi.mainDirection || bazi.luckyDecade || bazi.dayun || bazi.lucky;
+	return Array.isArray(legacy) ? legacy : [];
+}
+
 // item.year(起年) + item.ganzi(或 item.ganZhi) + 可推 endYear=nextItem.year-1
 export function extractBaziCurrentDayun(bazi, currentAge, currentYear){
 	if(!bazi) return null;
-	const list = bazi.mainDirection || bazi.luckyDecade || bazi.dayun || bazi.lucky || [];
+	const list = resolveBaziDayunList(bazi);
 	if(!Array.isArray(list) || !list.length) return null;
 	// 优先用 year (公历年) 匹配, fallback 用 startAge/endAge
 	if(currentYear != null){
@@ -480,7 +507,7 @@ export function extractBaziCurrentDayun(bazi, currentAge, currentYear){
 // 全 10 步大运
 export function extractBaziAllDayun(bazi){
 	if(!bazi) return [];
-	const list = bazi.mainDirection || bazi.luckyDecade || bazi.dayun || bazi.lucky || [];
+	const list = resolveBaziDayunList(bazi);
 	if(!Array.isArray(list)) return [];
 	return list.map((d, i)=>({
 		index: i,
@@ -575,10 +602,10 @@ function formatBaziFourColumns(bazi){
 function formatBaziDayunBlock(bazi, currentAge, currentYear){
 	const all = extractBaziAllDayun(bazi);
 	const cur = extractBaziCurrentDayun(bazi, currentAge, currentYear);
-	const lines = ['【大运 ground-truth · 后端字段 bazi.mainDirection · 必须严格使用】'];
+	const lines = ['【大运 ground-truth · 后端字段 bazi.direction[].mainDirect · 必须严格使用】'];
 	if(cur){
-		const ageRange = cur.startAge != null && cur.endAge != null ? ` (${cur.startAge}~${cur.endAge}岁)` : '';
-		const yearRange = cur.startYear != null && cur.endYear != null ? ` [${cur.startYear}~${cur.endYear}]` : '';
+		const ageRange = cur.startAge != null && cur.endAge != null ? ` (${cur.startAge}-${cur.endAge}岁)` : '';
+		const yearRange = cur.startYear != null && cur.endYear != null ? ` [${cur.startYear}-${cur.endYear}]` : '';
 		lines.push(`  ★ 当前大运: ${cur.ganZhi}${ageRange}${yearRange} (第${cur.index+1}步)`);
 	} else if(currentAge != null) {
 		lines.push(`  ★ 当前大运: 无法定位 (currentAge=${currentAge}, 命盘可能未含 mainDirection 字段) — 此节涉及大运时必须明说"无法判断"`);

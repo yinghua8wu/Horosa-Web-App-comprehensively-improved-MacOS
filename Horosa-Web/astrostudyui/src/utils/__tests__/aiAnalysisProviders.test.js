@@ -6,6 +6,8 @@ import {
 	getProviderProtocolFamily,
 	isReasoningModel,
 	splitProviderModels,
+	applyThinkingLevel,
+	THINKING_LEVELS,
 } from '../aiAnalysisProviders';
 
 describe('aiAnalysisProviders', ()=>{
@@ -48,5 +50,29 @@ describe('aiAnalysisProviders', ()=>{
 		expect(isReasoningModel('gpt-5')).toBe(true);
 		expect(isReasoningModel('deepseek-chat')).toBe(false);
 		expect(isReasoningModel('gpt-4o')).toBe(false);
+	});
+
+	test('THINKING_LEVELS 含新增高档 xhigh/max', ()=>{
+		expect(THINKING_LEVELS.map((t)=>t.value)).toEqual(['off', 'low', 'medium', 'high', 'xhigh', 'max']);
+	});
+
+	test('applyThinkingLevel: off 原样返回', ()=>{
+		expect(applyThinkingLevel({ a: 1 }, 'off', 'anthropic', 'claude-3-opus')).toEqual({ a: 1 });
+	});
+
+	test('applyThinkingLevel: OpenAI reasoning_effort 把 xhigh/max 封顶为 high', ()=>{
+		expect(applyThinkingLevel({}, 'xhigh', 'openai', 'gpt-5').reasoning_effort).toBe('high');
+		expect(applyThinkingLevel({}, 'max', 'openai', 'gpt-5').reasoning_effort).toBe('high');
+		expect(applyThinkingLevel({}, 'medium', 'openai', 'gpt-5').reasoning_effort).toBe('medium');
+	});
+
+	test('applyThinkingLevel: Anthropic budget_tokens 受 max_tokens 约束（防 400）', ()=>{
+		expect(applyThinkingLevel({}, 'high', 'anthropic', 'claude-3-opus').thinking.budget_tokens).toBe(16000);
+		expect(applyThinkingLevel({}, 'max', 'anthropic', 'claude-3-opus', 8000).thinking.budget_tokens).toBe(7488);
+		expect(applyThinkingLevel({}, 'high', 'anthropic', 'claude-3-opus', 1000).thinking).toBeUndefined();
+	});
+
+	test('applyThinkingLevel: Gemini 写入 generationConfig.thinkingConfig.thinkingBudget', ()=>{
+		expect(applyThinkingLevel({}, 'max', 'gemini', 'gemini-2.5-pro').generationConfig.thinkingConfig.thinkingBudget).toBe(32768);
 	});
 });

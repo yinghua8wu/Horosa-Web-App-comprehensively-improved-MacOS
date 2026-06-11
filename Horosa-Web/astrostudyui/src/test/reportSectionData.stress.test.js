@@ -28,7 +28,7 @@ import {
 
 // ============ DHX 真实命盘 fixture (从 IndexedDB 提取的实际数据) ============
 // 来源: 真实生成的紫微 12 节中州派报告, snapshot:
-//   命宫(壬辰)大限 2~11, 父母宫(癸巳)大限 12~21, 福德宫(甲午)大限 22~31, ...
+//   命宫(壬辰)大限 2-11, 父母宫(癸巳)大限 12-21, 福德宫(甲午)大限 22-31, ...
 function makeDHXZiweiChart(){
 	// houses 按地支固定顺序 (子=0..亥=11)
 	const houses = [
@@ -92,7 +92,11 @@ function makeDHXBazi(){
 			{ year: 2069, ganzi:'庚寅', age: 63 },
 			{ year: 2079, ganzi:'己丑', age: 73 },
 		],
+		// 🔴 真实后端 /bazi/direct 的大运在 bazi.direction[]（FateDirect：startYear/age=起运岁/mainDirect.ganzi/subDirect[]），
+		//    且是「完整 8/9 步」的权威源。后端**没有** bazi.mainDirection 字段（上面那段是已废弃旧别名 mock，仅留作 fallback 回归）。
+		//    历史 bug：ground-truth 误读 mainDirection → 真实盘永远「当前大运无法定位」。本测试 direction 补全为权威 8 步。
 		direction: [
+			{ startYear: 2009, age: 3,  mainDirect: { ganzi:'丙申' }, subDirect: [] },
 			{ startYear: 2019, age: 13, mainDirect: { ganzi:'乙未' }, subDirect: [
 				{ year: 2019, ganzi:'己亥' }, { year: 2020, ganzi:'庚子' },
 				{ year: 2021, ganzi:'辛丑' }, { year: 2022, ganzi:'壬寅' },
@@ -107,6 +111,11 @@ function makeDHXBazi(){
 				{ year: 2035, ganzi:'乙卯' }, { year: 2036, ganzi:'丙辰' },
 				{ year: 2037, ganzi:'丁巳' }, { year: 2038, ganzi:'戊午' },
 			]},
+			{ startYear: 2039, age: 33, mainDirect: { ganzi:'癸巳' }, subDirect: [] },
+			{ startYear: 2049, age: 43, mainDirect: { ganzi:'壬辰' }, subDirect: [] },
+			{ startYear: 2059, age: 53, mainDirect: { ganzi:'辛卯' }, subDirect: [] },
+			{ startYear: 2069, age: 63, mainDirect: { ganzi:'庚寅' }, subDirect: [] },
+			{ startYear: 2079, age: 73, mainDirect: { ganzi:'己丑' }, subDirect: [] },
 		],
 	};
 }
@@ -133,11 +142,11 @@ describe('压力测试·紫微 DHX 真实命盘 ground-truth (用户痛点根治
 		expect(shen.houseIndex).toBe(2);
 	});
 
-	test('R3·当前大限 (20岁) → 父母宫癸巳 12~21', ()=>{
+	test('R3·当前大限 (20岁) → 父母宫癸巳 12-21', ()=>{
 		const cur = extractZwCurrentDaxian(chart, currentAge);
 		expect(cur).not.toBeNull();
 		expect(cur.mingIdx).toBe(5);
-		expect(cur.ageRangeText).toBe('12~21岁');
+		expect(cur.ageRangeText).toBe('12-21岁');
 		expect(cur.palaces[0].palaceName).toBe('父母宫');
 		expect(cur.palaces[0].ganZhi).toBe('癸巳');
 	});
@@ -180,10 +189,10 @@ describe('压力测试·紫微 DHX 真实命盘 ground-truth (用户痛点根治
 
 	test('R7·全 12 宫 overview 含所有宫位+干支+大限范围', ()=>{
 		const text = formatZw12PalacesOverview(chart);
-		expect(text).toContain('命宫【壬辰】[大限2~11岁]');
-		expect(text).toContain('父母宫【癸巳】[大限12~21岁]');
-		expect(text).toContain('福德宫【甲午】[大限22~31岁]');
-		expect(text).toContain('迁移宫【戊戌】[大限62~71岁]');
+		expect(text).toContain('命宫【壬辰】[大限2-11岁]');
+		expect(text).toContain('父母宫【癸巳】[大限12-21岁]');
+		expect(text).toContain('福德宫【甲午】[大限22-31岁]');
+		expect(text).toContain('迁移宫【戊戌】[大限62-71岁]');
 	});
 
 	test('R8·formatZwMingShenPalace 含命/身宫真实位置', ()=>{
@@ -202,7 +211,7 @@ describe('压力测试·紫微 DHX 真实命盘 ground-truth (用户痛点根治
 
 	test('R10·buildZiweiSectionData(daxian) 含当前大限 + 全 12 步', ()=>{
 		const text = buildZiweiSectionData(chart, 'daxian', 20, 2026);
-		expect(text).toContain('当前大限·12~21岁');
+		expect(text).toContain('当前大限·12-21岁');
 		expect(text).toContain('运命宫【父母宫·癸巳】');
 		expect(text).toContain('全部 10 步大限');
 	});

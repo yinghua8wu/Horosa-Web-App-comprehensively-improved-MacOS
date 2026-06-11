@@ -101,4 +101,4 @@ cd Horosa-Web && HOROSA_SKIP_UI_BUILD=1 ./start_horosa_local.sh
 - [ ] preview 4 case 矩阵全过 + 8 大技法切换跳变 + 持久化
 - [ ] release_preflight.sh 加 v2.2.1 版本门禁 + windows-sync-handoff 顶部加条目
 - [ ] launcher version assertion 升 2.2.1
-- [ ] 内部资料 实现说明 + 内部实现说明 同步章节
+- [ ] 内部实现说明 同步章节

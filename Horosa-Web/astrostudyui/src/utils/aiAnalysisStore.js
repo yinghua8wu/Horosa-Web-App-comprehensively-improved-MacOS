@@ -5,7 +5,7 @@ import {
 	getProviderProtocolFamily,
 } from './aiAnalysisProviders';
 
-export const AI_ANALYSIS_SCHEMA_VERSION = 4;
+export const AI_ANALYSIS_SCHEMA_VERSION = 5;
 
 export const AI_ANALYSIS_STORES = {
 	providerProfiles: 'provider_profiles',
@@ -26,7 +26,7 @@ export const AI_ANALYSIS_STORES = {
 };
 
 const DB_NAME = 'horosa.ai.analysis.v1';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const UI_PREF_KEY = 'horosa.ai.analysis.ui.v3';
 const MEMORY_DB = new Map();
 

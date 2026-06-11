@@ -314,19 +314,29 @@ def sweNextTransit(obj, jd, lat, lon, flag):
 
 # === Houses and angles === #
         
+def _sweHousesRaw(jd, lat, lon, swhsys, flag):
+    if flag == 0:
+        return swisseph.houses(jd, lat, lon, swhsys)
+    if flag == swisseph.FLG_RADIANS:
+        return swisseph.houses_ex(jd, lat, lon, swhsys, swisseph.FLG_RADIANS)
+    return swisseph.houses_ex(jd, lat, lon, swhsys, swisseph.FLG_SIDEREAL)
+
+
 def sweHouses(jd, lat, lon, hsys, flag=0):
     """ Returns lists of houses and angles. """
     applySiderealMode()
     hlist = None
     ascmc = None
     swhsys = SWE_HOUSESYS[hsys]
-    if flag == 0:
-        hlist, ascmc = swisseph.houses(jd, lat, lon, swhsys)
-    else:
-        if flag == swisseph.FLG_RADIANS:
-            hlist, ascmc = swisseph.houses_ex(jd, lat, lon, swhsys, swisseph.FLG_RADIANS)
-        else:
-            hlist, ascmc = swisseph.houses_ex(jd, lat, lon, swhsys, swisseph.FLG_SIDEREAL)
+    try:
+        hlist, ascmc = _sweHousesRaw(jd, lat, lon, swhsys, flag)
+    except swisseph.Error:
+        # 极圈内象限分宫制(Placidus/Koch 等)数学上无解,swisseph 抛错。
+        # 业界标准兜底:回退 Porphyry(保留 ASC/MC 四轴象限结构),盘可出而非整请求报错。
+        # 返回结构仍标注请求的 hsys(上层按所选制做语义),仅宫顶数值为回退值。
+        if swhsys == b'O':
+            raise
+        hlist, ascmc = _sweHousesRaw(jd, lat, lon, b'O', flag)
     # Add first house to the end of 'hlist' so that we
     # can compute house sizes with an iterator 
     hlist += (hlist[0],)

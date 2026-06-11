@@ -98,9 +98,15 @@ describe('pdYears 挂载 round-trip（透传 /chart 复算 PD）', () => {
 		expect(reqB.pdYears).toBe(120);
 	});
 
-	it('越界 pdYears=999 → 夹到 180（normalizePdYearsValue 兜底，不发非法值给后端）', async () => {
+	it('pdYears=999 在 3000 上限内 → 原样透传（上限已 360→3000，>360 走多圈复发行）', async () => {
 		await getAnalysisTechniqueContextWithOptions(SOURCE, 'primarydirect', { pdYears: 999 });
 		const req = lastPdFetch();
-		expect(req.pdYears).toBe(180);
+		expect(req.pdYears).toBe(999);
+	});
+
+	it('越界 pdYears=5000 → 夹到 3000（normalizePdYearsValue 兜底，不发非法值给后端）', async () => {
+		await getAnalysisTechniqueContextWithOptions(SOURCE, 'primarydirect', { pdYears: 5000 });
+		const req = lastPdFetch();
+		expect(req.pdYears).toBe(3000);
 	});
 });

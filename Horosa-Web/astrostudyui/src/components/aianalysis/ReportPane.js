@@ -12,6 +12,7 @@ import XQIcon from '../xq-icons';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { normalizeMarkdown } from '../../utils/reportMarkdownNormalize';
+import { getPersistedThinkingLevel } from '../../utils/aiAnalysisProviders';
 
 import {
 	AI_ANALYSIS_STORES,
@@ -88,7 +89,7 @@ function renderMarkdownToHtml(src){
 // ============ 主组件 ============
 
 export default function ReportPane(props){
-	const { sources = [], profile, model, providerName, modelOptions } = props;
+	const { sources = [], profile, model, providerName, modelOptions, providerProfiles = [] } = props;
 	const [view, setView] = React.useState('list'); // list | detail
 	const [instances, setInstances] = React.useState([]);
 	const [activeInstance, setActiveInstance] = React.useState(null);
@@ -283,7 +284,7 @@ export default function ReportPane(props){
 			return;
 		}
 		generatingRef.current = true;
-		const { technique, granularity, caseId, schools, materialIds, embedCharts, intro, outro, providerOverride, modelOverride } = form;
+		const { technique, granularity, caseId, schools, materialIds, embedCharts, intro, outro, providerOverride, modelOverride, thinkingLevel } = form;
 		const useProfile = providerOverride || profile;
 		const useModel = modelOverride || model;
 		if(!useProfile || !useModel){
@@ -425,7 +426,7 @@ export default function ReportPane(props){
 					content: (
 						<div>
 							<div style={{ marginBottom: 8, color:'#cf1322' }}>{groundTruthError}</div>
-							<div style={{ fontSize:13, color:'#666' }}>
+							<div style={{ fontSize:13, color:'var(--horosa-text-soft, #666)' }}>
 								如继续，pipeline 将弱化为仅用文本快照,AI 可能编造三方四正/大限/流年(用户反馈的"午宫被说成迁移宫"等事故就是此类)。
 								<br /><br />
 								推荐：先到 {technique === 'ziwei' ? '紫微' : '八字'} tab 确认能正常排盘 → 再回来生成报告。
@@ -450,6 +451,7 @@ export default function ReportPane(props){
 		try{
 			await generateReport({
 				template,
+				thinkingLevel,
 				caseSnapshot,
 				caseId,
 				caseRecord: src && src.record, // 流年准:pipeline 算 birthDate/currentAge/currentYear 时间锚定
@@ -619,6 +621,7 @@ export default function ReportPane(props){
 			}
 			await generateReport({
 				template: oneShot,
+				thinkingLevel: getPersistedThinkingLevel(),
 				caseSnapshot: trimmedSource,
 				caseId: activeInstance.caseId,
 				caseRecord: retrySrc && retrySrc.record,
@@ -767,7 +770,7 @@ export default function ReportPane(props){
 	function renderToolbar(){
 		const isDetail = view === 'detail' && activeInstance;
 		return (
-			<div style={{padding:'8px 12px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid var(--xq-border, #eee)',gap:8,flexWrap:'wrap'}}>
+			<div style={{padding:'8px 12px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid var(--horosa-border, #eee)',gap:8,flexWrap:'wrap'}}>
 				<Space size="small">
 					{isDetail ? (
 						<Button size="small" icon={<XQIcon name="arrow-left" />} onClick={()=>setView('list')}>返回列表</Button>
@@ -809,7 +812,7 @@ export default function ReportPane(props){
 			return st.status === 'running';
 		});
 		return (
-			<div style={{padding:'8px 12px',background:'var(--xq-bg-soft, #f6faff)',borderBottom:'1px solid var(--xq-border, #eee)'}}>
+			<div style={{padding:'8px 12px',background:'var(--horosa-panel-soft, #f6faff)',borderBottom:'1px solid var(--horosa-border, #eee)'}}>
 				<div style={{display:'flex',alignItems:'center',gap:8}}>
 					<Spin size="small" />
 					<div style={{flex:1}}>
@@ -817,7 +820,7 @@ export default function ReportPane(props){
 					</div>
 				</div>
 				{running ? (
-					<div style={{marginTop:4,fontSize:12,color:'#888'}}>当前：{running.title}</div>
+					<div style={{marginTop:4,fontSize:12,color:'var(--horosa-muted, #888)'}}>当前：{running.title}</div>
 				) : null}
 			</div>
 		);
@@ -829,7 +832,7 @@ export default function ReportPane(props){
 				<Empty
 					image={Empty.PRESENTED_IMAGE_SIMPLE}
 					description={
-						<div style={{color:'#999'}}>
+						<div style={{color:'var(--horosa-muted, #999)'}}>
 							<div>还没有报告</div>
 							<div style={{fontSize:12,marginTop:4}}>点「新建报告」让 AI 按模板生成一份覆盖每个方面的综合报告</div>
 						</div>
@@ -860,7 +863,7 @@ export default function ReportPane(props){
 			},
 			{
 				title:'流派', dataIndex:'schools', key:'schools', width:160,
-				render: (v)=>(v && v.length) ? v.map((s, i)=>(<Tag key={i} color="cyan">{s}</Tag>)) : <span style={{color:'#999'}}>通用</span>,
+				render: (v)=>(v && v.length) ? v.map((s, i)=>(<Tag key={i} color="cyan">{s}</Tag>)) : <span style={{color:'var(--horosa-muted, #999)'}}>通用</span>,
 			},
 			{
 				title:'状态', dataIndex:'status', key:'status', width:80,
@@ -900,8 +903,8 @@ export default function ReportPane(props){
 		return (
 			<div style={{flex:1,display:'flex',overflow:'hidden'}}>
 				{/* 左侧目录 */}
-				<div style={{width:200,borderRight:'1px solid var(--xq-border, #eee)',overflow:'auto',background:'var(--xq-bg-soft, #fafafa)'}}>
-					<div style={{padding:'8px 12px',fontSize:12,color:'#888',borderBottom:'1px solid var(--xq-border, #eee)'}}>目录</div>
+				<div style={{width:200,borderRight:'1px solid var(--horosa-border, #eee)',overflow:'auto',background:'var(--horosa-panel-soft, #fafafa)'}}>
+					<div style={{padding:'8px 12px',fontSize:12,color:'var(--horosa-muted, #888)',borderBottom:'1px solid var(--horosa-border, #eee)'}}>目录</div>
 					<div style={{padding:8}}>
 						{sections.map((s, idx)=>{
 							const st = (activeInstance.sections || {})[s.key] || {};
@@ -913,10 +916,10 @@ export default function ReportPane(props){
 								: '⏸';
 							return (
 								<a key={s.key} href={`#sec-${s.key}`} style={{
-									display:'block',padding:'4px 8px',color:'#333',fontSize:13,
+									display:'block',padding:'4px 8px',color:'var(--horosa-text-soft, #333)',fontSize:13,
 									borderRadius:4,marginBottom:2,
 								}}>
-									<span style={{display:'inline-block',width:16,color:'#888'}}>{statusIcon}</span>
+									<span style={{display:'inline-block',width:16,color:'var(--horosa-muted, #888)'}}>{statusIcon}</span>
 									{idx + 1}. {s.title}
 								</a>
 							);
@@ -939,9 +942,9 @@ export default function ReportPane(props){
 						const contentTrim = `${st.content || ''}`.trim();
 						const rendered = contentTrim ? renderMarkdownToHtml(contentTrim) : '';
 						return (
-							<div key={s.key} id={`sec-${s.key}`} style={{marginBottom:32,paddingBottom:16,borderBottom:'1px dashed #eee'}}>
+							<div key={s.key} id={`sec-${s.key}`} style={{marginBottom:32,paddingBottom:16,borderBottom:'1px dashed var(--horosa-border, #eee)'}}>
 								<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-									<h2 style={{margin:0}}>{s.order + 1}. {s.title}</h2>
+									<h2 style={{margin:0,color:'var(--horosa-text, #162033)'}}>{s.order + 1}. {s.title}</h2>
 									<Space size={4}>
 										<Tooltip title="重试本节">
 											<Button size="small" icon={<XQIcon name="sync" />} onClick={()=>handleRegenerateSection(s.key)} disabled={generating} />
@@ -962,7 +965,7 @@ export default function ReportPane(props){
 								{/* v1.18: 仅当 instance 显式开启 embedCharts 时才渲染嵌图(默认关) */}
 								{activeInstance.embedCharts && st.embeddedChartDataURL ? (
 									<div style={{marginBottom:16,marginTop:4,textAlign:'center'}}>
-										<img src={st.embeddedChartDataURL} alt={s.title} style={{maxWidth:'100%',border:'1px solid #ddd',borderRadius:4}} />
+										<img src={st.embeddedChartDataURL} alt={s.title} style={{maxWidth:'100%',border:'1px solid var(--horosa-border, #ddd)',borderRadius:4}} />
 									</div>
 								) : null}
 								{editingSectionKey === s.key ? (
@@ -987,7 +990,7 @@ export default function ReportPane(props){
 										action={<Button size="small" onClick={()=>handleRegenerateSection(s.key)}>重试</Button>}
 									/>
 								) : st.status === 'cancelled' ? (
-									<div style={{color:'#999'}}>⊘ 本节已取消</div>
+									<div style={{color:'var(--horosa-muted, #999)'}}>⊘ 本节已取消</div>
 								) : st.status === 'warn' ? (
 									<>
 										<Alert type="warning" message={(st.error && st.error.message) || '本节内容较短'} style={{marginBottom:8}} />
@@ -999,7 +1002,7 @@ export default function ReportPane(props){
 									// 已"完成"但内容空白 → 明确提示并提供重试
 									<Alert type="warning" message="本节内容为空（AI 没有返回有效文字）" action={<Button size="small" onClick={()=>handleRegenerateSection(s.key)}>重试</Button>} />
 								) : !contentTrim ? (
-									<div style={{color:'#999'}}>（尚未生成）</div>
+									<div style={{color:'var(--horosa-muted, #999)'}}>（尚未生成）</div>
 								) : (
 									<div className="xq-markdown" dangerouslySetInnerHTML={{__html: rendered}} />
 								)}
@@ -1007,8 +1010,8 @@ export default function ReportPane(props){
 						);
 					})}
 					{activeInstance.outro ? (
-						<div style={{marginTop:24,padding:16,background:'var(--xq-bg-soft, #fffbf0)',border:'1px solid #f0e0a0',borderRadius:8}}>
-							<h2 style={{marginTop:0}}>重点提醒</h2>
+						<div style={{marginTop:24,padding:16,background:'var(--horosa-gold-soft, #fffbf0)',border:'1px solid var(--horosa-border-strong, #f0e0a0)',borderRadius:8}}>
+							<h2 style={{marginTop:0,color:'var(--horosa-text, #162033)'}}>重点提醒</h2>
 							<div className="xq-markdown" dangerouslySetInnerHTML={{__html: renderMarkdownToHtml(activeInstance.outro)}} />
 						</div>
 					) : null}
@@ -1032,6 +1035,7 @@ export default function ReportPane(props){
 					profile={profile}
 					model={model}
 					modelOptions={modelOptions}
+					providerProfiles={providerProfiles}
 					preset={launchPreset}
 				/>
 				<Modal

@@ -96,7 +96,7 @@ export function balbillusDistance(lon, exalt, mode){
 	return Math.min(raw, 360 - raw);
 }
 
-// 削减口径：日/月/火这 3 星用的不是黄经距，但等价于「黄经最近角距的线性变换」d = a×ecl + b——
+// 削减拟合：日/月/火这 3 星用的不是黄经距，但等价于「黄经最近角距的线性变换」d = a×ecl + b——
 // 即便在擢升处也有基础削减 b。其余四星 a=1/b=0（纯黄经最近角距）。仅 nearest 口径生效。
 const BALBILLUS_REDUCTION_FIT = {
 	[AstroConst.SUN]: { a: 0.9431, b: 19.47 },

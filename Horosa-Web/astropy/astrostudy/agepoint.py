@@ -13,7 +13,11 @@ def _norm360(x):
 
 def _koch_cusps(jd, lat, lon):
     """ 返回 (asc, [12 个 Koch 宫头黄经 house1..house12])。 """
-    res = swisseph.houses_ex2(jd, float(lat), float(lon), b'K', 0)
+    try:
+        res = swisseph.houses_ex2(jd, float(lat), float(lon), b'K', 0)
+    except swisseph.Error:
+        # Koch 在极圈无解 → Porphyry 兜底(保四轴),年龄推进点照常可算。
+        res = swisseph.houses_ex2(jd, float(lat), float(lon), b'O', 0)
     cusps = list(res[0])
     ascmc = list(res[1])
     if len(cusps) >= 13:

@@ -310,7 +310,7 @@ function normalizePdYearsValue(value){
 	if(!Number.isFinite(n)){
 		return 100;
 	}
-	return Math.max(1, Math.min(180, n));
+	return Math.max(1, Math.min(3000, n));
 }
 
 function buildFieldObject(record){
@@ -357,8 +357,8 @@ function buildFieldObject(record){
 		pdConverse: { value: record.pdConverse === 0 ? 0 : 1 },
 		pdAntiscia: { value: record.pdAntiscia ? 1 : 0 },
 		pdTerms: { value: record.pdTerms ? 1 : 0 },
-		// 主限推算年数:挂载「每技法设置」可经 record.pdYears 覆盖(默认 100、范围 1–180,
-		// 与 AstroPrimaryDirection.normalizePdYears / perchart.py 兜底一致)。缺省→100=现状字节级一致。
+		// 主限推算年数:挂载「每技法设置」可经 record.pdYears 覆盖(默认 100、范围 1–3000,
+		// 与 AstroPrimaryDirection.normalizePdYears / perchart.py 兜底一致;>360 走多圈复发行)。缺省→100=现状字节级一致。
 		pdYears: { value: normalizePdYearsValue(record.pdYears) },
 		pdaspects: { value: DEFAULT_PD_ASPECTS.slice(0) },
 		// 时间算法(0=真太阳时按经度校正 / 1=直接时间用钟表时)+ 晚子时口径须从存盘读取,
@@ -1625,11 +1625,22 @@ async function regenerateChartTechniqueSnapshot(record, key){
 			if(!chartObj){
 				return '';
 			}
+			// 显式把用户配置的方位法/时间换算/方向类型/顺逆/映点/界回填进快照 params——与 fetchChart
+			// 复算所用 fieldParams 同源(buildFieldObject)，不依赖后端是否把请求参回显进 Result.params。
+			// 否则 [主/界限法设置] 段的「向运方向/映点迫星/界迫星」会误显默认值(顺向/否/否)。
+			const pdFields = buildFieldObject(record);
 			const snapshotChartObj = {
 				...chartObj,
 				params: {
 					...(chartObj.params || {}),
 					showPdBounds: 1,
+					pdMethod: pdFields.pdMethod.value,
+					pdTimeKey: pdFields.pdTimeKey.value,
+					pdtype: pdFields.pdtype.value,
+					pdDirect: pdFields.pdDirect.value,
+					pdConverse: pdFields.pdConverse.value,
+					pdAntiscia: pdFields.pdAntiscia.value,
+					pdTerms: pdFields.pdTerms.value,
 				},
 			};
 			return buildPrimaryDirectSnapshotText(snapshotChartObj) || '';
@@ -1908,7 +1919,7 @@ function hasMatchingSavedAstroSnapshot(record){
 	if(!(parsed.birth || parsed.zone || parsed.lon || parsed.lat)){
 		return null;
 	}
-	// 恒星黄道 ayanāṃśa 变更须使旧快照失效：两侧都有非空 ayanāṃśa 且不同 → 不复用（重新生成）。
+	// 恒星黄道 ayanāṃśa 变更须使旧快照失效：两侧都有非空 ayanāṃśa 且不同 → 不复用（重新抓取）。
 	// 仅「都非空且不同」才拦截：旧签名/回归盘/默认恒星 ayanāṃśa 为空 → 跳过 → 向后兼容（最坏多抓一次，绝不误用旧盘）。
 	const recAyan = normalizeSnapshotMatchText(record.siderealAyanamsa);
 	if(parsed.siderealAyanamsa && recAyan && parsed.siderealAyanamsa !== recAyan){

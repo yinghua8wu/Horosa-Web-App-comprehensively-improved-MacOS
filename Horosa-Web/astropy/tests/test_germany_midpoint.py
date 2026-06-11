@@ -17,7 +17,7 @@ from flatlib import const
 _CORPUS = (
     Path(__file__).resolve().parent
     / 'data' / 'pd_calibration_corpus'
-    / 'golden_alcabitius_ptolemy_v253.ndjson.gz'
+    / 'golden_alcabitius_ptolemy_v266.ndjson.gz'
 )
 
 

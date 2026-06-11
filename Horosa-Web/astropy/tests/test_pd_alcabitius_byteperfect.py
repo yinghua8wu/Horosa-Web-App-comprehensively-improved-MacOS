@@ -4,8 +4,8 @@ Byte-perfect regression for the Alcabitius + Ptolemy primary-direction path.
 This is the highest-priority guardrail for the Primary Direction multi-method
 buildout: any change to perpredict.py / perchart.py is required to leave the
 default (pdMethod='core_alchabitius', pdTimeKey='Ptolemy', pdtype=0) output
-byte-identical to the v2.5.3 main snapshot stored under
-`tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson`.
+byte-identical to the current first-principles snapshot stored under
+`tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v266.ndjson`.
 
 The corpus is referred to internally as 'pd_calibration_corpus' — see manifest.
 
@@ -30,7 +30,7 @@ GOLDEN_PATH = (
     Path(__file__).resolve().parent
     / 'data'
     / 'pd_calibration_corpus'
-    / 'golden_alcabitius_ptolemy_v253.ndjson.gz'
+    / 'golden_alcabitius_ptolemy_v266.ndjson.gz'
 )
 
 

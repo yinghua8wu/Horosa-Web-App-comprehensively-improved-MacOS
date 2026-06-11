@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const SRC = process.env.HELUO_SRC
-	|| '~/Documents/notes-vault/玄哲/4.条文/河洛理数';
+	|| './heluo-source';
 const OUT = path.join(__dirname, '..', 'src', 'utils', 'data', 'heluoTiaowen.json');
 
 const FILES = {
@@ -173,7 +173,7 @@ function parseSimple() {
 
 // ── 倪海厦《易經》人間道 逐爻（替换"简便"层）──
 const NIHAIXIA = process.env.NIHAIXIA
-	|| '~/Documents/notes-vault/玄哲/0.易经/倪海厦易經.md';
+	|| './nihaixia-yijing.md';
 // 倪海厦文偶有简体卦名（如 天雷无妄），归一化到繁体再匹配
 const S2T = { 无: '無', 随: '隨', 蛊: '蠱', 贲: '賁', 剥: '剝', 复: '復', 颐: '頤', 过: '過', 观: '觀', 济: '濟', 渐: '漸', 归: '歸', 丰: '豐', 涣: '渙', 节: '節', 兑: '兌', 离: '離', 为: '為', 风: '風', 泽: '澤', 师: '師', 谦: '謙', 临: '臨', 壮: '壯' };
 function toTrad(s) { return [...(s || '')].map((c) => S2T[c] || c).join(''); }

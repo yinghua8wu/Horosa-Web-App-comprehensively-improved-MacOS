@@ -27,6 +27,10 @@ function fixSegment(s){
 	// 2. 异常省略号收缩：句末符流式重复 / 半截省略号。
 	t = t.replace(/。{3,}/g, '。。');
 	t = t.replace(/\.{4,}/g, '...');
+	// 3. ~ / ～ → 短横线 -：Markdown(GFM) 下成对 ~ 触发删除线(strikethrough),报告里年龄/年份范围
+	//    (如 25~34岁)被整段划掉。报告正文无删除线语义,统一替换为短横线。
+	//    (代码围栏 ``` 段已被 normalizeMarkdown 整体跳过、不进本函数,代码里的 ~ 不受影响。)
+	t = t.replace(/[~～]/g, '-');
 	return t;
 }
 

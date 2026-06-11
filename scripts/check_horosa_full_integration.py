@@ -177,8 +177,8 @@ def main() -> None:
 
     for needle in [
         "tabPosition=\"right\"",
-        "本次分析模型",
-        "案例选择（命盘 / 事盘）",
+        "模型选择",
+        "用户尚未选择案例（命盘/事盘）",
         "参考组合 / 资料（多选）",
         "发送分析",
         "历史",
@@ -276,7 +276,7 @@ def main() -> None:
         _assert_contains(snapshot_expectations["jieqi"], needle)
 
     for needle in [
-        "<TabPane tab=\"主/界限法\" key=\"primarydirect\">",
+        "<TabPane tab=\"主限法\" key=\"primarydirect\">",
         "<TabPane tab=\"黄道星释\" key=\"zodialrelease\">",
         "<TabPane tab=\"法达星限\" key=\"firdaria\">",
         "<TabPane tab=\"小限法\" key=\"profection\">",
@@ -408,8 +408,8 @@ def main() -> None:
     _assert_contains(acg, "request(`${Constants.ServerRoot}/location/acg`")
     _assert_contains(hellen_main, "this.props.hook.fun = (fields)=>")
     _assert_contains(loc_main, "this.props.hook.fun = (fields)=>")
-    _assert_contains(direct_main, "applyPrimaryDirectionConfig(pdMethod, pdTimeKey)")
-    _assert_contains(pd_table, "const pdTypeOutOfSync = appliedPdState.pdtype !== DEFAULT_PD_TYPE;")
+    _assert_contains(direct_main, "applyPrimaryDirectionConfig(pdMethod, pdTimeKey, pdYears, options)")
+    _assert_contains(pd_table, "const isPdConfigDirty = (")
     _assert_contains(pd_table, "needsPdRecompute(){")
     _assert_contains(pd_table, "if(!this.needsPdRecompute())")
     _assert_contains(pd_table, "disabled={!needsPdRecompute}")

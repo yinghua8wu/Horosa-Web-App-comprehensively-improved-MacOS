@@ -306,6 +306,36 @@ public class AIAnalysisProxyServiceTest {
 		assertFalse(body.containsKey("temperature"));
 	}
 
+	@Test
+	public void buildAnthropicBodyThinkingComplianceStripsTemperatureAndTopK() {
+		// Anthropic extended thinking 开启:① 不发 temperature ② 不发 top_k/top_p ③ max_tokens > budget_tokens。
+		Map<String, Object> thinking = buildMap("type", "enabled", "budget_tokens", 4096);
+		Map<String, Object> params = buildMap(
+			"temperature", 0.7,
+			"maxTokens", 2048,
+			"providerOptions", buildMap("thinking", thinking, "top_k", 40, "top_p", 0.9));
+		Map<String, Object> body = AIAnalysisProxyService.buildAnthropicBody(
+			"claude-opus-4-8", params, new java.util.ArrayList<Map<String, Object>>(), true);
+		assertFalse("思考开启不应发 temperature", body.containsKey("temperature"));
+		assertFalse("思考开启不应发 top_k", body.containsKey("top_k"));
+		assertFalse("思考开启不应发 top_p", body.containsKey("top_p"));
+		assertTrue(body.containsKey("thinking"));
+		// max_tokens(2048) <= budget(4096) → 自动上调到 budget+1024,保证 max_tokens > budget_tokens。
+		assertEquals(Integer.valueOf(4096 + 1024), body.get("max_tokens"));
+	}
+
+	@Test
+	public void buildAnthropicBodyWithoutThinkingKeepsTemperature() {
+		// 未开思考:照常发 temperature + 原 max_tokens(零回归)。
+		Map<String, Object> params = buildMap("temperature", 0.5, "maxTokens", 2048);
+		Map<String, Object> body = AIAnalysisProxyService.buildAnthropicBody(
+			"claude-opus-4-8", params, new java.util.ArrayList<Map<String, Object>>(), false);
+		assertTrue(body.containsKey("temperature"));
+		assertEquals(0.5d, body.get("temperature"));
+		assertEquals(Integer.valueOf(2048), body.get("max_tokens"));
+		assertFalse(body.containsKey("thinking"));
+	}
+
 	private static Map<String, Object> buildMap(Object... args){
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		for(int i=0; i<args.length; i += 2) {

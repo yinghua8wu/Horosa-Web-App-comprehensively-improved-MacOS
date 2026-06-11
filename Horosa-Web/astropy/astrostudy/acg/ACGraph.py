@@ -117,7 +117,10 @@ class ACGraph:
             return norm360(swisseph.sidtime(jd) * 15.0)
         except Exception:
             # ARMC (apparent RA of MC) at birth == apparent LST == gmst + birthLon
-            _, ascmc = swisseph.houses(jd, self.pos.lat, self.pos.lon, b'P')
+            try:
+                _, ascmc = swisseph.houses(jd, self.pos.lat, self.pos.lon, b'P')
+            except swisseph.Error:
+                _, ascmc = swisseph.houses(jd, self.pos.lat, self.pos.lon, b'W')
             return norm360(ascmc[2] - self.pos.lon)
 
     def _radec(self, obj):

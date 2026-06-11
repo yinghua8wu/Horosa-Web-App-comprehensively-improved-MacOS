@@ -157,4 +157,74 @@ describe('AstroDirectMain primary direction sync', ()=>{
 			showPdBounds: 1,
 		}));
 	});
+
+	// 防回归：方位法/时间换算的快照显示名须走共享 label 字典（覆盖白名单内全部方位法与钥匙）。
+	// 历史 bug：primaryDirectionMethodText 只识别 horosa_legacy、其余一律回退 'Alchabitius'，
+	// 选非默认方位法会在 AI 导出/挂载里被误标为 Alchabitius。
+	test('primary direction snapshot shows the real method/key labels + full config (non-core)', ()=>{
+		const chartObj = buildChartObj();
+		chartObj.params = {
+			...chartObj.params,
+			pdMethod: 'meridian',
+			pdTimeKey: 'Naibod',
+			pdtype: 1,
+			pdDirect: 1,
+			pdConverse: 1,
+			pdAntiscia: 1,
+			pdTerms: 1,
+			showPdBounds: 1,
+		};
+		chartObj.predictives = {
+			primaryDirection: [
+				[12.5, 'N_Sun_0', 'N_Mars_0', '', '2040-01-01 00:00:00'],
+			],
+		};
+		const instance = new AstroDirectMain({
+			chartObj,
+			fields: buildFields(),
+		});
+
+		const text = instance.savePrimaryDirectSnapshot();
+
+		// 方位法不再被误标 Alchabitius。
+		expect(text).toContain('推运方法：Meridian');
+		expect(text).not.toContain('推运方法：Alchabitius');
+		// 时间换算走真实 label。
+		expect(text).toContain('度数换算：Naibod');
+		// In Mundo / 顺逆 / 映点 / 界 全配置如实显示。
+		expect(text).toContain('方向类型：世俗（In Mundo）');
+		expect(text).toContain('向运方向：顺向 Direct + 逆向 Converse');
+		expect(text).toContain('映点迫星：是');
+		expect(text).toContain('界迫星：是');
+	});
+
+	// 防回归：宿命点(Vertex)应星行须以中文词条渲染(白名单/词条任一缺失都会让行被滤掉或显示原始 id)。
+	test('vertex significator rows render as 宿命点 in the snapshot', ()=>{
+		const chartObj = buildChartObj();
+		chartObj.params = {
+			...chartObj.params,
+			pdMethod: 'core_alchabitius',
+			pdTimeKey: 'Ptolemy',
+			showPdBounds: 1,
+		};
+		chartObj.predictives = {
+			primaryDirection: [
+				[15.25, 'D_Sun_60', 'N_Vertex_0', 'Z', '2041-06-01 00:00:00'],
+				[-23.5, 'N_Moon_0', 'N_Vertex_0', 'Z', '2049-01-01 00:00:00'],
+			],
+		};
+		const instance = new AstroDirectMain({
+			chartObj,
+			fields: buildFields(),
+		});
+
+		const text = instance.savePrimaryDirectSnapshot();
+
+		// 应星列渲染为中文词条而非原始 'Vertex'/'N_Vertex_0'。
+		expect(text).toContain('宿命点');
+		expect(text).not.toContain('N_Vertex_0');
+		// 行没有被 core 白名单过滤掉(两行都在)。
+		expect(text).toContain('2041-06-01 00:00:00');
+		expect(text).toContain('2049-01-01 00:00:00');
+	});
 });

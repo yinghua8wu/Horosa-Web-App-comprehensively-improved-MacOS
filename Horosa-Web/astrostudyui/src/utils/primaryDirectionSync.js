@@ -1,40 +1,59 @@
 import { randomStr, } from './helper';
 
-// v10 — P1 主限法全面建成（新增 Regiomontanus / Campanus / Topocentric 方位法,
-// 走自研 pd_engine 通用引擎；placidus 升级为精确半弧）。升 SYNC_REV 强制旧持久化 chart 回收重算。
-export const PD_SYNC_REV = 'pd_method_sync_v10';
+// 主限法核方位法集合：仅收录逐位核验的核方位法（Alchabitius / Meridian /
+// Porphyry / Equal 黄道·时圈，In-Zodiaco 下逐位等价、已核验 mean|Δ|=0）。
+// 升 SYNC_REV 强制旧持久化 chart 回收重算。
+export const PD_SYNC_REV = 'pd_method_sync_v12';
 export const DEFAULT_PD_METHOD = 'core_alchabitius';
 export const DEFAULT_PD_TIME_KEY = 'Ptolemy';
 export const DEFAULT_PD_TYPE = 0;
 
-// 与后端 perpredict._PD_METHOD_REGISTRY 同步的方位法白名单。未识别 method 在
-// 后端会 fallback 到 core_alchabitius（护住默认 Alcabitius+Ptolemy 字节级一致）。
+// 与后端 perpredict._PD_METHOD_REGISTRY 同步的方位法白名单。
 export const SUPPORTED_PD_METHODS = [
-	'core_alchabitius', 'horosa_legacy', 'placidus',
-	'regiomontanus', 'campanus', 'topocentric',
+	'core_alchabitius', 'horosa_legacy',
+	'meridian', 'porphyry', 'equal_ecliptic', 'equal_hour_circle',
 ];
 
-// 与后端时间换算同步的白名单。只收录有明确天文定义(公式/真算法)的 key:
-//   Ptolemy(1°RA/年)、Naibod(0°59'08" 太阳平均日动)= 静态;
-//   TrueSolarArc(真太阳弧,Placidus key)= 动态,逐弧查星历(真算法)。
+// 与后端时间换算白名单同步(static 表 + 每盘常数 Simmonite/Kepler/Brahe + 动态 TrueSolarArc/SymbolicSolarArc)。
 export const SUPPORTED_PD_TIME_KEYS = [
-	'Ptolemy', 'Naibod', 'TrueSolarArc',
+	'Ptolemy', 'Naibod', 'TrueSolarArc', 'SymbolicSolarArc',
+	'Cardano', 'Umar', 'Wollner', 'Plantiko', 'Simmonite', 'SynodicYear',
+	'Kepler', 'Brahe', 'Kundig', 'SymbolicDegree', 'SymbolicYear', 'SymbolicMoon',
+	'SymbolicMonth', 'Quarterly', 'Quinary', 'Duodenary', 'Novenary', 'SelfMeasure',
 ];
 
-// 方位法 / 时间换算的中文 label 字典 — 用于 UI 显示 + AI 导出 + 储存。
-// 新加方位法时同步扩此表，避免散落在多处硬编码。
+// 方位法 / 时间换算的 label 字典 — 用于 UI 显示 + AI 导出 + 储存。
 export const PD_METHOD_LABELS = {
 	core_alchabitius: 'Alchabitius',
-	placidus: 'Placidus（半弧）',
-	regiomontanus: 'Regiomontanus',
-	campanus: 'Campanus',
-	topocentric: 'Topocentric',
+	meridian: 'Meridian',
+	porphyry: 'Porphyry',
+	equal_ecliptic: 'Equal（黄道）',
+	equal_hour_circle: 'Equal（时圈）',
 	horosa_legacy: 'Horosa原方法',
 };
 export const PD_TIME_KEY_LABELS = {
 	Ptolemy: 'Ptolemy',
 	Naibod: 'Naibod',
 	TrueSolarArc: '真太阳弧',
+	SymbolicSolarArc: '太阳弧（黄经）',
+	Kundig: 'Kündig',
+	Cardano: 'Cardano',
+	Umar: 'Umar al-Tabari',
+	Wollner: 'Wöllner',
+	Plantiko: 'Plantiko',
+	Simmonite: 'Simmonite',
+	SynodicYear: 'Synodic Year',
+	Kepler: 'Kepler',
+	Brahe: 'Brahe',
+	SymbolicDegree: 'Symbolic Degree',
+	SymbolicYear: 'Symbolic Year',
+	SymbolicMoon: 'Symbolic Moon',
+	SymbolicMonth: 'Symbolic Month',
+	Quarterly: 'Quarterly',
+	Quinary: 'Quinary',
+	Duodenary: 'Duodenary',
+	Novenary: 'Novenary',
+	SelfMeasure: 'Self-Measure',
 };
 
 export function getPdMethodLabel(value){

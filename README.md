@@ -9,12 +9,12 @@
 **把占星与中国术数，收进一个原生 macOS 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native macOS workstation*
 
-[![Version](https://img.shields.io/badge/version-2.6.5-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.5)
+[![Version](https://img.shields.io/badge/version-2.6.6-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.5)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.5)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.5/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.6/Horosa-Installer-macos-arm64-offline.pkg) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -33,7 +33,7 @@
 
 > Regular users grab the offline installer and open it like any finished macOS app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.5/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.6/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合：Apple Silicon · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -91,7 +91,17 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.6.5 beta
+## 本次更新 · What's New in v2.6.6 beta
+
+这一版主线是**主限法（Primary Directions）全面升级**与 **AI 报告打磨** / This release headlines a **comprehensive Primary Directions upgrade** plus **AI-report polish**:
+
+- **主限法 · 显示窗精确化 + 世俗行集修复** —— 行星对显示窗改为单一判据（弧归一化前原值）；In-Mundo 此前缺失的行星对方向行现全数列出。/ Exact display-window semantics; previously-missing In-Mundo planet-pair rows now all listed.
+- **主限法 · 宿命点（Vertex）应星** —— 黄道向运新增宿命点应星行（闭式直算）。/ Vertex significator rows (closed-form) in zodiacal directions.
+- **主限法 · 时间钥匙修真 + 新钥匙** —— Simmonite / Kepler / Brahe 逐盘真算；新增 Kündig 与 太阳弧（黄经）。/ True per-chart time keys; new Kündig & Symbolic Solar Arc keys.
+- **主限法 · 年数上限 3000** —— 360 → 3000，跨圈方向按整圈复发自动延展；默认 100 年行为不变。/ Year range to 3000 with per-revolution recurrences; default unchanged.
+- **AI 报告打磨** —— Gemini 采样参数封装修复、思考档新增 极高/最大、界面缩放持久化。/ Gemini param-wrapping fix, Extra-High/Max thinking tiers, zoom persistence.
+
+### 旧版 · What's New in v2.6.5 beta
 
 这一版主线是**合盘交互链全面重建 + AI「起课时间」挂载 8→13 技法**，把上版残留的合盘失能与卜卦/数算时间起盘缺失一并补齐；默认行为与 v2.6.4 逐位一致：
 

@@ -19,6 +19,8 @@
         --horosa-accent: #2f7df1;
         --horosa-accent-soft: rgba(47, 125, 241, 0.12);
         --horosa-accent-strong: #2167d4;
+        /* accent 实底上的文字色(亮色 accent=蓝→白字;暗色 accent=浅金→深墨,复用门户主按钮 ink) */
+        --horosa-on-accent: #ffffff;
         --horosa-gold: #9a6a25;
         --horosa-gold-soft: rgba(154, 106, 37, 0.16);
         --horosa-cyan: #23b9d6;
@@ -88,6 +90,7 @@
         --horosa-accent: #e7bd75;
         --horosa-accent-soft: rgba(231, 189, 117, 0.14);
         --horosa-accent-strong: #f2cf91;
+        --horosa-on-accent: #071015;
         --horosa-gold: #d8ad63;
         --horosa-gold-soft: rgba(216, 173, 99, 0.18);
         --horosa-cyan: #d8ad63;
@@ -796,7 +799,7 @@
     .ant-popover .ant-btn-primary {
         border-color: var(--horosa-accent);
         background: var(--horosa-accent);
-        color: #fff;
+        color: var(--horosa-on-accent, #fff);
     }
 
     .ant-modal-root .ant-input,
@@ -1037,7 +1040,7 @@
     .ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
     .ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
         background: var(--horosa-accent);
-        color: #fff;
+        color: var(--horosa-on-accent, #fff);
     }
 
     .ant-tooltip-arrow-content,
@@ -1175,7 +1178,7 @@
     :root[data-horosa-appearance='dark'] .ant-popover .ant-btn-primary {
         border-color: var(--horosa-accent);
         background: var(--horosa-accent);
-        color: #071015;
+        color: var(--horosa-on-accent, #071015);
     }
 
     :root[data-horosa-appearance='dark'] .ant-modal-root .ant-alert,
@@ -1183,6 +1186,98 @@
         border-color: var(--horosa-border);
         background: var(--horosa-accent-soft);
         color: var(--horosa-text);
+    }
+
+    /* ── Drawer/Modal 内（portal 到 body，不在 .horosa-workspace-shell 内）的 Tabs / Tag / 多选chips / Collapse 暗色补齐 ──
+       报告卡片用到这些组件;它们不在 workspace-shell 覆盖范围内,
+       不单独补 dark 规则就会在暗色下看不清(灰字暗底)。 */
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tabs-tab,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tabs-tab {
+        color: var(--horosa-muted);
+    }
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tabs-tab:hover,
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tabs-tab:hover,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+        color: var(--horosa-accent-strong);
+    }
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tabs-ink-bar,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tabs-ink-bar {
+        background: var(--horosa-accent);
+    }
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tabs-top > .ant-tabs-nav::before,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tabs-top > .ant-tabs-nav::before {
+        border-color: var(--horosa-border);
+    }
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tag,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tag {
+        border-color: var(--horosa-border);
+        background: var(--horosa-panel-soft);
+        color: var(--horosa-text-soft);
+    }
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tag-blue,
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tag-cyan,
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tag-purple,
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tag-gold,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tag-blue,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tag-cyan,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tag-purple,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tag-gold {
+        border-color: var(--horosa-border-strong);
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-accent-strong);
+    }
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-tag-green,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tag-green {
+        border-color: rgba(115, 197, 154, 0.42);
+        background: rgba(115, 197, 154, 0.12);
+        color: var(--horosa-jade);
+    }
+    /* 多选 / tags 模式的已选 chip（rubric / 重点 / 参考流派 等） */
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-select-multiple .ant-select-selection-item,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-select-multiple .ant-select-selection-item {
+        border-color: var(--horosa-border);
+        background: var(--horosa-panel-soft);
+        color: var(--horosa-text);
+    }
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-select-multiple .ant-select-selection-item-remove,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-select-multiple .ant-select-selection-item-remove {
+        color: var(--horosa-muted);
+    }
+    /* Collapse（ghost / 普通）头与内容 + 箭头 */
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-collapse,
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-collapse-content,
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-collapse-item,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-collapse,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-collapse-content,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-collapse-item {
+        border-color: var(--horosa-border);
+        background: transparent;
+    }
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-collapse-header,
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-collapse-content-box,
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-collapse-header .ant-collapse-arrow,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-collapse-header,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-collapse-content-box,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-collapse-header .ant-collapse-arrow {
+        color: var(--horosa-text);
+    }
+    /* Radio 文案 / Form 辅助说明文字 */
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-radio-wrapper span,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-radio-wrapper span {
+        color: var(--horosa-text);
+    }
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-form-item-extra,
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-form-item-explain,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-form-item-extra,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-form-item-explain {
+        color: var(--horosa-muted);
+    }
+    /* Empty 占位 + Popconfirm */
+    :root[data-horosa-appearance='dark'] .ant-drawer .ant-empty-description,
+    :root[data-horosa-appearance='dark'] .ant-modal-root .ant-empty-description,
+    :root[data-horosa-appearance='dark'] .ant-popover .ant-popconfirm-message-title {
+        color: var(--horosa-muted);
     }
 
     .horosa-workspace-shell .mainRootTabs.ant-tabs-left {
@@ -4610,7 +4705,7 @@
     .horosa-workspace-shell .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
         border-color: var(--horosa-accent);
         background: var(--horosa-accent);
-        color: #fff;
+        color: var(--horosa-on-accent, #fff);
         box-shadow: none;
     }
 
@@ -14952,7 +15047,7 @@
 }
 .horosa-heluo-yaoci-expand { margin: 0; padding: 12px 14px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 8px; border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.22)); }
 .horosa-heluo-yaoci-expand .horosa-heluo-yaoci-detail:first-of-type { margin-top: 4px; }
-.horosa-heluo-tag.is-rel { background: var(--horosa-accent, rgba(201,168,106,.9)); color: #fff; border-color: transparent; font-weight: 600; }
+.horosa-heluo-tag.is-rel { background: var(--horosa-accent, rgba(201,168,106,.9)); color: var(--horosa-on-accent, #fff); border-color: transparent; font-weight: 600; }
 :root[data-horosa-appearance='dark'] .horosa-heluo-tag.is-rel { color: #1a1a1a; }
 /* 表格 */
 .horosa-heluo-table { border-collapse: collapse; font-size: 13px; width: 100%; }

@@ -261,6 +261,12 @@ struct AppPreferences {
     compact_launcher_layout: bool,
     enable_experimental_features: bool,
     always_review_before_replace: bool,
+    #[serde(default = "default_zoom")]
+    zoom_level: f64,
+}
+
+fn default_zoom() -> f64 {
+    DEFAULT_ZOOM
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -290,6 +296,7 @@ impl Default for AppPreferences {
             compact_launcher_layout: false,
             enable_experimental_features: false,
             always_review_before_replace: true,
+            zoom_level: DEFAULT_ZOOM,
         }
     }
 }
@@ -1992,7 +1999,7 @@ fn open_main_window(app: &AppHandle) -> Result<()> {
     let state = load_window_states(app).main;
     let window = build_main_window(app, &state).context("recreate main window")?;
     apply_main_window_launch_state(&window, &state);
-    set_window_zoom(app, DEFAULT_ZOOM)?;
+    set_window_zoom(app, load_preferences(app).zoom_level)?;
     if let Some(state) = app.try_state::<AppState>() {
         if let Ok(slot) = state.session.lock() {
             if let Some(session) = slot.as_ref() {
@@ -4425,6 +4432,10 @@ fn set_window_zoom(app: &AppHandle, zoom: f64) -> Result<()> {
             *slot = clamped;
         }
     }
+    // #22：持久化缩放到 preferences.json，重启恢复（修复字号重开复位）
+    let mut prefs = load_preferences(app);
+    prefs.zoom_level = clamped;
+    let _ = save_preferences(app, &prefs);
     Ok(())
 }
 
@@ -5628,7 +5639,7 @@ fn main() {
                 build_main_window(&app_handle, &main_state)?
             };
             apply_main_window_launch_state(&window, &main_state);
-            set_window_zoom(&app_handle, DEFAULT_ZOOM)?;
+            set_window_zoom(&app_handle, load_preferences(&app_handle).zoom_level)?;
             if handoff_to_newer_installed_app(&app_handle)? {
                 return Ok(());
             }

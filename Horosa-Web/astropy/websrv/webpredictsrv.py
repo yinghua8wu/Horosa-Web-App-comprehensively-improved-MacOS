@@ -55,8 +55,11 @@ class PredictSrv:
             else:
                 res = predict.getSolarReturn(params, asporb)
 
-            dirchart = PerChart(res['dirParams'])
-            res['dirChart'] = getChartObj(res['dirParams'], dirchart)
+            # 年表模式(无 datetime → getSolarReturn 返回 90 年列表)无 dirParams,原样返回;
+            # 单次模式(dict)才补 dirChart。旧实现对列表无条件取 ['dirParams'] 会 TypeError → 假"param error"。
+            if isinstance(res, dict) and 'dirParams' in res:
+                dirchart = PerChart(res['dirParams'])
+                res['dirChart'] = getChartObj(res['dirParams'], dirchart)
 
             return jsonpickle.encode(res, unpicklable=False)
         except:
@@ -139,8 +142,11 @@ class PredictSrv:
             pos = GeoPos(data['dirLat'], data['dirLon'])
             res = predict.getGivenYear(params, data['datetime'], pos, asporb)
 
-            dirchart = PerChart(res['dirParams'])
-            res['dirChart'] = getChartObj(res['dirParams'], dirchart)
+            # 年表模式(无 datetime → getSolarReturn 返回 90 年列表)无 dirParams,原样返回;
+            # 单次模式(dict)才补 dirChart。旧实现对列表无条件取 ['dirParams'] 会 TypeError → 假"param error"。
+            if isinstance(res, dict) and 'dirParams' in res:
+                dirchart = PerChart(res['dirParams'])
+                res['dirChart'] = getChartObj(res['dirParams'], dirchart)
 
             return jsonpickle.encode(res, unpicklable=False)
         except:

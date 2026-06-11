@@ -25,7 +25,12 @@ echo "[1] 版本号一致性"
 grep -q "\"version\": \"${VERSION}\"" "${INSTALLER_ROOT}/package.json"            && ok "package.json"        || bad "package.json version != ${VERSION}"
 grep -q "^version = \"${VERSION}\"" "${INSTALLER_ROOT}/src-tauri/Cargo.toml"       && ok "Cargo.toml"          || bad "Cargo.toml version != ${VERSION}"
 grep -q "\"version\": \"${VERSION}\"" "${INSTALLER_ROOT}/src-tauri/tauri.conf.json" && ok "tauri.conf.json"     || bad "tauri.conf.json version != ${VERSION}"
-grep -q "version: \"${VERSION}\"" "${REPO_ROOT}/CITATION.cff"                       && ok "CITATION.cff"        || bad "CITATION.cff version != ${VERSION}"
+# CITATION.cff 须对版本（缺席即跳过，不误报）。
+if [ -f "${REPO_ROOT}/CITATION.cff" ]; then
+  grep -q "version: \"${VERSION}\"" "${REPO_ROOT}/CITATION.cff"                     && ok "CITATION.cff"        || bad "CITATION.cff version != ${VERSION}"
+else
+  ok "CITATION.cff(本仓无此文件，跳过)"
+fi
 grep -q "APP_VERSION = '${VERSION}'" "${INSTALLER_ROOT}/web/app.js"                 && ok "web/app.js"          || bad "web/app.js APP_VERSION != ${VERSION}"
 # Cargo.lock: 本项目包的版本
 if awk '/^name = "horosa-desktop-installer"$/{getline; print}' "${INSTALLER_ROOT}/src-tauri/Cargo.lock" | grep -q "version = \"${VERSION}\""; then ok "Cargo.lock"; else bad "Cargo.lock horosa-desktop-installer version != ${VERSION}"; fi
@@ -50,7 +55,7 @@ grep -q "${VERSION}" "${REPO_ROOT}/docs/windows-sync-handoff.md" && ok "windows-
 # 4. settings.local.json 绝不可被 git 跟踪(里面有 token / 机器路径 —— 本次复盘的泄露风险)
 echo "[4] 机密文件未入库"
 if git -C "${REPO_ROOT}" ls-files --error-unmatch .claude/settings.local.json >/dev/null 2>&1; then bad ".claude/settings.local.json 被 git 跟踪了(含 token,有泄露风险!)"; else ok ".claude/settings.local.json 未被跟踪"; fi
-# dev-docs JSON 必须可解析(本次有人加 token 时漏逗号弄坏过)
+# .claude 配置 JSON 必须可解析(曾有加 token 时漏逗号弄坏过)
 for f in settings.json settings.local.json launch.json; do
   p="${REPO_ROOT}/.claude/${f}"
   [ -f "${p}" ] || continue
@@ -699,8 +704,8 @@ fi
 
 
 # [32] 主限法方位+时间补全·铁律①守卫
-#  - perpredict.py: _byZCoreKernel 函数指针仍在(800 行 Alcabitius ML 路径不被改名/重排)
-#  - perpredict.py: CORE_PD_ASC_CASE_CORR_MODEL + virtual body 校正模型路径不被改
+#  - perpredict.py: _byZCoreKernel 函数指针仍在(纯公式 Alcabitius 主路径不被改名/重排)
+#  - perpredict.py: CORE_PD_VIRTUAL_BODY_CORR_MODELS(ΔT 取数映射) + ΔT 注入 + 显示窗 + 宿命点闭式 在位
 #  - perpredict.py: STATIC_TIME_KEY_SCALES['Ptolemy'] 严格 == 1.0(必须是数值字面量,不接受公式)
 #  - perpredict.py: _PD_METHOD_REGISTRY 含 'core_alchabitius' 且默认 fallback 路径正确
 #  - 540 case byte-perfect 测试存在并能跑通
@@ -709,15 +714,44 @@ PD32_BAD=0
 PERPREDICT="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/perpredict.py"
 if [ -f "${PERPREDICT}" ]; then
   if ! grep -q "def getPrimaryDirectionByZCoreKernel" "${PERPREDICT}"; then
-    bad "[32] perpredict.py 缺 getPrimaryDirectionByZCoreKernel —— Alcabitius+Ptolemy 主路径被改名/移除(540 case 定制修正模型将失效)"
-    PD32_BAD=1
-  fi
-  if ! grep -q "CORE_PD_ASC_CASE_CORR_MODEL" "${PERPREDICT}"; then
-    bad "[32] perpredict.py 缺 CORE_PD_ASC_CASE_CORR_MODEL —— Alcabitius ASC 修正模型路径不在"
+    bad "[32] perpredict.py 缺 getPrimaryDirectionByZCoreKernel —— Alcabitius+Ptolemy 纯公式主路径被改名/移除(540 case 字节级将失效)"
     PD32_BAD=1
   fi
   if ! grep -q "CORE_PD_VIRTUAL_BODY_CORR_MODELS" "${PERPREDICT}"; then
-    bad "[32] perpredict.py 缺 CORE_PD_VIRTUAL_BODY_CORR_MODELS —— Alcabitius 虚体修正模型表不在"
+    bad "[32] perpredict.py 缺 CORE_PD_VIRTUAL_BODY_CORR_MODELS —— ΔT 校准批量取数映射表不在(_corePdDeltaTPointMap 依赖)"
+    PD32_BAD=1
+  fi
+  if ! grep -q "_corePdDeltaTPointMap" "${PERPREDICT}"; then
+    bad "[32] perpredict.py 缺 _corePdDeltaTPointMap —— 未来盘 ΔT 注入失效"
+    PD32_BAD=1
+  fi
+  if ! grep -q "def _passesCoreDisplayWindow" "${PERPREDICT}"; then
+    bad "[32] perpredict.py 缺 _passesCoreDisplayWindow —— 行星对显示窗(pre-norm 原值,|Δ|<107.5)被移除"
+    PD32_BAD=1
+  fi
+  if ! grep -q "def _coreVertexArc" "${PERPREDICT}"; then
+    bad "[32] perpredict.py 缺 _coreVertexArc —— 宿命点(Vertex)应星闭式被移除"
+    PD32_BAD=1
+  fi
+  if ! grep -q "def _extendCorePdRecurrences" "${PERPREDICT}"; then
+    bad "[32] perpredict.py 缺 _extendCorePdRecurrences —— 整圈复发/互补统一扩展被移除(180+ 互补与 3000 年多圈直达都走它)"
+    PD32_BAD=1
+  fi
+  if ! grep -q "min(3000, int(round(float(data\['pdYears'\])))" "${REPO_ROOT}/Horosa-Web/astropy/astrostudy/perchart.py"; then
+    bad "[32] perchart.py pdYears 上限不是 3000 —— 年数选择上限回退"
+    PD32_BAD=1
+  fi
+  # 前端 pdYears clamp 必须四处全 3000(任一回落 360 → 选 3000 在该路径被截断,LIVE 实测真踩过):
+  #   AstroPrimaryDirection.normalizePdYears(表格组件) / AstroDirectMain.normalizePdYears(主限tab容器·真fetch路径)
+  #   / aiAnalysisContext.normalizePdYearsValue(AI挂载·buildFieldObject) / techniqueMountSettings pdYears max
+  PD_CLAMP_360=$(grep -rIl "Math.min(360, n)" "${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/direction/AstroDirectMain.js" "${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/astro/AstroPrimaryDirection.js" "${REPO_ROOT}/Horosa-Web/astrostudyui/src/utils/aiAnalysisContext.js" 2>/dev/null | wc -l | tr -d ' ')
+  PD_CLAMP_3000=$(grep -rl "Math.min(3000, n)" "${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/direction/AstroDirectMain.js" "${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/astro/AstroPrimaryDirection.js" 2>/dev/null | wc -l | tr -d ' ')
+  if [ "${PD_CLAMP_360}" != "0" ] || [ "${PD_CLAMP_3000}" != "2" ]; then
+    bad "[32] 前端 pdYears clamp 未全 3000(残留 Math.min(360,n)=${PD_CLAMP_360} 处 / 应为 0;3000 命中=${PD_CLAMP_3000} / 应为 2)—— LIVE 实测过:任一处回落会让 3000 年在该路径被截到 360"
+    PD32_BAD=1
+  fi
+  if ! grep -q "Math.min(3000, n)" "${REPO_ROOT}/Horosa-Web/astrostudyui/src/utils/aiAnalysisContext.js"; then
+    bad "[32] aiAnalysisContext.normalizePdYearsValue 上限不是 3000 —— AI 挂载路径会把 3000 截到 360"
     PD32_BAD=1
   fi
   # STATIC_TIME_KEY_SCALES['Ptolemy'] 必须严格 == 1.0 (数值字面量)
@@ -736,14 +770,14 @@ fi
 # byte-perfect 测试存在
 PD_BYTEPERFECT="${REPO_ROOT}/Horosa-Web/astropy/tests/test_pd_alcabitius_byteperfect.py"
 # 金标语料现为 gzip 压缩(.ndjson.gz,test_pd_alcabitius_byteperfect.py 用 gzip.open 读);兼容旧未压缩名。
-PD_GOLDEN_GZ="${REPO_ROOT}/Horosa-Web/astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson.gz"
-PD_GOLDEN_RAW="${REPO_ROOT}/Horosa-Web/astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson"
+PD_GOLDEN_GZ="${REPO_ROOT}/Horosa-Web/astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v266.ndjson.gz"
+PD_GOLDEN_RAW="${REPO_ROOT}/Horosa-Web/astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v266.ndjson"
 if [ ! -f "${PD_BYTEPERFECT}" ]; then
   bad "[32] 缺 tests/test_pd_alcabitius_byteperfect.py —— byte-perfect 守卫缺失,540 case 回归无法跑"
   PD32_BAD=1
 fi
 if [ ! -f "${PD_GOLDEN_GZ}" ] && [ ! -f "${PD_GOLDEN_RAW}" ]; then
-  bad "[32] 缺 tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson(.gz) —— byte-perfect 基线缺失"
+  bad "[32] 缺 tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v266.ndjson(.gz) —— byte-perfect 基线缺失"
   PD32_BAD=1
 fi
 # 实跑 byte-perfect 子集 —— 「golden 与代码脱节(stale fixture)」事故的根因守卫。
@@ -765,43 +799,40 @@ fi
 [ "${PD32_BAD}" = "0" ] && ok "[32] 铁律① Alcabitius+Ptolemy 字节级守卫 + byte-perfect 测试基线 + 子集实跑 均通过"
 
 
-# [33] 主限法方位+时间补全·strategy 分发完整性 + 前端选项扩 (v10 全方位法)
-#  - perchart.py: pdMethod 白名单含 placidus/方位法 + pdDirect 解析
-#  - 前端 primaryDirectionSync.js: PD_SYNC_REV = 'pd_method_sync_v10' + SUPPORTED_PD_METHODS(方位法引擎)
+# [33] 主限法方位+时间补全·strategy 分发完整性 + 前端选项扩 (v10 全方位法 + v11 铺满/盘宫制/label 收口)
+#  - perchart.py: pdMethod 白名单含 公开方法 + pdDirect 解析
+#  - 前端 primaryDirectionSync.js: PD_SYNC_REV = 'pd_method_sync_v12' + SUPPORTED_PD_METHODS(四方位法)
 #  - 后端 helper.py / webchartsrv.py: PD_SYNC_REV 对齐 v10(否则新盘恒误判重算)
 #  - pd_engine.py: build_directions + solar_arc_for_years(真太阳弧动态钥匙逆函数)
 #  - 表格工具栏单行(无 advanced 第二行,不遮表格);TabPane 名「主限法」
 #  - AstroPrimaryDirectionChart.js getTablePdTimeKey 不再强制降级 Naibod
 #  - aiAnalysisContext.js 主限法 case 不再硬编码覆盖 pdMethod/pdTimeKey
-echo "[33] 主限法方位+时间补全·strategy 分发 + 前端选项扩 (v10)"
+echo "[33] 主限法方位+时间补全·strategy 分发 + 前端选项扩 (v10+v11)"
 PD33_BAD=0
 PERCHART="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/perchart.py"
-if [ -f "${PERCHART}" ] && ! grep -q "'placidus'" "${PERCHART}"; then
-  bad "[33] perchart.py 白名单缺 'placidus' —— P0 Placidus 方位法选项无法激活,会被回退到默认"
-  PD33_BAD=1
-fi
+# 本仓方位法以逐位核验白名单为准(Alchabitius/Meridian/Porphyry/Equal)。
 PD_SYNC="${UISRC}/utils/primaryDirectionSync.js"
 if [ -f "${PD_SYNC}" ]; then
-  if ! grep -q "pd_method_sync_v10" "${PD_SYNC}"; then
-    bad "[33] primaryDirectionSync.js PD_SYNC_REV 未升到 'pd_method_sync_v10' —— 旧缓存不重算,新 方位法/世俗/顺逆/真太阳弧 不生效"
+  if ! grep -q "pd_method_sync_v12" "${PD_SYNC}"; then
+    bad "[33] primaryDirectionSync.js PD_SYNC_REV 未升到 'pd_method_sync_v12' —— 旧缓存不重算,新 方位法/世俗/顺逆/真太阳弧 不生效"
     PD33_BAD=1
   fi
   if ! grep -q "SUPPORTED_PD_METHODS" "${PD_SYNC}"; then
     bad "[33] primaryDirectionSync.js 缺 SUPPORTED_PD_METHODS 白名单"
     PD33_BAD=1
   fi
-  # v10:方位法引擎必须全在前端白名单(否则下拉选了被 normalize 回退默认)
-  for m in regiomontanus campanus topocentric; do
+  # 核方位法须在前端白名单(否则下拉选了被 normalize 回退默认)
+  for m in meridian porphyry equal_ecliptic equal_hour_circle; do
     grep -q "'${m}'" "${PD_SYNC}" || { bad "[33] primaryDirectionSync.js SUPPORTED_PD_METHODS 缺 '${m}'"; PD33_BAD=1; }
   done
 fi
 # v10:后端 PD_SYNC_REV 必须与前端一致(均 v10),否则每张新盘首查都误判需重算
 for f in "${REPO_ROOT}/Horosa-Web/astropy/astrostudy/helper.py" "${REPO_ROOT}/Horosa-Web/astropy/websrv/webchartsrv.py"; do
-  [ -f "$f" ] && { grep -q "pd_method_sync_v10" "$f" || { bad "[33] 后端 $(basename $f) PD_SYNC_REV 未对齐到 v10(与前端不一致→新盘恒误判重算)"; PD33_BAD=1; }; }
+  [ -f "$f" ] && { grep -q "pd_method_sync_v12" "$f" || { bad "[33] 后端 $(basename $f) PD_SYNC_REV 未对齐到 v11(与前端不一致→新盘恒误判重算)"; PD33_BAD=1; }; }
 done
-# v10:perchart 白名单含方位法引擎 + pdDirect 解析存在(顺逆同选)
+# perchart 白名单含核方位法 + pdDirect 解析存在(顺逆同选)
 if [ -f "${PERCHART}" ]; then
-  for m in regiomontanus campanus topocentric; do
+  for m in meridian porphyry equal_ecliptic equal_hour_circle; do
     grep -q "'${m}'" "${PERCHART}" || { bad "[33] perchart.py pdMethod 白名单缺 '${m}'"; PD33_BAD=1; }
   done
   grep -q "pdDirect" "${PERCHART}" || { bad "[33] perchart.py 缺 pdDirect 解析(顺向 direct,顺逆同选的前提)"; PD33_BAD=1; }
@@ -810,9 +841,8 @@ fi
 PD_ENGINE="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/pd_engine.py"
 if [ -f "${PD_ENGINE}" ]; then
   grep -q "def solar_arc_for_years" "${PD_ENGINE}" || { bad "[33] pd_engine.py 缺 solar_arc_for_years(盘的真太阳弧动态钥匙,否则盘把 TrueSolarArc 当 Ptolemy)"; PD33_BAD=1; }
-  grep -q "def build_directions" "${PD_ENGINE}" || { bad "[33] pd_engine.py 缺 build_directions"; PD33_BAD=1; }
 else
-  bad "[33] 缺 pd_engine.py —— 自研主限法引擎(方位法引擎/世俗/顺逆/映点/界)不存在"; PD33_BAD=1
+  bad "[33] 缺 pd_engine.py —— 主限法时间钥匙引擎(真太阳弧/太阳弧动态钥匙)不存在"; PD33_BAD=1
 fi
 # v10:主限法表格工具栏须为单行(无第二行,否则遮挡表格);tab 名为「主限法」
 PD_TABLE="${UISRC}/components/astro/AstroPrimaryDirection.js"
@@ -831,7 +861,7 @@ if [ -f "${PD_CTRL}" ]; then
   for p in pdDirect pdConverse pdAntiscia pdTerms; do
     grep -q "\"${p}\"" "${PD_CTRL}" || { bad "[33] PredictiveController.java getParams 未透传 '${p}' —— 前端选项到不了 Python(ParamHashCache 还会致顺逆同缓存,选了没用),须补 params.put + 重编 jar"; PD33_BAD=1; }
   done
-  grep -q "pd_method_sync_v10" "${PD_CTRL}" || { bad "[33] PredictiveController.java _wireRev 未升 v10 —— 旧 ParamHashCache 哈希不失效,新参可能读到旧缓存"; PD33_BAD=1; }
+  grep -q "pd_method_sync_v12" "${PD_CTRL}" || { bad "[33] PredictiveController.java _wireRev 未升 v11 —— 旧 ParamHashCache 哈希不失效,新参可能读到旧缓存"; PD33_BAD=1; }
 fi
 PD_CHART="${UISRC}/components/astro/AstroPrimaryDirectionChart.js"
 if [ -f "${PD_CHART}" ] && grep -qE "key === 'Naibod' \? DEFAULT_PD_TIME_KEY" "${PD_CHART}"; then
@@ -843,7 +873,48 @@ if [ -f "${AIANALYSISCTX}" ] && grep -qE "pdMethod: 'core_alchabitius'," "${AIAN
   bad "[33] aiAnalysisContext.js 主限法 case 仍硬编码 pdMethod='core_alchabitius' —— LLM 上下文永远显示 Alchabitius、与用户实选不符"
   PD33_BAD=1
 fi
-[ "${PD33_BAD}" = "0" ] && ok "[33] strategy 分发 + 前端选项扩 + Naibod 表格放开 + AI 上下文实选透传 均到位"
+# v11:主限法盘宫制随方法(_PD_CHART_METHOD_HSYS)——盘的宫头随方位法变,缺则盘恒用本命宫制(方法选了盘不动)
+PERPREDICT_V11="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/perpredict.py"
+if [ -f "${PERPREDICT_V11}" ]; then
+  grep -q "_PD_CHART_METHOD_HSYS" "${PERPREDICT_V11}" || { bad "[33] perpredict.py 缺 _PD_CHART_METHOD_HSYS —— 主限法盘宫头不随方位法变"; PD33_BAD=1; }
+  grep -q "def _pdChartHouseSystem" "${PERPREDICT_V11}" || { bad "[33] perpredict.py 缺 _pdChartHouseSystem 解析器(盘宫制 fallback 本命制的入口)"; PD33_BAD=1; }
+fi
+# v11:方位法白名单与时间钥匙铺满——少一处下拉选了被 normalize 回退
+if [ -f "${PD_SYNC}" ]; then
+  for m in meridian porphyry equal_ecliptic equal_hour_circle; do
+    grep -q "'${m}'" "${PD_SYNC}" || { bad "[33] primaryDirectionSync.js SUPPORTED_PD_METHODS 缺 v11 方位法 '${m}'"; PD33_BAD=1; }
+  done
+  for k in Naibod Cardano SelfMeasure; do
+    grep -q "'${k}'" "${PD_SYNC}" || { bad "[33] primaryDirectionSync.js SUPPORTED_PD_TIME_KEYS 缺 v11 时间钥匙 '${k}'"; PD33_BAD=1; }
+  done
+fi
+# 铁律:方位法以逐位核验白名单为准——前端两份白名单(同步层/方法下拉)与 Python 注册表
+#   集合必须精确等于 [43] 的核验集;pd_engine 只保留时间钥匙与共享量度原语。
+PD_TABLE_OS="${UISRC}/components/astro/AstroPrimaryDirection.js"
+PDENG_OS="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/pd_engine.py"
+PD33_TABLE="$(python3 - <<'PY33'
+import re
+src = open('Horosa-Web/astrostudyui/src/components/astro/AstroPrimaryDirection.js', encoding='utf-8').read()
+m = re.search(r"SUPPORTED_PD_METHODS\s*=\s*\[(.*?)\]", src, re.S)
+methods = sorted(re.findall(r"'([a-z_]+)'", m.group(1))) if m else []
+print(','.join(methods))
+PY33
+)"
+[ "${PD33_TABLE}" = "core_alchabitius,equal_ecliptic,equal_hour_circle,horosa_legacy,meridian,porphyry" ] || { bad "[33] 方法下拉白名单与核验集不一致: ${PD33_TABLE}"; PD33_BAD=1; }
+[ -f "${PDENG_OS}" ] && grep -qE "^def arc_" "${PDENG_OS}" && { bad "[33] pd_engine.py 出现方位法闭式引擎函数(本仓只留钥匙/共享原语)"; PD33_BAD=1; }
+# v11:AI 导出/挂载快照方法名必走共享 label 字典——AstroDirectMain 的 method/timeKey 文本函数不能再有 'Alchabitius' 字面回退
+if [ -f "${DIRECT_MAIN}" ]; then
+  grep -q "getPdMethodLabel" "${DIRECT_MAIN}" || { bad "[33] AstroDirectMain.js 未 import/使用 getPdMethodLabel —— 非默认方位法/钥匙的快照名会回退误标 Alchabitius"; PD33_BAD=1; }
+  # 旧 bug 模式:primaryDirectionMethodText 内 `return 'Alchabitius'` 字面回退(非 label 字典)
+  if grep -A3 "function primaryDirectionMethodText" "${DIRECT_MAIN}" | grep -q "return 'Alchabitius'"; then
+    bad "[33] AstroDirectMain.primaryDirectionMethodText 仍字面回退 'Alchabitius' —— 须 delegate 到 getPdMethodLabel(非默认选项导出/挂载会被误标)"
+    PD33_BAD=1
+  fi
+fi
+# v11:主限法盘宫制自检测试存在
+PD_DIAL_TEST="${REPO_ROOT}/Horosa-Web/astropy/tests/test_pd_dial_house_system.py"
+[ -f "${PD_DIAL_TEST}" ] || { bad "[33] 缺 tests/test_pd_dial_house_system.py —— 盘宫制随方法的自检守卫缺失"; PD33_BAD=1; }
+[ "${PD33_BAD}" = "0" ] && ok "[33] strategy 分发 + 前端白名单精确集 + 盘宫制随方法 + 共享 label 字典 + AI 上下文实选透传 均到位"
 
 
 # [34] 七政四余 二十八宿度·自有恒星案三制(回归今制活体距星 / 开禧+岁差 / 郑氏恒星基值)
@@ -991,6 +1062,162 @@ if [ -f "${GE39_REAL}" ]; then
 fi
 [ "${GE39_BAD}" = "0" ] && ok "[39] helper.py + realsuntime.py 数值 geo 容错 均在"
 
+
+# [40] 本地工作文件不入库
+echo "[40] 本地工作文件未入库"
+S40_BAD=0
+for f in AGENTS.md CLAUDE.md Horosa-Web/AGENTS.md Horosa-Web/CLAUDE.md; do
+  if git -C "${REPO_ROOT}" ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+    bad "[40] ${f} 被 git 跟踪(应保持本地,见 .gitignore)"; S40_BAD=1
+  fi
+done
+[ "${S40_BAD}" = "0" ] && ok "[40] 本地工作文件未入库"
+
+
+# [41] 已修缺陷模式负向门禁 (2026-06-10 算法/设置/渲染扫雷批)
+# 这批模式都是实战修掉的 bug 形态,任何一处再现 = 回归(grep -a:部分源码含 emoji 会被 grep 误判二进制)。
+echo "[41] 已修缺陷模式负向门禁"
+R41_BAD=0
+R41_UI="${REPO_ROOT}/Horosa-Web/astrostudyui/src"
+R41_PY="${REPO_ROOT}/Horosa-Web/astropy/astrostudy"
+# ① antd 按钮直挂带参 handler:点击事件会被当首参串化成 "[object Object]" 发出
+grep -ran "onClick={handleSend}" "${R41_UI}" --include="*.js" >/dev/null && { bad "[41] 发送按钮直挂 onClick={handleSend} 再现(事件对象会被当文本发出)"; R41_BAD=1; }
+# ② 接口家族判定写死 'openai':预设实际值是 'openai-compatible',判定永假
+grep -ran "protoFamily === 'openai'" "${R41_UI}" --include="*.js" >/dev/null && { bad "[41] protoFamily === 'openai' 死分支再现(应走 isOpenAiFamily)"; R41_BAD=1; }
+# ③ 列表 key 用随机串(每次渲染重挂,丢焦点/白耗)。全仓存量待清(legacy 惯用法,百余处),
+#    本门禁先钉「已修文件零回归」;新文件请直接用稳定 key。
+for R41_F in components/calendar/NongLi.js components/calendar/NongLiMain.js components/ziwei/ZiWeiMain.js components/deeplearn/DLFeature.js components/germany/Midpoint.js components/reader/BookReader.js components/dice/DiceMain.js; do
+  grep -an "key={randomStr(" "${R41_UI}/${R41_F}" >/dev/null 2>&1 && { bad "[41] ${R41_F} 的 randomStr key 回归"; R41_BAD=1; }
+done
+# ④ SVG 属性拼写:stroke-dashanray 会被静默忽略
+grep -ran "stroke-dashanray" "${R41_UI}" --include="*.js" >/dev/null && { bad "[41] stroke-dashanray 拼写再现(应为 stroke-dasharray)"; R41_BAD=1; }
+# ⑤ 经纬度分换算公式回退:deg + 1.0/min(应为 min/60)
+grep -rn "(1.0 / min)" "${R41_PY}" --include="*.py" >/dev/null && { bad "[41] 经纬度 deg+(1.0/min) 公式回退"; R41_BAD=1; }
+# ⑥ 圆周距离常量回退:delta = 360 - 180
+grep -ran "delta = 360 - 180" "${R41_UI}" --include="*.js" >/dev/null && { bad "[41] distanceInCircleAbs 360-180 常量回退"; R41_BAD=1; }
+# ⑦ absDistance 第二窗口符号回退
+grep -rn "360 - ang2 - ang1" "${R41_PY}" --include="*.py" >/dev/null && { bad "[41] absDistance 360-ang2-ang1 符号回退"; R41_BAD=1; }
+[ "${R41_BAD}" = "0" ] && ok "[41] 7 类已修缺陷模式零再现"
+
+# [42] 发布脚本 config 交接必须 TAB 分隔 (appName 含空格时空格分词会整串右移,
+#      RUNTIME_ASSET 变成名字后半截 → "missing runtime archive" 假报,打包中断)
+echo "[42] 发布脚本 config 交接 TAB 安全"
+S42_BAD=0
+for S42_F in build_desktop_release.sh verify_github_release_end_to_end.sh; do
+  S42_P="${REPO_ROOT}/Horosa_Desktop_Installer/scripts/${S42_F}"
+  [ -f "${S42_P}" ] || continue
+  grep -Eq "IFS=.+ read -r APP_NAME" "${S42_P}" || { bad "[42] ${S42_F} 的 APP_NAME read 缺 IFS 限定(空格 appName 会右移)"; S42_BAD=1; }
+  grep -q "sep='\\\\t'" "${S42_P}" || { bad "[42] ${S42_F} 的 python 配置打印缺 sep='\\\\t'"; S42_BAD=1; }
+done
+[ "${S42_BAD}" = "0" ] && ok "[42] config 交接 TAB 分隔在位"
+
+# [43] 更新通道隔离 (2026-06-10): 本仓 app 身份/更新源四件套必须自洽,且 publish 带产物身份硬闸。
+#      防两类事故: ①壳层兜底配置漂移 → 装机用户的自动更新拉错源; ②误把别处构建的产物传进本仓 release。
+echo "[43] 更新通道隔离(身份四件套 + publish 硬闸)"
+U43_BAD=0
+U43_TAURI="${REPO_ROOT}/Horosa_Desktop_Installer/src-tauri/tauri.conf.json"
+U43_RC="${REPO_ROOT}/Horosa_Desktop_Installer/config/release_config.json"
+U43_MAIN="${REPO_ROOT}/Horosa_Desktop_Installer/src-tauri/src/main.rs"
+U43_PUBSH="${REPO_ROOT}/Horosa_Desktop_Installer/scripts/publish_github_release.sh"
+U43_ID="$(python3 -c "import json;print(json.load(open('${U43_TAURI}'))['identifier'])" 2>/dev/null)"
+U43_PN="$(python3 -c "import json;print(json.load(open('${U43_TAURI}'))['productName'])" 2>/dev/null)"
+U43_AN="$(python3 -c "import json;print(json.load(open('${U43_RC}'))['appName'])" 2>/dev/null)"
+U43_RN="$(python3 -c "import json;print(json.load(open('${U43_RC}'))['repoName'])" 2>/dev/null)"
+[ "${U43_ID}" = "com.horacedong.horosa" ] || { bad "[43] tauri identifier=${U43_ID} ≠ com.horacedong.horosa"; U43_BAD=1; }
+[ "${U43_PN}" = "星阙" ] || { bad "[43] tauri productName=${U43_PN} ≠ 星阙"; U43_BAD=1; }
+[ "${U43_AN}" = "星阙" ] || { bad "[43] release_config appName=${U43_AN} ≠ 星阙"; U43_BAD=1; }
+[ "${U43_RN}" = "Horosa-Web-App-comprehensively-improved-MacOS" ] || { bad "[43] release_config repoName=${U43_RN} ≠ Horosa-Web-App-comprehensively-improved-MacOS(更新会拉错源!)"; U43_BAD=1; }
+grep -q 'const APP_NAME: &str = "星阙"' "${U43_MAIN}" || { bad "[43] main.rs APP_NAME 兜底 ≠ 星阙"; U43_BAD=1; }
+grep -q 'const APP_IDENTIFIER: &str = "com.horacedong.horosa"' "${U43_MAIN}" || { bad "[43] main.rs APP_IDENTIFIER 兜底 ≠ com.horacedong.horosa"; U43_BAD=1; }
+grep -q 'const DEFAULT_REPO_NAME: &str = "Horosa-Web-App-comprehensively-improved-MacOS"' "${U43_MAIN}" || { bad "[43] main.rs DEFAULT_REPO_NAME 兜底漂移(配置缺失时更新会拉错源)"; U43_BAD=1; }
+grep -q "更新通道隔离硬闸" "${U43_PUBSH}" || { bad "[43] publish_github_release.sh 缺产物身份硬闸"; U43_BAD=1; }
+# 共享目录单源化:安装器与壳层必须同目录;runtime 须带 appName 身份戳并在安装时验明
+U43_SRN="$(python3 -c "import json;print(json.load(open('${U43_RC}')).get('sharedRootName',''))" 2>/dev/null)"
+[ "${U43_SRN}" = "Horosa" ] || { bad "[43] release_config sharedRootName=${U43_SRN} ≠ Horosa"; U43_BAD=1; }
+U43_TPL="${REPO_ROOT}/Horosa_Desktop_Installer/installer-scripts/postinstall.template"
+grep -q "__SHARED_ROOT_NAME__" "${U43_TPL}" || { bad "[43] postinstall 模板缺 __SHARED_ROOT_NAME__ 占位"; U43_BAD=1; }
+grep -q 'manifest_app.*APP_NAME' "${U43_TPL}" || { bad "[43] postinstall 缺 runtime 身份验明"; U43_BAD=1; }
+grep -q "__SHARED_ROOT_NAME__" "${REPO_ROOT}/Horosa_Desktop_Installer/scripts/build_desktop_release.sh" || { bad "[43] build 脚本未渲染 __SHARED_ROOT_NAME__"; U43_BAD=1; }
+grep -q '"appName": "\${PAYLOAD_APP_NAME}"' "${REPO_ROOT}/Horosa_Desktop_Installer/scripts/package_runtime_payload.sh" || { bad "[43] runtime manifest 缺 appName 身份戳"; U43_BAD=1; }
+# 主限法方位法白名单精确集合(本仓=逐位核验核集;白名单之外任何名字混入即红,无需枚举黑名单)
+U43_PD="$(python3 - <<'PY43'
+import re
+src = open('Horosa-Web/astrostudyui/src/utils/primaryDirectionSync.js', encoding='utf-8').read()
+m = re.search(r'SUPPORTED_PD_METHODS\s*=\s*\[(.*?)\]', src, re.S)
+methods = sorted(re.findall(r"'([a-z_]+)'", m.group(1))) if m else []
+print(','.join(methods))
+PY43
+)"
+[ "${U43_PD}" = "core_alchabitius,equal_ecliptic,equal_hour_circle,horosa_legacy,meridian,porphyry" ] || { bad "[43] SUPPORTED_PD_METHODS 集合漂移: ${U43_PD}"; U43_BAD=1; }
+U43_REG="$(cd Horosa-Web/astropy && python3 -c "
+import re
+src = open('astrostudy/perpredict.py', encoding='utf-8').read()
+m = re.search(r'_PD_METHOD_REGISTRY\s*=\s*\{(.*?)\n\}', src, re.S)
+keys = sorted(set(re.findall(r\"'([a-z_]+)':\", m.group(1)))) if m else []
+print(','.join(keys))" 2>/dev/null)"
+case "${U43_REG}" in core_alchabitius,equal_ecliptic,equal_hour_circle,horosa_legacy,meridian,porphyry) : ;; *) bad "[43] Python _PD_METHOD_REGISTRY 集合漂移: ${U43_REG}"; U43_BAD=1 ;; esac
+[ "${U43_BAD}" = "0" ] && ok "[43] 身份四件套 + publish 硬闸 + 共享目录单源 + 方位法白名单精确集 在位"
+
+# [44] 远端隔离白名单 (2026-06-10): 本仓所有 git remote URL 只允许指向本仓自身,
+#      杜绝接错远端互推;publish 的 runtime 内嵌前端一致性闸也必须在位。
+echo "[44] 远端隔离白名单 + runtime 内嵌前端闸"
+R44_BAD=0
+while IFS= read -r R44_URL; do
+  case "${R44_URL}" in
+    *github.com[:/]Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS*) : ;;
+    *) bad "[44] 远端 URL 不在本仓白名单: ${R44_URL}"; R44_BAD=1 ;;
+  esac
+done <<EOF44
+$(git -C "${REPO_ROOT}" remote -v | awk '{print $2}' | sort -u)
+EOF44
+grep -q "runtime 包内嵌前端" "${REPO_ROOT}/Horosa_Desktop_Installer/scripts/publish_github_release.sh" || { bad "[44] publish 缺 runtime 内嵌前端一致性闸"; R44_BAD=1; }
+[ "${R44_BAD}" = "0" ] && ok "[44] 远端全在白名单 + runtime 前端闸在位"
+
+# [45] 发布敏感词扫描 (2026-06-11): 工作树全部 tracked 内容 + origin/main..HEAD 每个
+#      commit 树 + 全部 commit message,逐一过本地敏感词模式表(token/调试标记/工作
+#      笔记词汇等,表不入库)。模式表丢失 = 视为未审,直接红(fail-closed)。
+echo "[45] 发布敏感词扫描(工作树 + 未推区间)"
+S45_BAD=0
+S45_PAT="${REPO_ROOT}/Horosa_Desktop_Installer/scripts/.secrecy_patterns.sh"
+if [ ! -f "${S45_PAT}" ]; then
+  bad "[45] 本地敏感词模式表缺失(${S45_PAT} 不入库,换机/重 clone 后须先恢复) —— 缺表=未审,不放行"
+else
+  # shellcheck disable=SC1090
+  . "${S45_PAT}"
+  S45_A_ARGS=()
+  for S45_P in "${HOROSA_FORBIDDEN_A[@]}"; do S45_A_ARGS+=(-e "${S45_P}"); done
+  S45_VENDOR_EXCL=":(exclude)Horosa-Web/vendor/"
+  # ① 工作树 tracked 内容(含未提交修改)
+  S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -E "${S45_A_ARGS[@]}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | head -5)"
+  [ -n "${S45_HITS}" ] && { bad "[45] 工作树命中敏感词:"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
+  for S45_ROW in "${HOROSA_FORBIDDEN_B[@]}"; do
+    S45_P="${S45_ROW%%$'\t'*}"; S45_ALLOW="${S45_ROW#*$'\t'}"
+    S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -E "${S45_P}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | grep -Ev "${S45_ALLOW}" | head -5)"
+    [ -n "${S45_HITS}" ] && { bad "[45] 工作树命中敏感词(豁免外): ${S45_P}"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
+  done
+  # ①' W 组(机器路径/PII/内部代号):仅工作树查 —— 保证最新快照干净;旧历史 + tag
+  #     已公开的同类痕迹归 filter-repo 全历史改写(碰 GitHub 决策),不在此误红历史。
+  if [ "${#HOROSA_FORBIDDEN_W[@]}" -gt 0 ]; then
+    S45_W_ARGS=()
+    for S45_P in "${HOROSA_FORBIDDEN_W[@]}"; do S45_W_ARGS+=(-e "${S45_P}"); done
+    S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -F "${S45_W_ARGS[@]}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | head -5)"
+    [ -n "${S45_HITS}" ] && { bad "[45] 工作树命中机器路径/PII(W 组):"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
+  fi
+  # ② 未推区间每个 commit 的树(防「工作树已清但历史 blob 仍带」—— 推上去即留痕)
+  for S45_C in $(git -C "${REPO_ROOT}" rev-list origin/main..HEAD 2>/dev/null); do
+    S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -E "${S45_A_ARGS[@]}" "${S45_C}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | head -5)"
+    [ -n "${S45_HITS}" ] && { bad "[45] 未推 commit ${S45_C:0:9} 树内命中敏感词:"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
+    for S45_ROW in "${HOROSA_FORBIDDEN_B[@]}"; do
+      S45_P="${S45_ROW%%$'\t'*}"; S45_ALLOW="${S45_ROW#*$'\t'}"
+      S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -E "${S45_P}" "${S45_C}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | grep -Ev "${S45_ALLOW}" | head -5)"
+      [ -n "${S45_HITS}" ] && { bad "[45] 未推 commit ${S45_C:0:9} 命中敏感词(豁免外): ${S45_P}"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
+    done
+  done
+  # ③ 未推区间全部 commit message
+  S45_HITS="$(git -C "${REPO_ROOT}" log --format='%h %B' origin/main..HEAD 2>/dev/null | grep -E "${S45_A_ARGS[@]}" | head -5)"
+  [ -n "${S45_HITS}" ] && { bad "[45] 未推 commit message 命中敏感词:"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
+  [ "${S45_BAD}" = "0" ] && ok "[45] 工作树 + $(git -C "${REPO_ROOT}" rev-list --count origin/main..HEAD 2>/dev/null) 个未推 commit + message 敏感词零命中"
+fi
 
 echo "== 结果 =="
 if [ "${fail}" -ne 0 ]; then echo "pre-flight 有 ❌,先修再发。" >&2; exit 1; fi

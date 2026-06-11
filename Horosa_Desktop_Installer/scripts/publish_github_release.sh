@@ -79,6 +79,55 @@ for asset in "${APP_ASSETS[@]}" "${RUNTIME_ARCHIVE_PATH}"; do
   }
 done
 
+# ── 更新通道隔离硬闸:待传产物的身份必须与「本仓自身配置」一致,防止把别处构建的产物
+#    误传进本仓 release(用户的自动更新会原样吞下)。期望值全部派生自本仓 tauri.conf,
+#    不写死任何外部值;任一不符立即中止,绝不带病上传。
+EXPECTED_IDENTIFIER="$(INSTALLER_ROOT_ENV="${INSTALLER_ROOT}" python3 -c "import json,os;print(json.load(open(os.environ['INSTALLER_ROOT_ENV']+'/src-tauri/tauri.conf.json'))['identifier'])")"
+EXPECTED_PRODUCT="$(INSTALLER_ROOT_ENV="${INSTALLER_ROOT}" python3 -c "import json,os;print(json.load(open(os.environ['INSTALLER_ROOT_ENV']+'/src-tauri/tauri.conf.json'))['productName'])")"
+IDENTITY_TMP="$(mktemp -d /tmp/horosa-publish-identity.XXXXXX)"
+trap 'rm -rf "${IDENTITY_TMP}"' EXIT
+unzip -qq "${DIST_ROOT}/${DESKTOP_ASSET}" "*/Contents/Info.plist" -d "${IDENTITY_TMP}" 2>/dev/null || true
+ACTUAL_PLIST="$(/usr/bin/find "${IDENTITY_TMP}" -name Info.plist -path "*/Contents/Info.plist" 2>/dev/null | head -1)"
+if [ -z "${ACTUAL_PLIST}" ]; then
+  echo "更新通道隔离硬闸: 无法从 ${DESKTOP_ASSET} 解出 Info.plist,拒绝发布" >&2
+  exit 1
+fi
+ACTUAL_IDENTIFIER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${ACTUAL_PLIST}" 2>/dev/null || true)"
+if [ "${ACTUAL_IDENTIFIER}" != "${EXPECTED_IDENTIFIER}" ]; then
+  echo "更新通道隔离硬闸: 产物 bundle identifier(${ACTUAL_IDENTIFIER}) ≠ 本仓期望(${EXPECTED_IDENTIFIER}),拒绝发布" >&2
+  exit 1
+fi
+case "${ACTUAL_PLIST}" in
+  *"/${EXPECTED_PRODUCT}.app/Contents/Info.plist") : ;;
+  *)
+    echo "更新通道隔离硬闸: 产物 .app 名与本仓 productName(${EXPECTED_PRODUCT}) 不符: ${ACTUAL_PLIST}" >&2
+    exit 1
+    ;;
+esac
+if ! grep -qF "${REPO_OWNER}/${REPO_NAME}" "${DIST_ROOT}/${UPDATE_MANIFEST_NAME}"; then
+  echo "更新通道隔离硬闸: 更新清单 ${UPDATE_MANIFEST_NAME} 不含本仓 ${REPO_OWNER}/${REPO_NAME} 下载源,拒绝发布" >&2
+  exit 1
+fi
+# runtime 包内嵌整套前端(dist-file):必须与「本仓当前 dist-file」逐字节一致,
+# 否则说明包来自别处构建(跨仓拷贝/陈旧产物),装机用户的运行时自动下载会吞下它。
+RUNTIME_UMI_ENTRY="$(tar -tzf "${RUNTIME_ARCHIVE_PATH}" 2>/dev/null | grep -E 'runtime-payload/Horosa-Web/astrostudyui/dist-file/umi\.[0-9a-f]+\.js$' | head -1)"
+if [ -z "${RUNTIME_UMI_ENTRY}" ]; then
+  echo "更新通道隔离硬闸: runtime 包内未找到前端主 bundle(dist-file/umi.*.js),拒绝发布" >&2
+  exit 1
+fi
+LOCAL_UMI="${INSTALLER_ROOT}/../Horosa-Web/astrostudyui/dist-file/$(basename "${RUNTIME_UMI_ENTRY}")"
+if [ ! -f "${LOCAL_UMI}" ]; then
+  echo "更新通道隔离硬闸: runtime 包内嵌前端 $(basename "${RUNTIME_UMI_ENTRY}") 在本仓 dist-file 不存在 —— 包非本仓当前构建,拒绝发布" >&2
+  exit 1
+fi
+RUNTIME_UMI_SHA="$(tar -xOzf "${RUNTIME_ARCHIVE_PATH}" "${RUNTIME_UMI_ENTRY}" | shasum -a 256 | awk '{print $1}')"
+LOCAL_UMI_SHA="$(shasum -a 256 "${LOCAL_UMI}" | awk '{print $1}')"
+if [ "${RUNTIME_UMI_SHA}" != "${LOCAL_UMI_SHA}" ]; then
+  echo "更新通道隔离硬闸: runtime 包内嵌前端与本仓 dist-file 内容不一致,拒绝发布(请在本仓重新完整构建)" >&2
+  exit 1
+fi
+echo "更新通道隔离硬闸: identifier/产品名/清单源/runtime内嵌前端 四项一致(${EXPECTED_IDENTIFIER}) ✓"
+
 resolve_token() {
   if [ -n "${GITHUB_TOKEN:-}" ]; then
     printf '%s' "${GITHUB_TOKEN}"
@@ -94,7 +143,7 @@ if [ -z "${GITHUB_TOKEN}" ]; then
 fi
 
 # Pre-flight self-check: encodes the process-review findings (version lockstep, per-version
-# release notes, secrets not tracked, dev-docs JSON valid, artifact freshness, CI green).
+# release notes, secrets not tracked, config JSON valid, artifact freshness, CI green).
 # HOROSA_SKIP_PREFLIGHT=1 overrides only when you are certain.
 if [ "${HOROSA_SKIP_PREFLIGHT:-0}" != "1" ]; then
   "${INSTALLER_ROOT}/scripts/release_preflight.sh" || {

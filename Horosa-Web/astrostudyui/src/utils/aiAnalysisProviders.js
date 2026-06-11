@@ -155,6 +155,27 @@ export function getProviderProtocolFamily(providerType = 'openai'){
 	return getProviderPreset(providerType).protocolFamily;
 }
 
+// 模型选择编码：把「接口配置 id」+「模型名」编成单一下拉值 `profileId::model`，
+// 供跨接口（多 API key）的统一模型下拉用。AIAnalysisMain 与报告功能共用同一份，避免漂移/循环依赖。
+export function encodeModelSelection(profileId, model){
+	return `${profileId || ''}::${model || ''}`;
+}
+
+export function parseModelSelection(selection){
+	const text = `${selection || ''}`;
+	const idx = text.indexOf('::');
+	if(idx < 0){
+		return {
+			profileId: '',
+			model: text,
+		};
+	}
+	return {
+		profileId: text.slice(0, idx),
+		model: text.slice(idx + 2),
+	};
+}
+
 export function getProviderDefaultChatModels(providerType = 'openai'){
 	return uniqueTextList(getProviderPreset(providerType).defaultChatModels || []);
 }
@@ -182,9 +203,11 @@ export const THINKING_LEVELS = [
 	{ value: 'low', label: '低' },
 	{ value: 'medium', label: '中' },
 	{ value: 'high', label: '高' },
+	{ value: 'xhigh', label: '极高' },
+	{ value: 'max', label: '最大' },
 ];
 
-const THINKING_BUDGET = { low: 2048, medium: 8192, high: 16000 };
+const THINKING_BUDGET = { low: 2048, medium: 8192, high: 16000, xhigh: 24576, max: 32768 };
 
 // 模型计价（USD per 1k tokens；in=输入、out=输出）。仅作粗略估算（价目会漂移，UI 上标注「估算」）。
 // 命中按"模型名前缀最长匹配"。空表示不展示价格、只展示 tokens。
@@ -241,19 +264,34 @@ export function isReasoningModel(model){
 }
 
 // 把通用「思考档」映射进 providerOptions（不破坏既有键）。
-export function applyThinkingLevel(opts, level, providerType, model){
+// maxTokens（可选）：Anthropic 硬约束 budget_tokens < max_tokens，传入则据此 clamp，防再触发 400。
+export function applyThinkingLevel(opts, level, providerType, model, maxTokens){
 	if(!level || level === 'off'){
 		return opts || {};
 	}
 	const o = { ...(opts || {}) };
-	const budget = THINKING_BUDGET[level] || THINKING_BUDGET.medium;
+	let budget = THINKING_BUDGET[level] || THINKING_BUDGET.medium;
 	if(providerType === 'anthropic'){
+		// Anthropic：budget_tokens 须 ≥1024 且 < max_tokens。输出预算太小 → 放弃思考（否则上游 400）。
+		const cap = Number(maxTokens) || 0;
+		if(cap && cap <= 1536){ return o; }
+		if(cap){ budget = Math.max(1024, Math.min(budget, cap - 512)); }
 		o.thinking = { type: 'enabled', budget_tokens: budget };
 	}else if(/(^|\/)(gpt-5|gpt6|o1|o3|o4|o5)/.test(('' + (model || '')).toLowerCase())){
-		o.reasoning_effort = level; // low|medium|high
+		// OpenAI reasoning_effort 仅认 low|medium|high → 更高档(xhigh/max)封顶为 high
+		o.reasoning_effort = (level === 'xhigh' || level === 'max') ? 'high' : level;
 	}else if(providerType === 'gemini'){
 		o.generationConfig = { ...(o.generationConfig || {}), thinkingConfig: { thinkingBudget: budget } };
 	}
 	// deepseek-reasoner(R1) / ollama 等无标准思考参数 → 不动（友好降级）。
 	return o;
+}
+
+// 报告思考档的轻量持久化（localStorage）。
+const THINKING_LS_KEY = 'horosa.report.thinkingLevel';
+export function getPersistedThinkingLevel(){
+	try{ return localStorage.getItem(THINKING_LS_KEY) || 'off'; }catch(_){ return 'off'; }
+}
+export function setPersistedThinkingLevel(v){
+	try{ localStorage.setItem(THINKING_LS_KEY, v || 'off'); }catch(_){}
 }

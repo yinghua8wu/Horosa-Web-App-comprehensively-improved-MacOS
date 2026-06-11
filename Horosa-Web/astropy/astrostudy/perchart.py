@@ -316,7 +316,7 @@ class PerChart:
         self.pdMethod = 'core_alchabitius'
         self.pdTimeKey = 'Ptolemy'
         self.pdYears = 100
-        # 自研引擎方位法的开关(仅公开方法生效；core/legacy 不受影响）。
+        # 自研引擎方位法的顺逆开关(core/legacy 不受影响)。
         # 默认「顺逆都开」(用户偏好):Alcabitius 走自有引擎本就含正负弧、忽略此开关;
         # 切到新方位法时默认两向都算、按年龄交错。
         self.pdDirect = True      # 顺向 direct(默认开)
@@ -369,8 +369,9 @@ class PerChart:
             self.pdMethod = data['pdMethod']
             # whitelist 与 perpredict._PD_METHOD_REGISTRY 保持同步；未识别 method 一律
             # 回退到默认 Alcabitius (core_alchabitius)，护住默认路径字节级一致。
-            if self.pdMethod not in ('core_alchabitius', 'horosa_legacy', 'placidus',
-                                     'regiomontanus', 'campanus', 'topocentric'):
+            if self.pdMethod not in ('core_alchabitius', 'horosa_legacy',
+                                     'meridian', 'porphyry', 'equal_ecliptic',
+                                     'equal_hour_circle'):
                 self.pdMethod = 'core_alchabitius'
 
         if 'pdTimeKey' in data.keys():
@@ -378,7 +379,8 @@ class PerChart:
 
         if 'pdYears' in data.keys():
             try:
-                self.pdYears = max(1, min(180, int(round(float(data['pdYears'])))))
+                # 上限 3000 年:>360 走多圈复发行(perpredict._extendCorePdRecurrences),≤360 与既往逐位一致。
+                self.pdYears = max(1, min(3000, int(round(float(data['pdYears'])))))
             except (TypeError, ValueError):
                 self.pdYears = 100
 

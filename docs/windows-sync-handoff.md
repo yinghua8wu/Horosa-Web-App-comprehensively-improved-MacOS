@@ -8,6 +8,94 @@
 
 ---
 
+## 待发布 · 算法/设置/渲染三类扫雷批次（排盘计算修正 + 设置生效链 + 图面渲染）
+
+> **Windows 必做一件：同步 Python 排盘引擎 8 个文件 + 重启本地 Python 服务并清 ParamHashCache**（本批 Java 未动、无需重编 jar）。其余全部纯前端，拉前端即同步。
+
+### 必须同步（Python 排盘引擎，8 个文件）
+- `astropy/astrostudy/helper.py` —— 经纬度「度分」串解析改标准 `deg+min/60`（原 `deg+1.0/min` + else 分支 `*10` 均错，'116e24'→116.04 而非 116.4）；`distance`/`absDistance` 改全角度域正确的短弧/顺行弧单式；`splitDegree` 60′ 进位；`convertLat/LonToStr` 恰好 10 分时补零 off-by-one。
+- `astropy/astrostudy/jieqi/realsuntime.py` —— 均时差表 3 区转录修正（2/24；4/10–13 负零时符号；12/25）+ `getBaseLonByZone` 解析「±HH:MM」分钟段（印度 +05:30 此前被当 +05:00，真太阳时差半小时）。
+- `astropy/astrostudy/perpredict.py` —— 日返寻根种子步改顺行弧（5–12 月生人按年初种子不再倒走到上一年）；返照相位先归一化到 [0,180]（跨 0° 合相不漏报、`tmpdelta>1` 垃圾值消除）；骰子盘宫位判定支持跨 0° 宫。
+- `astropy/astrostudy/perchart.py` —— 反平行第一个伙伴漏 add 修复；恒星合相跨 0° 折回；围攻判定改独立 `pairOrb`（原复用外层 orb 被逐对污染 + `deltaA>orb or deltaA>orb` 笔误）；时主星改 `floor(经过时长)`（原按整点跨越数）。
+- `astropy/astrostudy/modern/chartcomposite.py` —— 组合中点取短弧（跨白羊点行星对不再翻到对宫）。
+- `astropy/astrostudy/modern/chartcomp.py` —— 合盘相位/映点/反映点归一化（同 perpredict 口径）。
+- `astropy/astrostudy/jieqi/jieqiconst.py` + `jieqi/TimeDecider.py` —— 死代码修复（dict 比较 TypeError / 缺 import）。
+
+### ⚠️ 行为变化提示（同步后请验数）
+月返/日返时刻（尤其旧版卡在种子时间或落到上一年/上一次的盘）、真太阳时（2/24、4/10–13、12/25 出生 + 半小时/三刻时区地区）、组合盘跨白羊点行星对、时主星（日出后第一小时内出生）、反平行/恒星合相/合盘相位行集——这些是**从错到对**的修正，结果会变。pytest 全量（含主限法 byte-perfect golden 540 例不变）+ jest 全绿后再发。
+
+### 自动受益（纯前端，Win 拉前端即同步）
+- **设置生效链**：`techniqueMountSettings.js` + `aiAnalysisContext.js`（AI 挂载 C 类「每技法设置」改临时写入+用毕还原，不再永久改写全局七政显示设置）；`ZiWeiMain.js`（挂载覆盖四化流派时同步失效四化缓存，快照内部不再自相矛盾）；`models/app.js`（启动层 globalSetup/AspKey 损坏自愈、相位集进 app model、移除从未写入的启动页死读）；`AstroDirectMain.js`(+测试)（PD 表格 dispatch 统一 0/1 编码）；`Astro3D.js`（3D 视图选项损坏自愈）。
+- **渲染**：`Su28ChartCircle.js`（d3 回调 this 丢失致字号/间距永走小图档 + 防重叠 0° 跨界）；`AcgD3Map.js`（重建后重放 zoom 状态，点击不再错位 + paranAll 触发重绘）；`AstroChartCircle.js`（角线/宫度线 `stroke-dasharray` 拼写、星群字列旋转用防重叠后经度、界标签对齐段中点、关键行星宫位遮罩跨 0° 宫）；`fengshuiEngine.js`（Retina devicePixelRatio 适配不再发虚 + 导出 PNG 标记按分辨率放大）；`reportChartCapture.js`（截图串行锁重写：不再 30s 后弃跑第二遍/失败双跑）；`UranianDial.js`（指针箭头退化三角修复 + 卸载取消 rAF）；`utils/helper.js`（`distanceInCircleAbs` >180 误返常量）；`NongLi.js`（42 格固定索引短数据白屏防护 + 稳定 key）。
+
+### 自检 / 测试更新
+- `AstroDirectMain.test.js`：pdConverse/pdAntiscia/pdTerms 期望改 0/1 数字编码。
+- 同步后跑：`python -m pytest tests/ -q` 全绿（golden 540 byte-perfect 不变）+ `npx umi-test` 全绿。
+
+## 待发布 · Windows #24/#25 根因修复（聊天发送 [object Object]）+ 全 UI bug 扫雷批次
+
+> **直接对应 Windows 仓 issues：#24「更新后调用gpt5.5模型无法上传」与 #25「调用gpt5.5模型 内容总是上传失败」是同一 bug 的重复上报（两截图完全相同）；#23（Gemini 400）的修法见下面「AI 报告 Gemini 参数修正」节（要重编 jar）。本批全部是共享前端，Windows 拉前端即同步，无需改 Java/Python。**
+
+### #24/#25 根因（务必读懂再合）
+- 现象截图里用户消息是字面量 `[object Object]`，AI 也只收到这串——**不是网络「上传失败」**。
+- 根因：`AIAnalysisMain.js` 聊天圆形发送按钮 `onClick={handleSend}` **直挂**，antd 会把点击事件对象当第一参传给 `handleSend(overrideText)`；`overrideText` 非空即生效，模板串化后 `${事件对象}` 恰好就是 `[object Object]`，既显示在气泡里也发给上游。**与模型无关**（gpt-5.5 只是巧合）；按 Enter 发送（无参调用）不触发，所以时好时坏。
+- 修复（两处都要）：① 按钮改 `onClick={()=>handleSend()}`；② `handleSend` 内加固 `overrideText` 只认字符串（`typeof overrideText === 'string' ? overrideText : null`），非字符串一律回落输入框内容。
+- 自检：点「发送」按钮（不是回车）发一条，气泡与 AI 收到的都应是所输入文本。
+
+### 自动受益（纯前端，Win 拉前端即同步）— 本批其余修复
+- **聊天高级参数真正生效**：`aiAnalysisProviders.js` 新增 `isOpenAiFamily()`；`AIAnalysisMain.js` 的停止序列 / 频率·存在惩罚 / JSON 模式判定改用之。此前写 `protoFamily === 'openai'`，而预设实际取值是 `'openai-compatible'` → 判定永假，这些参数对 OpenAI/DeepSeek/Moonshot 等全部静默失效。
+- **思考档覆盖新推理模型**：`applyThinkingLevel` 的 OpenAI 分支正则对齐 `isReasoningModel`（`gpt-?[567]|o[13-7]`），gpt-5.5 / gpt-6 / gpt-7、o6 / o7 不再静默丢档。
+- **报告流中途错误不再吞**：`reportPipeline.js` 生成循环读取 `res.errorMessage` 并抛出走统一重试/分类（此前半截内容被标「完成」）。
+- **已取消请求不再补发**：`services/aianalysis.js` `withTimeout` 对「已 abort 的外部 signal」立即熄火。
+- **白屏防护**：`reader/BookReader.js`（主题/TTS/章节缓存 parse 自愈 + scroll 容器判空）、`gua/GuaSymDesc.js`、`cntradition/BaZi.js`（构造期 localStorage parse try/catch）、`astro/AstroHelper.js` + `astro/AstroChartCircle.js`（相位配置读取兜底）、`germany/Midpoint.js`（空数组）、`calendar/NongLi.js`（prevDays 不足）、`astro/LonInput.js` + `LatInput.js`（畸形经纬值）。
+- **暗色可读性**：`common/ChartServiceErrorModal.js` 全面主题变量化；`astro/AstroLifespan.js` 与 `update/UpdateNotifier.less` 的 accent 实底文字改 `--horosa-on-accent`；`common/BackendStatusDot.js` 地址行改 `--horosa-muted`。（Electron 壳若有自带更新 UI，另行对照同款问题。）
+- **列表 key 稳定化**：`calendar/NongLi.js` / `NongLiMain.js` / `ziwei/ZiWeiMain.js` / `deeplearn/DLFeature.js` / `germany/Midpoint.js` 把 `randomStr(8)` key 换稳定 key（randomStr 每次渲染都变 → 子树反复重挂，表单丢焦点）。
+
+### 自检 / 测试更新
+- jest：`aiAnalysisProviders.test.js` 新增 2 钉——`isOpenAiFamily` 语义（防回退 `=== 'openai'`）+ `reasoning_effort` 模型覆盖（gpt-5.5/6/7、o6/7）。同步前端后跑 `npx umi-test` 应全绿。
+
+## v2.6.6（本地批次,未发版）· 主限法改进大批：显示窗精确化 + 宿命点应星 + 时间钥匙修真 + 年数上限 3000 + 死码清理
+
+> Windows 端同步本批必须**重编 jar**(Java 4 控制器 _wireRev 升 v12)并重启本地 Python 服务(旧进程会静默吞新钥匙,详见 AGENTS「LIVE 实测两坑」)。
+
+### 必须同步 ①（Python 排盘引擎,5 个文件）
+- `Horosa-Web/astropy/astrostudy/perpredict.py` — 显示窗 pre-norm 判据、宿命点应星闭式、每盘时间钥匙、_extendCorePdRecurrences 多圈复发(3000 年)、死码清理
+- `Horosa-Web/astropy/astrostudy/perchart.py` — pdYears 夹断 3000
+- `Horosa-Web/astropy/astrostudy/pd_engine.py` — 太阳弧(黄经)钥匙正逆函数、死码清理
+- `Horosa-Web/astropy/astrostudy/helper.py` / `Horosa-Web/astropy/websrv/webchartsrv.py` — PD_SYNC_REV v12
+- 数据:`astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v266.ndjson.gz` + `manifest.json`(v253 删除)
+
+### 必须同步 ②（Java,4 控制器 → 重编 jar）
+- `PredictiveController.java`、`astrostudycn/ChartController.java`、`IndiaChartController.java`、`astrostudycn/QueryChartController.java` — `_wireRev = pd_method_sync_v12`
+- 重编顺序:`mvn install`(astrostudy、astrostudycn)→ `mvn clean package`(astrostudyboot),JDK17
+
+### 自动受益（纯前端,Win 拉前端即同步）
+- `primaryDirectionSync.js`(v12 + 新钥匙清单/labels)、`AstroPrimaryDirection.js`/`AstroPrimaryDirectionChart.js`(下拉/normalize/3000 上限)、`AstroDirectMain.js`(宿命点白名单)、`AstroConst.js`/`AstroText.js`(VERTEX 词条)、`techniqueMountSettings.js`(pdYears max 3000)
+
+### 自检 / 测试更新
+- pytest:`test_pd_method_matrix.py`(静态钥匙集合断言、每盘钥匙、太阳弧 round-trip、**test_pd_years_3000_multi_revolution**)、`test_pd_engine.py`(动态钥匙 round-trip)、golden 引用文件名 v266(共 4 个测试文件)
+- jest:`AstroDirectMain.test.js`(宿命点行渲染)、`AstroPrimaryDirectionYears.test.js`(3000 链一致)
+- `release_preflight.sh`:[32] 守卫扩展(_passesCoreDisplayWindow/_coreVertexArc/_extendCorePdRecurrences/3000 字面量)、[33] v12 字面量、CITATION.cff 条件化
+- `scripts/check_horosa_full_integration.py`:5 处陈旧断言更新
+
+### 运行时
+- 改 Python 后必须重启本地排盘服务;清 ParamHashCache(磁盘 .horosa-cache/paramhash + redis)再做 LIVE 验证。
+
+## 待发布 · AI 报告 Gemini 参数修正 + 思考档高档位 + 桌面缩放持久化
+
+> **Windows 必做两件**：① 重编 Java jar（AI 代理改了 Gemini 请求封装）；② 在 Electron 壳实现「界面缩放持久化」（Mac 端 Tauri 已做，壳层代码各自实现）。AI 报告「思考档」高档位是共享前端，拉前端即同步。
+
+### 必须同步（Java，需重编 jar）
+- `Horosa-Web/astrostudysrv/.../service/AIAnalysisProxyService.java` —— `buildGeminiBody()`：调用 Gemini 时把 `temperature` / `maxOutputTokens` 等采样参数从请求顶层剔除（它们只应在 `generationConfig` 内），修复上游 400「格式错误」。Windows 端同步该文件后**必须 `mvn` 重编 jar**。
+
+### 自动受益（纯前端，Win 拉前端即同步）
+- **AI 报告「思考档」新增「极高 / 最大」两档** —— `aiAnalysisProviders.js`（`THINKING_LEVELS` / `THINKING_BUDGET` / `applyThinkingLevel`：OpenAI 系封顶 high、Anthropic/Gemini 提高 thinking budget、Anthropic 按 max_tokens clamp 防 400）+ `reportPipeline.js`（所选档位穿透到主章节流式生成，辅助节保持关闭）+ `ReportGenerator.js`（接口/模型选择器下方新增「思考档」下拉，localStorage 持久化）+ `ReportPane.js`（生成时透传所选档位）。
+
+### Windows 端须自行实现（壳层，非共享）
+- **界面缩放持久化** —— Mac 端 Tauri 把缩放值存进 `preferences.json`、重启恢复（修复「放大后重开复位」）。Windows 是 Electron 壳，需等价实现：把 `webContents`/`webFrame` 缩放值持久化到设置文件、启动时恢复。
+
+---
+
 ## v2.6.5（2026-06-08 发布）· 合盘交互链全面重建 + AI「起课时间」挂载 8→13 技法 + Python 数值 geo 容错
 
 > **Windows 必做一件：同步 Python 排盘组件**（helper.py / realsuntime.py / 5 个 Main.js builder 已是 Mac/Win 共享前端，拉前端即同步）。**Java jar 本版未改**（合盘端点恢复是前端改 URL，不需重编 jar）。其余（合盘交互链、AI 起课时间补 5 法、Python 数值 geo、导航搜索、关于框图标）都是共享前端，拉前端后自动受益。
@@ -416,18 +504,18 @@
 
 ### 主限法(承前)
 - 方位法 strategy 注册表 `perpredict._PD_METHOD_REGISTRY`(不动 `_byZCoreKernel`)。
-- **time-key 方法论纠正**:只保留公式可证的 `Ptolemy / Naibod`(撤除 Cardano/Plantiko/Wöllner/SymbolicSolarArc 经验值 + 删 `scripts/内部脚本.py`)。前端 time-key 下拉同步只剩 2 个。
+- **time-key 方法论纠正**:只保留公式可证的 `Ptolemy / Naibod`(暂收敛到公式可证的 `Ptolemy / Naibod`,无清晰公式的常数不收)。前端 time-key 下拉同步只剩 2 个。
 - `STATIC_TIME_KEY_SCALES = {Ptolemy:1.0, Naibod:0.9856473354}`;`_pdTimeKeyScale` 统一抽象;Naibod 表格放开。
 - byte-perfect:`tests/test_pd_alcabitius_byteperfect.py` 540 case 0 偏差(Ptolemy 锁 1.0)。
 
 ### 验证
 - `cd astropy && python -m pytest tests/ -q` → 36 全绿(byte-perfect 540 + matrix + catalog + 七政 23)。
 - `cd astrostudyui && npx umi-test` → 188 全绿。`npm run build && npm run build:file`。
-- 真栈:七政四余切「回归今制」七政落宿应与古法一致(日翼/火轸/木氐…),命度红线在宿度带可见;主限法 time-key 只剩 Ptolemy/Naibod。
+- 真栈:七政四余切「回归今制」七政落宿应符合古法(日翼/火轸/木氐…),命度红线在宿度带可见;主限法 time-key 只剩 Ptolemy/Naibod。
 
 ### 本批新增
-- **新增方位法集**(`SUPPORTED_PD_METHODS`)—— 现代主流主限法,与对应宫位制天然配套。后端在 `perpredict.getPrimaryDirectionByZCoreKernel` 落地(复用 flatlib PrimaryDirections 默认半弧算法,不带 Alcabitius 专属 定制修正层)。
-- **新增 5 个静态时间换算 + 1 个符号时间换算**(`pdTimeKey ∈ {Cardano, Plantiko, Wollner, SymbolicDegree, SymbolicSolarArc}` + 既有 Ptolemy/Naibod) —— 缩放常量在 `perpredict.STATIC_TIME_KEY_SCALES` 表中(基于内部样本推导得出,Ptolemy 锁 1.0 守字节级一致,其它 6 个 P0 阶段以经验常量上线)。
+- **方位法集**(`SUPPORTED_PD_METHODS`)—— 公开版核验方位法:`core_alchabitius` / `horosa_legacy` / `meridian` / `porphyry` / `equal_ecliptic` / `equal_hour_circle`;经 `_PD_METHOD_REGISTRY` strategy 分发,未知 method 一律 fallback `core_alchabitius`(不动 `_byZCoreKernel`)。
+- **新增 5 个静态时间换算 + 1 个符号时间换算**(`pdTimeKey ∈ {Cardano, Plantiko, Wollner, SymbolicDegree, SymbolicSolarArc}` + 既有 Ptolemy/Naibod) —— 缩放常量在 `perpredict.STATIC_TIME_KEY_SCALES` 表中(由各自天文/符号定义给出,Ptolemy 锁 1.0 守字节级一致)。
 - **Naibod 表格放开** —— v2.5.2/v2.5.3 时为安全起见 `AstroPrimaryDirectionChart.getTablePdTimeKey` 把 Naibod 强制降级为 Ptolemy,P0 起经 `_pdTimeKeyScale` 统一抽象 + byte-perfect 测试守卫后正式放开,Naibod 选择直接作用于表格 row 的日期换算。
 - **strategy 分发重构** —— `perpredict._PD_METHOD_REGISTRY` 字典分发各方位法到对应 kernel。**`_byZCoreKernel` 800 行 Alcabitius 路径完全不动**,新方位法只是注册新 handler。未知 method 一律 fallback 到 `core_alchabitius`(护铁律①)。
 - **timeKey 统一抽象** —— `perpredict._pdTimeKeyScale(time_key, chart, age)` 单点替换原 Naibod 硬编码;dynamic time-key 留 hook 给 P1。
@@ -439,17 +527,17 @@
 - **后端 Python 改动**(`Horosa-Web/astropy/astrostudy/perpredict.py` + `perchart.py`):同步整 perpredict.py + perchart.py;改完 `pkill -9 -f cherrypy && python astrostudy/server.py &` 重启 CherryPy。**Java 端 0 改动**(`PredictiveController.java:73-80` 已 pass-through 任意字符串 pdMethod/pdTimeKey,无需重编 jar)。
 - **前端改动**:`utils/primaryDirectionSync.js` + `components/astro/AstroPrimaryDirection.js` + `components/astro/AstroPrimaryDirectionChart.js` + `utils/aiAnalysisContext.js` + `utils/aiExport.js` + `utils/__tests__/primaryDirectionSync.test.js`。改完 `npm run build && npm run build:file`(顺序)。
 - **新增测试**:`Horosa-Web/astropy/tests/conftest.py` + `tests/test_pd_alcabitius_byteperfect.py`(540 case byte-perfect 回归,铁律①守卫,跑 ~10 秒) + `tests/test_pd_method_matrix.py`(17 test) + `tests/test_pd_method_catalog.py`(5 test) + `tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson`(25 MB,540 case 真栈 snapshot)。
-- **新增脚本**:`Horosa-Web/astropy/scripts/内部脚本.py`(自研标定脚本,基于内部样本反推 static time-key 常量)。
+- **time-key 常量**:由各自天文/符号定义直接给出(早期一个辅助标定脚本后已撤除,改为按公式实现)。
 
 ### 验证
 - `cd Horosa-Web/astropy && python -m pytest tests/test_pd_alcabitius_byteperfect.py tests/test_pd_method_matrix.py tests/test_pd_method_catalog.py -v`(540 case byte-perfect == + 17 + 5 全绿)
 - `cd Horosa-Web/astrostudyui && npx umi-test src/utils/__tests__/primaryDirectionSync.test.js`(6 个 PD 同步 case 全绿)
 - `npm test`(全 184 + 6 PD 新增 = 190 全绿)
-- preflight `[32]` 阻断「Alcabitius byteperfect 失效 / Ptolemy != 1.0 / _byZCoreKernel 改名」;`[33]` 阻断「方位法白名单缺 / PD_SYNC_REV 未升 / Naibod 表格仍降级 / aiContext 仍硬编码」。
+- preflight `[32]` 阻断「Alcabitius byteperfect 失效 / Ptolemy != 1.0 / _byZCoreKernel 改名」;`[33]` 阻断「方位法白名单漂移 / PD_SYNC_REV 未升 / Naibod 表格仍降级 / aiContext 仍硬编码」。
 - 真栈手测:启动 desktop app,主限法表格 + 主限法盘下拉应当出现 `SUPPORTED_PD_METHODS` 各方位法 + Ptolemy/Naibod/Cardano/Plantiko/Wollner/符号度/太阳弧符号;默认 Alchabitius+Ptolemy 表格逐行与 v2.5.3 完全一致;切换方法 + 各 timeKey 表格能渲染、盘能画。
 
 ### v2.5.4 补遗 — 主限法全方位法 v10 (2026-06-03,P1~P4 完成;**Java 改动→必重编 jar**)
-> 在 P0 基础上补全:方位法引擎 + 黄道/世俗 + 顺逆同选 + 映点/界 + 真太阳弧(表格&盘) + 主限法盘投影 + AI 四同步。time-key 收敛回 **Ptolemy/Naibod/TrueSolarArc**(撤经验常数,守纯公式铁律)。
+> 在 P0 基础上补全:方位法引擎 + 黄道/世俗 + 顺逆同选 + 映点/界 + 真太阳弧(表格&盘) + 主限法盘投影 + AI 四同步。time-key 收敛回 **Ptolemy/Naibod/TrueSolarArc**(只收公式可证的钥匙,守「先定义、数据只验证」铁律)。
 >
 > **⚠️ 真因纠正(关键)**:用户报「推运方向选了没用」的最深根源是 **Java `PredictiveController.getParams()` 只透传 pdtype/pdMethod/pdTimeKey,丢弃了 pdDirect/pdConverse/pdAntiscia/pdTerms**;而 `AstroHelper.request()` 用 **ParamHashCache(键=params 哈希,24h)** 缓存,导致 direct/converse 的 params 哈希相同 → 命中同一缓存 → 切换无效果。**修法=Java getParams 补这 4 个透传 + `_wireRev` v8→v10(让旧缓存全失效)→ 重编 astrostudyboot.jar**。这与早期 P0 的「Java 0 改动」假设不同——P0 只动 pdMethod/pdTimeKey(已透传),v10 的新开关必须补 Java + 重编。
 
@@ -457,9 +545,9 @@
 - **Java 改动(必重编 jar)**:`astrostudysrv/astrostudy/.../controller/PredictiveController.java` getParams() 补 `pdDirect/pdConverse/pdAntiscia/pdTerms` 透传 + `_wireRev` → `pd_method_sync_v10`。重编:`cd Horosa-Web/astrostudysrv && JAVA_HOME=<JDK17> mvn -f astrostudy/pom.xml install -DskipTests && mvn -f astrostudyboot/pom.xml clean package -DskipTests`(**clean 必须**),`javap -c -p` 验内嵌 `BOOT-INF/lib/astrostudy-1.0.0.jar` 的 PredictiveController 含 pdConverse/pdDirect。
 - **Python 后端改动**:`perpredict.py`(ZEngine 顺逆拼接 + 真太阳弧盘 `solar_arc_for_years` + 世俗路由) + `perchart.py`(方位法白名单 + `pdDirect` 解析) + `helper.py` + `websrv/webchartsrv.py`(**PD_SYNC_REV 升 `pd_method_sync_v10`,与前端 + Java _wireRev 对齐**)。改完重启 CherryPy。
 - **前端改动文件**:`utils/primaryDirectionSync.js`(SYNC v10 + 方位法白名单 + 持久化 pdDirect 等) + `components/astro/AstroPrimaryDirection.js`(顶部**单行**工具栏:方法/度数/方向类型/向运☑顺☑逆/年数/附加☐映点☐界,无第二行) + `components/astro/AstroPrimaryDirectionChart.js`(盘右栏 + 保留进阶设置不 clobber) + `components/direction/AstroDirectMain.js`(请求链贯通 + AI 快照设置段 + tab「主/界限法」→「主限法」) + `components/astro/AstroChartMain.js`(dock label) + `utils/aiAnalysisContext.js` + `utils/localcharts.js`。改完 `npm run build && npm run build:file`(顺序)。
-- **新增/更新测试**:`tests/test_pd_engine.py`(+真太阳弧逆/converse负弧/映点界) + `tests/test_pd_method_matrix.py`(+pdDirect解析/顺逆拼接/皆关回退/世俗R≠C/真太阳弧日期偏移)。注:`scripts/内部脚本.py` 已删(收敛)。
+- **新增/更新测试**:`tests/test_pd_engine.py`(+真太阳弧逆/converse负弧/映点界) + `tests/test_pd_method_matrix.py`(+pdDirect解析/顺逆拼接/皆关回退/世俗R≠C/真太阳弧日期偏移)。注:time-key 改为按公式实现,辅助标定脚本已撤除。
 - **验证**:`cd Horosa-Web/astropy && python -m pytest tests/ -q`(59 全绿) ;`cd ../astrostudyui && npx umi-test`(195 全绿) ;preflight `[33]` v10 门禁(后端 SYNC 对齐 / 方位法白名单 / pdDirect / 单行工具栏 / tab 名)。
-- **真栈手测**:主限法表格下拉 6 方位法(Alchabitius/各核验方位法) + 度数换算 Ptolemy/Naibod/真太阳弧;选 **世俗** 时 不同方位法日期应不同;Ptolemy ≠ 真太阳弧(日期不同);顺+逆同勾表格行数增;盘右栏改方法/向运盘随之重绘;默认 Alchabitius+Ptolemy 逐行不变。
+- **真栈手测**:主限法表格下拉各核验方位法 + 度数换算 Ptolemy/Naibod/真太阳弧;选 **世俗** 时不同方位法日期应不同;Ptolemy ≠ 真太阳弧(日期不同);顺+逆同勾表格行数增;盘右栏改方法/向运盘随之重绘;默认 Alchabitius+Ptolemy 逐行不变。
 
 ---
 
@@ -853,7 +941,7 @@ Windows Electron 外壳的自动更新另算（不在本仓代码内）。
 - 在「数算」既有金色技法 rail（`components/kinastro/KinAstroMain.js` `renderTechniqueRail` 内 `moduleKey==='shusuan'` 的硬编码列表）**新增两个入口**，不是另起一条 rail。
 - `TECHNIQUE_CONFIG` 加 `canping`/`heluo`（`native:true`）；`fetchPan` 对 `native` 直接跳过 `postKinAstro`；`renderCenter`/`renderRightPanel` 顶部加 native 分支渲染原生组件；`constructor` state 加 `canpingMethod/canpingLiunian`。
 - **邵子参评数**（金锁银匙）：`utils/canpingLocal.js` + `utils/data/canpingTiaowen.json`（五部×78）；组件 `components/shusuan/CanPingMain.js`（古法/明法开关、本命/大运/流年）。
-- **河洛理数**：`utils/heluoLocal.js`（起命 天地数→卦→元堂→后天、起运 大限/流年、命运篇 元气/化工/得体等判断、爻辞查找）+ `utils/data/heluoTiaowen.json`（64卦×6爻，由 `scripts/buildHeluoData.js` 从 5 个条文 md 解析；脚本读 Obsidian 源 `~/Documents/notes-vault/玄哲/4.条文/河洛理数/`，**仅生成的 JSON 入库**）；组件 `components/shusuan/HeLuoMain.js`（先天/后天卦象+元堂+爻辞、大限表点选联动流年、右栏命运篇判断）。
+- **河洛理数**：`utils/heluoLocal.js`（起命 天地数→卦→元堂→后天、起运 大限/流年、命运篇 元气/化工/得体等判断、爻辞查找）+ `utils/data/heluoTiaowen.json`（64卦×6爻，由 `scripts/buildHeluoData.js` 从 5 个条文 md 解析；脚本读本地 Obsidian 条文源，**仅生成的 JSON 入库**）；组件 `components/shusuan/HeLuoMain.js`（先天/后天卦象+元堂+爻辞、大限表点选联动流年、右栏命运篇判断）。
 - `layouts/app.less` 末尾 `:global { .horosa-canping-* }` 与 `:global { .horosa-heluo-* }` 布局+明暗。
 - 算法验证：`scripts/_heluoTest.mjs`（esbuild bundle 后 node 跑）共 72 断言全过——含算例 甲子丁卯庚申庚辰→天风姤·上九、董盘 丙戌丁酉丙寅癸巳→先天否上九/后天临六三、大限 1–45/46起、**先天/后天 5 个大限的流年逐卦逐动爻、含 临初九后天阳爻大限(起阴年)**、多年流月(2021/2052/2057/2075/2076)、流日 30 日动爻初→上、理数含/藏/覆。
 - **⚠️ v2.2.0 流年算法修订（覆盖发布）**：初版 `liuNian` 的动爻位写死从初爻数（阳爻 1..6、阴爻 1..5），**只在元堂=上九时偶合**，其余大限流年全错。已按典籍重写为**从上一年動爻往上一爻链式累变**（阳爻另加首年阳年不变/阴年变元堂 + 第2、3年连变应爻）。Windows 端**重新同步 `utils/heluoLocal.js`** 即可（纯前端，无 Java，不重编 jar）；对照本机 `_heluoTest.mjs` 72 断言。

@@ -123,9 +123,9 @@ function applyMaxTokens(opts, protoFamily, maxTokens){
 }
 
 // 内部：单次流式请求（不含续写）
-async function streamOnce({ profile, model, systemPrompt, userPrompt, maxTokens, temperature, topP, signal, onChunkFull, stallMs, prefixContent }){
+async function streamOnce({ profile, model, systemPrompt, userPrompt, maxTokens, temperature, topP, signal, onChunkFull, stallMs, prefixContent, thinkingLevel }){
 	const protoFamily = profile.protocolFamily || getProviderProtocolFamily(profile.providerType);
-	const opts = applyThinkingLevel({ ...(profile.providerOptions || {}) }, 'off', profile.providerType, model);
+	const opts = applyThinkingLevel({ ...(profile.providerOptions || {}) }, thinkingLevel || 'off', profile.providerType, model, maxTokens);
 	applyMaxTokens(opts, protoFamily, maxTokens);
 	applySamplingParams(opts, protoFamily, model, temperature, topP);
 	let buf = prefixContent || '';
@@ -179,13 +179,14 @@ export async function streamSectionReply({
 	signal,
 	onChunk,
 	stallMs,
+	thinkingLevel,
 }){
 	let total = '';
 	let totalUsage = null;
 	let lastErr = null;
 	// 首轮
 	const first = await streamOnce({
-		profile, model, systemPrompt, userPrompt, maxTokens, temperature, topP, signal, stallMs,
+		profile, model, systemPrompt, userPrompt, maxTokens, temperature, topP, signal, stallMs, thinkingLevel,
 		onChunkFull: (full)=>{ total = full; if(onChunk) onChunk(total); },
 	});
 	total = first.content;
@@ -220,7 +221,7 @@ export async function streamSectionReply({
 				systemPrompt: `${systemPrompt}\n\n（这是续写请求，必须紧接上文继续，绝不重复已写过的内容）`,
 				userPrompt: continuePrompt,
 				maxTokens: Math.max(800, Math.floor((maxTokens || 2000) * 0.5)),
-				temperature, topP, signal, stallMs,
+				temperature, topP, signal, stallMs, thinkingLevel,
 				prefixContent: total, // 累计内容继续流到 UI
 				onChunkFull: (full)=>{ total = full; if(onChunk) onChunk(total); },
 			});
@@ -378,6 +379,7 @@ export async function generateReport(opts){
 		caseRecord, // audit 修:用于提取 birthDate 算时间锚定
 		chartObj,   // v1.14: 紫微 chart 对象(houses[]),用于节级 ground-truth 抽取
 		baziObj,    // v1.14: 八字 bazi 对象(fourColumns/luckyDecade),用于节级 ground-truth 抽取
+		thinkingLevel, // 思考档：仅主章节生成应用，辅助节保持 off
 	} = opts;
 	if(!template || !template.sections){
 		throw new Error('report.template.invalid');
@@ -510,6 +512,7 @@ export async function generateReport(opts){
 						profile, model,
 						systemPrompt: sysPrompt,
 						userPrompt: usrFinal,
+						thinkingLevel,
 						maxTokens: section.maxTokens,
 						temperature: section.temperature,
 						topP: section.topP,
@@ -605,7 +608,7 @@ export async function generateReport(opts){
 				const res = await streamSectionReply({
 					profile, model,
 					systemPrompt: sysPrompt, userPrompt: usrPrompt,
-					maxTokens: section.maxTokens, temperature: section.temperature, topP: section.topP,
+					maxTokens: section.maxTokens, temperature: section.temperature, topP: section.topP, thinkingLevel,
 					signal,
 					onChunk: (chunk)=>{
 						sectionsState[section.key].content = chunk;

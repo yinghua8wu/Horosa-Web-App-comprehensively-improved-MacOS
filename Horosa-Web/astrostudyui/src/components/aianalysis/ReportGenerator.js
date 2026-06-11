@@ -1,12 +1,13 @@
 // AI 分析「报告」- 新建报告生成器 Drawer
-// 表单：技法 / 案例 / 流派 / 粒度 / 资料范围 / 嵌图开关 / 辅助节开关 / 模型
+// 表单：技法 / 案例 / 流派 / 粒度 / 资料范围 / 嵌图开关 / 辅助节开关 / 接口·模型 / API 参数
 
 import React from 'react';
 import {
-	Drawer, Form, Radio, Select, Checkbox, Switch, Button,
+	Drawer, Form, Radio, Select, Switch, Button,
 	Alert, Tag, Space, Divider, Tooltip,
 } from 'antd';
 import { KNOWN_SCHOOLS, getSchoolList } from '../../utils/reportSchools';
+import { encodeModelSelection, parseModelSelection, THINKING_LEVELS, getPersistedThinkingLevel, setPersistedThinkingLevel } from '../../utils/aiAnalysisProviders';
 
 const TECH_OPTIONS = [
 	{ value: 'bazi', label: '八字' },
@@ -20,56 +21,46 @@ const GRAN_OPTIONS = [
 ];
 
 export default function ReportGenerator(props){
-	const { open, onCancel, onSubmit, sources = [], materials = [], profile, model, modelOptions = [], preset } = props;
+	const {
+		open, onCancel, onSubmit, sources = [], materials = [],
+		profile, model, modelOptions = [], providerProfiles = [], preset,
+	} = props;
 	const [form] = Form.useForm();
 	const [technique, setTechnique] = React.useState('bazi');
 	const [schools, setSchools] = React.useState([]);
 	const [materialIds, setMaterialIds] = React.useState([]);
 
+	// 默认选中的「接口/模型」编码值 = 当前全局接口 + 模型。
+	const defaultSelection = React.useMemo(()=>(
+		(profile && profile.id && model) ? encodeModelSelection(profile.id, model) : ''
+	), [profile, model]);
+
 	// 应用预填（preset）
-	// audit 修:form 依赖移除 — Form.useForm() 返回的 form 实例每次 render 返回的是同一引用(antd 保证稳定),
-	// 但保险起见显式 disable eslint react-hooks/exhaustive-deps，杜绝任何潜在的依赖循环风险。
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	React.useEffect(()=>{
-		if(open && preset){
-			form.setFieldsValue({
-				technique: preset.technique || 'bazi',
-				granularity: preset.granularity || 12,
-				caseId: preset.caseId || undefined,
-				schools: preset.schools || [],
-				embedCharts: preset.embedCharts !== false,
-				intro: preset.intro !== false,
-				outro: preset.outro !== false,
-				modelOverride: preset.modelOverride || model || undefined,
-			});
-			setTechnique(preset.technique || 'bazi');
-			setSchools(preset.schools || []);
-		}else if(open && !preset){
-			form.resetFields();
-			form.setFieldsValue({
-				technique: 'bazi',
-				granularity: 12,
-				embedCharts: true,
-				intro: true,
-				outro: true,
-				modelOverride: model || undefined,
-				schools: [],
-			});
-			setTechnique('bazi');
-			setSchools([]);
-		}
-	// 严格依赖 [open, preset, model] - form 引用稳定但显式排除以防 lint 异常时把 form 当依赖加进来
-	}, [open, preset, model]);
+		if(!open) return;
+		const sel = (preset && preset.modelSelection) || defaultSelection || undefined;
+		const base = {
+			technique: (preset && preset.technique) || 'bazi',
+			granularity: (preset && preset.granularity) || 12,
+			caseId: (preset && preset.caseId) || undefined,
+			schools: (preset && preset.schools) || [],
+			embedCharts: preset ? preset.embedCharts !== false : true,
+			intro: preset ? preset.intro !== false : true,
+			outro: preset ? preset.outro !== false : true,
+			modelSelection: sel,
+			thinkingLevel: (preset && preset.thinkingLevel) || getPersistedThinkingLevel(),
+		};
+		if(!preset){ form.resetFields(); }
+		form.setFieldsValue(base);
+		setTechnique(base.technique);
+		setSchools(base.schools);
+	}, [open, preset, defaultSelection]);
 
 	// 八字/紫微 case 数据走 listLocalCharts（含 birth），
-	// 同一组生辰数据可同时给八字/紫微/占星用，所以默认所有 chart-type source 都允许选；
-	// 仅当 sourceModule 明确不是本技法相关时才过滤。
+	// 同一组生辰数据可同时给八字/紫微/占星用，所以默认所有 chart-type source 都允许选。
 	const techSources = sources.filter((s)=>{
 		if(s.sourceType !== 'chart') return false; // 报告功能首批只支持 chart-based（八字/紫微）
-		const sm = `${(s.record && (s.record.sourceModule || s.record.chartType)) || ''}`.toLowerCase();
-		if(!sm) return true; // sourceModule 未设：通用 chart，全显示
-		// 任何 chart 的生辰都可以用于其他技法，所以不严格过滤；
-		// 只在明显冲突场景（例如未来加奇门/六壬时这类不需要生辰的技法）才过滤
 		return true;
 	});
 
@@ -95,7 +86,12 @@ export default function ReportGenerator(props){
 	}, [schools, materials]);
 
 	function handleFinish(values){
+		// 把「接口/模型」编码值解析成 providerOverride(接口对象) + modelOverride(模型名),供报告管线选用任意 API key。
+		const { profileId, model: selModel } = parseModelSelection(values.modelSelection || '');
+		const providerOverride = (providerProfiles || []).find((p)=>p.id === profileId) || undefined;
+		setPersistedThinkingLevel(values.thinkingLevel);
 		onSubmit && onSubmit({
+			thinkingLevel: values.thinkingLevel || 'off',
 			technique: values.technique,
 			granularity: values.granularity,
 			caseId: values.caseId,
@@ -104,7 +100,8 @@ export default function ReportGenerator(props){
 			embedCharts: values.embedCharts !== false,
 			intro: values.intro !== false,
 			outro: values.outro !== false,
-			modelOverride: values.modelOverride,
+			providerOverride,
+			modelOverride: selModel || undefined,
 		});
 	}
 
@@ -128,7 +125,7 @@ export default function ReportGenerator(props){
 				initialValues={{
 					technique: 'bazi',
 					granularity: 12,
-					embedCharts: true,  // v1.19 改回默认开:现已用真实 BaZi/ZiWeiMain 组件截图,与软件内盘视觉一致
+					embedCharts: true,
 					intro: true,
 					outro: true,
 				}}
@@ -152,7 +149,7 @@ export default function ReportGenerator(props){
 				<Form.Item
 					label={<span>流派 <Tooltip title="选了流派会过滤检索资料 + 在 prompt 中注入流派指引。不选则走通用 RAG。"><Tag color="blue" style={{cursor:'help'}}>?</Tag></Tooltip></span>}
 					name="schools"
-					extra={<span style={{fontSize:12,color:'#888'}}>过滤后资料约 {filteredCount} 篇</span>}
+					extra={<span style={{fontSize:12,color:'var(--horosa-muted, #888)'}}>过滤后资料约 {filteredCount} 篇</span>}
 				>
 					<Select
 						mode="tags"
@@ -175,7 +172,7 @@ export default function ReportGenerator(props){
 					<Radio.Group>
 						{GRAN_OPTIONS.map((g)=>(
 							<Radio key={g.value} value={g.value} style={{display:'block',marginBottom:6}}>
-								<strong>{g.label}</strong> <span style={{fontSize:12,color:'#888',marginLeft:6}}>{g.desc}</span>
+								<strong>{g.label}</strong> <span style={{fontSize:12,color:'var(--horosa-muted, #888)',marginLeft:6}}>{g.desc}</span>
 							</Radio>
 						))}
 					</Radio.Group>
@@ -193,18 +190,38 @@ export default function ReportGenerator(props){
 
 				<Divider />
 
-				<Form.Item label="模型" name="modelOverride" extra={`当前默认：${(profile && profile.name) || '(未配置)'} · ${model || '(未选)'}`}>
+				<Form.Item
+					label={<span>接口 / 模型 <Tooltip title="可选用任意已配置的 API 接口与模型生成本报告，不再固定为顶栏当前接口。"><Tag color="blue" style={{cursor:'help'}}>?</Tag></Tooltip></span>}
+					name="modelSelection"
+					rules={[{ required: true, message: '请选择生成报告所用的接口与模型' }]}
+					extra={modelOptions.length ? '列出所有已配置接口（API key）下的模型' : '尚无可用接口，请先在「设置」配置 API'}
+				>
 					<Select
-						allowClear
-						placeholder="覆盖默认模型（可选）"
+						showSearch
+						placeholder="选择接口与模型"
 						options={modelOptions}
+						filterOption={(input, option)=>`${(option && option.label) || ''}`.toLowerCase().includes(`${input || ''}`.toLowerCase())}
+						notFoundContent="无可用接口/模型"
 					/>
 				</Form.Item>
+
+				<Form.Item
+					label={<span>思考档 <Tooltip title="让模型作答前多想（链式推理），档位越高越深、越慢越贵。推理模型（o系/gpt-5+/Claude/Gemini）生效，其它自动降级；报告默认关闭以保稳定，需要更深可在此开启。"><Tag color="blue" style={{cursor:'help'}}>?</Tag></Tooltip></span>}
+					name="thinkingLevel"
+					extra="仅主章节生成应用；辅助节保持关闭"
+				>
+					<Select
+						style={{ maxWidth: 220 }}
+						options={THINKING_LEVELS.map((t)=>({ value: t.value, label: t.label }))}
+					/>
+				</Form.Item>
+
+				<Divider />
 
 				<Form.Item label="嵌图" name="embedCharts" valuePropName="checked">
 					<Switch checkedChildren="开" unCheckedChildren="关" />
 				</Form.Item>
-				<div style={{marginTop:-12,marginBottom:16,fontSize:12,color:'#888'}}>
+				<div style={{marginTop:-12,marginBottom:16,fontSize:12,color:'var(--horosa-muted, #888)'}}>
 					每节按模板默认嵌入对应真实命盘截图（四柱图 / 12 宫盘 / 宫高亮），与软件内 八字/紫微 tab 视觉一致。<br />
 					每张图 3-5s, 12 节大约 +40s 生成时间。
 				</div>

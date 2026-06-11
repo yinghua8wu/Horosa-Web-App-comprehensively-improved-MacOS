@@ -139,7 +139,7 @@ Release 页面建议使用中英文双语提示，明确告诉普通用户：
 先在发布机执行：
 
 ```bash
-cd ~/Desktop/Horosa/Horosa_Desktop_Installer
+cd Horosa_Desktop_Installer
 ./scripts/check_apple_signing_prereqs.sh
 ```
 
@@ -160,7 +160,7 @@ export NOTARYTOOL_KEYCHAIN_PROFILE="horosa-notary"
 ## 本地构建与验收
 
 ```bash
-cd ~/Desktop/Horosa/Horosa_Desktop_Installer
+cd Horosa_Desktop_Installer
 ./scripts/build_desktop_release.sh
 ./scripts/verify_desktop_packaging.sh
 ```
@@ -182,7 +182,7 @@ python3 scripts/verify_launcher_console_states.py
 正式外部分发构建：
 
 ```bash
-cd ~/Desktop/Horosa/Horosa_Desktop_Installer
+cd Horosa_Desktop_Installer
 HOROSA_PUBLIC_DISTRIBUTION=1 ./scripts/build_desktop_release.sh
 HOROSA_DESKTOP_SKIP_REBUILD=1 ./scripts/verify_desktop_packaging.sh
 ./scripts/verify_public_distribution_readiness.sh
@@ -204,14 +204,14 @@ HOROSA_DESKTOP_SKIP_REBUILD=1 ./scripts/verify_desktop_packaging.sh
 发布到 GitHub Release：
 
 ```bash
-cd ~/Desktop/Horosa/Horosa_Desktop_Installer
+cd Horosa_Desktop_Installer
 ./scripts/publish_github_release.sh
 ```
 
 正式外部分发发布：
 
 ```bash
-cd ~/Desktop/Horosa/Horosa_Desktop_Installer
+cd Horosa_Desktop_Installer
 HOROSA_PUBLIC_DISTRIBUTION=1 ./scripts/publish_github_release.sh
 ```
 

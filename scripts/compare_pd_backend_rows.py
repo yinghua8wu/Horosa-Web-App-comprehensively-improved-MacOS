@@ -67,10 +67,13 @@ OBJ2ID = {
     # The current reference dataset emits the enabled Part of Fortune as id 100.
     # Older captures can contain sID=28, but that bucket is not the enabled PF row.
     "Pars Fortuna": 100,
+    "Vertex": 28,
 }
 
 ID2NAME = {v: k for k, v in OBJ2ID.items()}
-ABS_ASPECT_SIG_IDS = {24, 25, 100}
+ABS_ASPECT_SIG_IDS = {24, 25, 28, 100}
+# 贪心配对的距离上限(度):超过即视为两侧各自的未配对行,不强配。
+MAX_PAIR_DIST_DEG = 0.5
 SHARED_CORE_PROM_IDS = set(range(0, 11))
 SHARED_CORE_SIG_IDS = set(range(0, 11)) | {24, 25, 100}
 
@@ -191,6 +194,11 @@ def _pair_by_nearest_arc(
                 if best is None or tie < best:
                     best = tie
                     best_pair = (ai, li)
+        # 距离上限:两侧行集不齐时,贪心会把毫不相干的行强配在一起,产生几十/上百度的
+        # 垃圾配对污染 MAE/max(经验上真配对都在 0.05° 内,0.5° 已是 10 倍冗余)。
+        # 超限即停:余下视为未配对(进 rows_astro/rows_local 与 matched 的差额)。
+        if best[0] > MAX_PAIR_DIST_DEG:
+            break
         ai, li = best_pair
         pairs.append((astro_pool.pop(ai), local_pool.pop(li)))
     return pairs

@@ -88,7 +88,7 @@ describe('P5 主限法盘 primarydirchart round-trip', () => {
 
 	it('盘空 datetime（仅改方位法）→ 仍出盘快照、时间取「此刻」（不破现状路径）', async () => {
 		const ctx = await getAnalysisTechniqueContextWithOptions(SOURCE, 'primarydirchart', {
-			pdMethod: 'placidus',
+			pdMethod: 'meridian',
 		});
 		expect(ctx).toBeTruthy();
 		expect(ctx.content).toContain('[主限法盘设置]');

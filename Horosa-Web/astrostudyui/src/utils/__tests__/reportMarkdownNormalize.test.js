@@ -54,4 +54,18 @@ describe('reportMarkdownNormalize', ()=>{
 		expect(normalizeMarkdown('')).toBe('');
 		expect(normalizeMarkdown(null)).toBe('');
 	});
+
+	test('~ / ～ 统一转短横线 -（防 GFM 删除线划掉年龄/年份范围）', ()=>{
+		expect(normalizeMarkdown('当前大运 壬申 (25~34岁)')).toBe('当前大运 壬申 (25-34岁)');
+		expect(normalizeMarkdown('大限 2～11 岁')).toBe('大限 2-11 岁'); // 全角 ～
+		expect(normalizeMarkdown('2019~2028 年')).toBe('2019-2028 年');
+	});
+
+	test('代码围栏内的 ~ 不被替换（保护代码语义）', ()=>{
+		const src = '正文 1~2\n```\nconst a = b ~ c;\n```\n正文 3~4';
+		const out = normalizeMarkdown(src);
+		expect(out).toContain('正文 1-2');   // 围栏外转
+		expect(out).toContain('b ~ c');       // 围栏内保留
+		expect(out).toContain('正文 3-4');
+	});
 });

@@ -12,15 +12,16 @@ import { XQButton as Button, XQInput as Input, XQInputNumber as InputNumber, XQS
 import XQIcon from '../xq-icons';
 
 const Option = Select.Option;
-// 与 utils/primaryDirectionSync.js 保持一致（P0 曾漏改本地 v8→v9 致始终重算,P1 统一到 v10）。
-const PD_SYNC_REV = 'pd_method_sync_v10';
+// 与 utils/primaryDirectionSync.js 保持一致（P0 曾漏改本地 v8→v9 致始终重算,P1 统一到 v10,主限法改进统一到 v11）。
+const PD_SYNC_REV = 'pd_method_sync_v12';
 const DEFAULT_PD_METHOD = 'core_alchabitius';
 const DEFAULT_PD_TIME_KEY = 'Ptolemy';
 const DEFAULT_PD_TYPE = 0;
-// 与后端 perpredict._PD_METHOD_REGISTRY + perchart 白名单同步的方位法白名单。
+// 与后端 perpredict._PD_METHOD_REGISTRY + perchart 白名单同步的方位法白名单
+// （识别用；下拉仅露已逐位核验的方位法）。
 const SUPPORTED_PD_METHODS = [
-	'core_alchabitius', 'horosa_legacy', 'placidus',
-	'regiomontanus', 'campanus', 'topocentric',
+	'core_alchabitius', 'horosa_legacy',
+	'meridian', 'porphyry', 'equal_ecliptic', 'equal_hour_circle',
 ];
 const CORE_PD_SUPPORTED_BASE_IDS = new Set([
 	AstroConst.SUN,
@@ -37,6 +38,7 @@ const CORE_PD_SUPPORTED_BASE_IDS = new Set([
 	AstroConst.PARS_FORTUNA,
 	AstroConst.ASC,
 	AstroConst.MC,
+	AstroConst.VERTEX,
 ]);
 
 class AstroPrimaryDirection extends Component{
@@ -104,6 +106,8 @@ class AstroPrimaryDirection extends Component{
 			this.objs = AstroConst.LIST_OBJECTS.slice(0);
 			this.objs.push(AstroConst.ASC);
 			this.objs.push(AstroConst.MC);
+			// 宿命点应星行(v12)进 促发/应星 列筛选(候选与行集求交,无行时不出现)。
+			this.objs.push(AstroConst.VERTEX);
 
 		}
 
@@ -414,9 +418,13 @@ class AstroPrimaryDirection extends Component{
 	}
 
 	normalizePdTimeKey(value){
-		// 白名单：与后端同步,只收公式/真算法 key（Ptolemy/Naibod 静态,TrueSolarArc 动态真太阳弧）。
-		// 未识别 timeKey 回退到默认 Ptolemy (scale=1.0)。
-		const VALID = ['Ptolemy', 'Naibod', 'TrueSolarArc'];
+		// 白名单：与后端 STATIC_TIME_KEY_SCALES + 动态 key 同步。未识别 timeKey 回退默认 Ptolemy (scale=1.0)。
+		const VALID = [
+			'Ptolemy', 'Naibod', 'TrueSolarArc', 'SymbolicSolarArc',
+			'Cardano', 'Umar', 'Wollner', 'Plantiko', 'Simmonite', 'SynodicYear',
+			'Kepler', 'Brahe', 'Kundig', 'SymbolicDegree', 'SymbolicYear', 'SymbolicMoon',
+			'SymbolicMonth', 'Quarterly', 'Quinary', 'Duodenary', 'Novenary', 'SelfMeasure',
+		];
 		if(VALID.indexOf(value) >= 0){
 			return value;
 		}
@@ -444,7 +452,7 @@ class AstroPrimaryDirection extends Component{
 		if(!Number.isFinite(n)){
 			return 100;
 		}
-		return Math.max(1, Math.min(180, n));
+		return Math.max(1, Math.min(3000, n));
 	}
 
 	getSelectedPdYears(){
@@ -515,7 +523,12 @@ class AstroPrimaryDirection extends Component{
 		let filterKeys = new Set();
 		const showPdBounds = !(this.props.showPdBounds === 0 || this.props.showPdBounds === false);
 		const appliedPdMethod = this.props.pdMethod ? this.props.pdMethod : 'core_alchabitius';
-		const hideAntisciaRows = appliedPdMethod === 'core_alchabitius';
+		// 用户显式勾选「映点 / 界」后,core_alchabitius 也须显示对应行(纯公式核现已支持,
+		// 不再像旧核那样恒滤——否则勾了开关却看不到任何变化)。
+		const appliedPdState = this.getAppliedPdState();
+		const appliedAntiscia = appliedPdState.pdAntiscia === 1;
+		const appliedTerms = appliedPdState.pdTerms === 1;
+		const hideAntisciaRows = appliedPdMethod === 'core_alchabitius' && !appliedAntiscia;
 		const hideUnsupportedCoreRows = appliedPdMethod === 'core_alchabitius';
 		if(pds === undefined || pds === null){
 			return {
@@ -526,11 +539,13 @@ class AstroPrimaryDirection extends Component{
 		// showPdBounds(显示界限法)只对 core_alchabitius 旧路径有意义(它恒算界限法、由此开关显隐)。
 		// 新方位法的「界(T_)」行只在用户勾选 pdTerms 时才由引擎产出,故应直接显示,不再被 showPdBounds 隐藏
 		// (否则用户勾了「界」却因 showPdBounds 关而看不到任何变化——映点同理由 pdAntiscia 控制、非 core 不隐藏)。
-		const hideBoundRows = !showPdBounds && appliedPdMethod === 'core_alchabitius';
+		const hideBoundRows = !showPdBounds && appliedPdMethod === 'core_alchabitius' && !appliedTerms;
 		let res = [];
 		for(let i=0; i<pds.length; i++){
 			let pd = pds[i];
-			if(hideUnsupportedCoreRows && this.isCoreUnsupportedRow(pd)){
+			// isCoreUnsupportedRow 把所有「界(T_)」行也判为 unsupported;用户勾选「界」后这些是
+			// 合法行,须放行(否则 core_alchabitius 勾了界仍看不到 T_ 行)。
+			if(hideUnsupportedCoreRows && this.isCoreUnsupportedRow(pd) && !(appliedTerms && this.isBoundRow(pd))){
 				continue;
 			}
 			if(hideBoundRows && this.isBoundRow(pd)){
@@ -804,11 +819,10 @@ class AstroPrimaryDirection extends Component{
 							dropdownMatchSelectWidth={false}
 						>
 							<Option value='core_alchabitius'>Alchabitius</Option>
-							<Option value='placidus'>Placidus（半弧）</Option>
-							<Option value='regiomontanus'>Regiomontanus</Option>
-							<Option value='campanus'>Campanus</Option>
-							<Option value='topocentric'>Topocentric</Option>
-							<Option value='horosa_legacy'>Horosa原方法</Option>
+							<Option value='meridian'>Meridian</Option>
+							<Option value='porphyry'>Porphyry</Option>
+							<Option value='equal_ecliptic'>Equal（黄道）</Option>
+							<Option value='equal_hour_circle'>Equal（时圈）</Option>
 						</Select>
 					</span>
 					<span style={groupStyle}>
@@ -823,6 +837,25 @@ class AstroPrimaryDirection extends Component{
 							<Option value='Ptolemy'>Ptolemy</Option>
 							<Option value='Naibod'>Naibod</Option>
 							<Option value='TrueSolarArc'>真太阳弧</Option>
+							<Option value='SymbolicSolarArc'>太阳弧（黄经）</Option>
+							<Option value='Cardano'>Cardano</Option>
+							<Option value='Umar'>Umar al-Tabari</Option>
+							<Option value='Wollner'>Wöllner</Option>
+							<Option value='Plantiko'>Plantiko</Option>
+							<Option value='Simmonite'>Simmonite</Option>
+							<Option value='SynodicYear'>Synodic Year</Option>
+							<Option value='Kepler'>Kepler</Option>
+							<Option value='Brahe'>Brahe</Option>
+							<Option value='Kundig'>Kündig</Option>
+							<Option value='SymbolicDegree'>Symbolic Degree</Option>
+							<Option value='SymbolicYear'>Symbolic Year</Option>
+							<Option value='SymbolicMoon'>Symbolic Moon</Option>
+							<Option value='SymbolicMonth'>Symbolic Month</Option>
+							<Option value='Quarterly'>Quarterly</Option>
+							<Option value='Quinary'>Quinary</Option>
+							<Option value='Duodenary'>Duodenary</Option>
+							<Option value='Novenary'>Novenary</Option>
+							<Option value='SelfMeasure'>Self-Measure</Option>
 						</Select>
 					</span>
 					<span style={groupStyle}>
@@ -854,7 +887,7 @@ class AstroPrimaryDirection extends Component{
 						<InputNumber
 							size='small'
 							min={1}
-							max={180}
+							max={3000}
 							step={1}
 							precision={0}
 							style={yearsInputStyle}

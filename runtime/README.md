@@ -6,23 +6,11 @@
 - 在任意 Mac 上首次运行 `Horosa_OneClick_Mac.command` 时会自动准备所需环境和构建产物。
 - 如果你需要制作“完全离线包”，可以本地执行 `tools/mac/Prepare_Runtime_Mac.command` 生成内容，再自行打包分发（不建议直接提交到 GitHub 仓库）。
 
-## 当前保留策略（2026-03-06）
+## 保留策略
 
-为避免主限法开发阶段遗留的大量中间产物长期占用磁盘，当前 `runtime/` 已精简为“运行 + 主限法自检 + 关键结果证明”的最小集合：
+为避免大体积中间产物长期占用磁盘，`runtime/` 仅保留“运行 + 自检”所需的最小集合：
 
 - `runtime/mac/`
   - 供本地启动/自检脚本复用的一键部署 runtime
-- `runtime/pd_auto/run_geo_current540_v1`
-  - 主限法自检脚本当前默认使用的 case 集
-- `runtime/pd_local/shared_core_geo_current540_s100_exact_rows_bodycorr.csv`
-  - 主限法精度阈值自检所需逐行结果
-- `runtime/pd_local/shared_core_geo_current540_s100_exact_summary_bodycorr.json`
-  - 上述逐行结果对应摘要
-- `runtime/pd_local/stability_production_summary.json`
-  - 当前生产版稳定集摘要
-- `runtime/pd_local/virtual_only_geo_current540_fullfit_summary.json`
-  - 当前大样本虚点专项摘要
-- `runtime/pd_local/shared_core_geo_current120_v2_exact_summary.json`
-  - 当前较新跨度样本摘要
 
-其余大体积推理期中间文件已删除。若未来需要重新做开发实验，应重新生成/生成，不再依赖旧缓存。
+主限法逐字节自检使用 `Horosa-Web/astropy/astrostudy/tests/` 下随仓发布的 golden 基线，无需额外本机数据。其余大体积本机中间文件不入库；如需在本机另行生成离线材料，本地生成即可，不提交到仓库。

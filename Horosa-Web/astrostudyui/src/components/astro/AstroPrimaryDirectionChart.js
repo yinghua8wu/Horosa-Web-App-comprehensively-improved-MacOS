@@ -591,8 +591,13 @@ class AstroPrimaryDirectionChart extends Component{
 	}
 
 	normalizePdTimeKey(value){
-		// 白名单：与后端同步,只收公式/真算法 key（Ptolemy/Naibod 静态,TrueSolarArc 动态真太阳弧）。
-		const VALID = ['Ptolemy', 'Naibod', 'TrueSolarArc'];
+		// 白名单：与后端 STATIC_TIME_KEY_SCALES + 动态 key 同步。未识别 timeKey 回退默认 Ptolemy。
+		const VALID = [
+			'Ptolemy', 'Naibod', 'TrueSolarArc', 'SymbolicSolarArc',
+			'Cardano', 'Umar', 'Wollner', 'Plantiko', 'Simmonite', 'SynodicYear',
+			'Kepler', 'Brahe', 'Kundig', 'SymbolicDegree', 'SymbolicYear', 'SymbolicMoon',
+			'SymbolicMonth', 'Quarterly', 'Quinary', 'Duodenary', 'Novenary', 'SelfMeasure',
+		];
 		if(VALID.indexOf(value) >= 0){
 			return value;
 		}
@@ -991,11 +996,10 @@ class AstroPrimaryDirectionChart extends Component{
 									<div style={{marginBottom: 8}}>推运方法</div>
 									<Select value={this.state.pdMethodValue} onChange={this.handlePdMethodChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
 										<Option value='core_alchabitius'>Core-Alchabitius</Option>
-										<Option value='placidus'>Placidus（半弧）</Option>
-										<Option value='regiomontanus'>Regiomontanus</Option>
-										<Option value='campanus'>Campanus</Option>
-										<Option value='topocentric'>Topocentric</Option>
-										<Option value='horosa_legacy'>Horosa原方法</Option>
+										<Option value='meridian'>Meridian</Option>
+										<Option value='porphyry'>Porphyry</Option>
+										<Option value='equal_ecliptic'>Equal（黄道）</Option>
+										<Option value='equal_hour_circle'>Equal（时圈）</Option>
 									</Select>
 								</Col>
 								<Col span={12}>
@@ -1004,6 +1008,25 @@ class AstroPrimaryDirectionChart extends Component{
 										<Option value='Ptolemy'>Ptolemy</Option>
 										<Option value='Naibod'>Naibod</Option>
 										<Option value='TrueSolarArc'>真太阳弧</Option>
+							<Option value='SymbolicSolarArc'>太阳弧（黄经）</Option>
+										<Option value='Cardano'>Cardano</Option>
+										<Option value='Umar'>Umar al-Tabari</Option>
+										<Option value='Wollner'>Wöllner</Option>
+										<Option value='Plantiko'>Plantiko</Option>
+										<Option value='Simmonite'>Simmonite</Option>
+										<Option value='SynodicYear'>Synodic Year</Option>
+										<Option value='Kepler'>Kepler</Option>
+										<Option value='Brahe'>Brahe</Option>
+							<Option value='Kundig'>Kündig</Option>
+										<Option value='SymbolicDegree'>Symbolic Degree</Option>
+										<Option value='SymbolicYear'>Symbolic Year</Option>
+										<Option value='SymbolicMoon'>Symbolic Moon</Option>
+										<Option value='SymbolicMonth'>Symbolic Month</Option>
+										<Option value='Quarterly'>Quarterly</Option>
+										<Option value='Quinary'>Quinary</Option>
+										<Option value='Duodenary'>Duodenary</Option>
+										<Option value='Novenary'>Novenary</Option>
+										<Option value='SelfMeasure'>Self-Measure</Option>
 									</Select>
 								</Col>
 							</Row>

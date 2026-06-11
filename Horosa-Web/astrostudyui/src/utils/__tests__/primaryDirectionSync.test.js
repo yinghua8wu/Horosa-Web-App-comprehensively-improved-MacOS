@@ -50,27 +50,33 @@ describe('primaryDirectionSync', ()=>{
 		expect(normalizePrimaryDirectionSubTabKey('unexpected')).toBe('primarydirect');
 	});
 
-	test('PD_SYNC_REV is v10 (P1 全方法建成,强制旧持久化 chart 重算)', ()=>{
-		expect(PD_SYNC_REV).toBe('pd_method_sync_v10');
+	test('PD_SYNC_REV is v11 (主限法改进:方位法/时间钥匙铺满 + 180+,强制旧持久化 chart 重算)', ()=>{
+		expect(PD_SYNC_REV).toBe('pd_method_sync_v12');
 	});
 
-	test('SUPPORTED_PD_METHODS covers Alchabitius(default)/legacy/Placidus + Regio/Campanus/Topo (P1)', ()=>{
-		['core_alchabitius', 'horosa_legacy', 'placidus', 'regiomontanus', 'campanus', 'topocentric']
-			.forEach((m)=>{ expect(SUPPORTED_PD_METHODS).toContain(m); });
+	test('SUPPORTED_PD_METHODS 恰为逐位核验的核方位法集合(精确相等,白名单之外一律不收)', ()=>{
+		// 正向精确集合断言:任何未核验方法混入(无论叫什么)都会让本断言失败,无需枚举黑名单。
+		expect([...SUPPORTED_PD_METHODS].sort()).toEqual([
+			'core_alchabitius', 'equal_ecliptic', 'equal_hour_circle',
+			'horosa_legacy', 'meridian', 'porphyry',
+		]);
 	});
 
-	test('SUPPORTED_PD_TIME_KEYS = 公式/真算法 key:Ptolemy/Naibod(静态)+ TrueSolarArc(动态),纯公式', ()=>{
-		expect(SUPPORTED_PD_TIME_KEYS).toEqual(['Ptolemy', 'Naibod', 'TrueSolarArc']);
+	test('SUPPORTED_PD_TIME_KEYS 含 Ptolemy/Naibod/TrueSolarArc + 静态常数钥匙,全为公式/真算法,无拟合', ()=>{
+		['Ptolemy', 'Naibod', 'TrueSolarArc', 'Cardano', 'Umar', 'Wollner', 'Plantiko',
+			'Simmonite', 'SynodicYear', 'Kepler', 'Brahe', 'SymbolicDegree', 'SymbolicYear',
+			'SymbolicMoon', 'SymbolicMonth', 'Quarterly', 'Quinary', 'Duodenary', 'Novenary', 'SelfMeasure']
+			.forEach((k)=>{ expect(SUPPORTED_PD_TIME_KEYS).toContain(k); });
 	});
 
-	test('mergePrimaryDirectionChartObj writes new placidus method into params (P0 white-list extension)', ()=>{
+	test('mergePrimaryDirectionChartObj writes 核方位法 method into params', ()=>{
 		const chartObj = { params: {}, predictives: {} };
 		const next = mergePrimaryDirectionChartObj(chartObj, {
 			pdRows: [],
-			pdMethod: 'placidus',
+			pdMethod: 'meridian',
 			pdTimeKey: 'Naibod',
 		});
-		expect(next.params.pdMethod).toBe('placidus');
+		expect(next.params.pdMethod).toBe('meridian');
 		expect(next.params.pdTimeKey).toBe('Naibod');
 	});
 
@@ -78,7 +84,7 @@ describe('primaryDirectionSync', ()=>{
 		const chartObj = { params: {}, predictives: {} };
 		const next = mergePrimaryDirectionChartObj(chartObj, {
 			pdRows: [],
-			pdMethod: 'regiomontanus',
+			pdMethod: 'porphyry',
 			pdTimeKey: 'TrueSolarArc',
 			pdtype: 1,
 			pdDirect: 1,

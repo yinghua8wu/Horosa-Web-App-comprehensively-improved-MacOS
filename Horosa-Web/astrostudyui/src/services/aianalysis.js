@@ -238,6 +238,18 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 			handlers.onEvent(event);
 		}
 	});
+	// 🔴 停止生成必须在「流式读取阶段」也立即生效(用户报"停止按钮不好使")。
+	// 根因:withTimeout 在 fetch resolve(拿到响应头)后即移除了对 externalSignal 的监听,而流式读取发生在其后,
+	// 且本读循环原先完全不检查 signal → 点「停止」时当前节仍把整段流吐完才停。
+	// 修:直接监听 handlers.signal,abort 时 reader.cancel() 立刻中断 body 流;循环内双重检查 aborted。
+	const sig = handlers.signal;
+	let aborted = false;
+	const abortStream = ()=>{ aborted = true; try{ reader.cancel(); }catch(_){} };
+	if(sig){
+		if(sig.aborted){ abortStream(); }
+		else if(typeof sig.addEventListener === 'function'){ sig.addEventListener('abort', abortStream, { once: true }); }
+	}
+	const detachAbort = ()=>{ if(sig && typeof sig.removeEventListener === 'function'){ try{ sig.removeEventListener('abort', abortStream); }catch(_){} } };
 	// B2(#16):流「空闲看门狗」。后端每 15s 发心跳,正常推理/思考期都会持续有数据;只有真正长时间(默认 90s)
 	// 一个 token、一个心跳都没有,才判为上游卡死 → 主动结束等待并给可操作提示。慢而有进展的思考永不误杀。
 	const STALL_MS = Number(handlers.stallMs) > 0 ? Number(handlers.stallMs) : 90000;
@@ -251,14 +263,21 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 	try{
 		armWatchdog();
 		while(true){
+			if(aborted || (sig && sig.aborted)){ break; }
 			const chunk = await reader.read();
 			if(chunk.done){
 				break;
 			}
+			if(aborted || (sig && sig.aborted)){ break; }
 			armWatchdog();
 			parser.push(decoder.decode(chunk.value, { stream: true }));
 		}
 		clearWatchdog();
+		detachAbort();
+		if(aborted || (sig && sig.aborted)){
+			// 用户主动停止 → 不当作正常完成,抛 AbortError 让上层按「已取消」处理(不重试、不标成功)。
+			const err = new Error('已停止生成'); err.name = 'AbortError'; throw err;
+		}
 		if(stalled){
 			throw new Error('AI 响应长时间无数据(疑似上游卡住),已停止等待。可点「重新生成」重试。');
 		}
@@ -268,6 +287,7 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 		}
 	}catch(e){
 		clearWatchdog();
+		detachAbort();
 		try{ parser.end(); }catch(_){ /* flush buffered SSE (e.g. a final error event) before propagating */ }
 		if(handlers.onError){
 			handlers.onError(e);

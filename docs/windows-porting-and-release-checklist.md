@@ -68,7 +68,7 @@ Horosa-Web/stop_horosa_local.ps1
 
 macOS 2.1.1 的 Risk 1 复盘见 [`arm64-native-libs-hardening.md`](arm64-native-libs-hardening.md)。当时发现 Java 后端里有几个 x86_64-only JNI 原生库：`libimagequant`、OpenCV 3.4.2、RXTX 串口。它们不影响普通启动，但如果失败路径写错，可能在某个功能被点到时把类初始化污染成 `ExceptionInInitializerError`。
 
-Windows 复刻时要把这条经验直接放进 dev-docs：
+Windows 复刻时要把这条经验直接放进开发检查清单：
 
 - 每次新增或升级 JNI / DLL / `.pyd` / native JAR，都要列出 `x64`、`arm64`、Windows 版本、VC runtime 依赖和失败路径。
 - 不要在静态初始化块里把可选 native load 失败重新抛出。错误架构、缺 DLL、缺依赖时通常是 `UnsatisfiedLinkError` / `Error` 或平台异常，不是普通 `Exception`；可选能力要 `catch(Throwable)` 后设置 availability flag，再由调用方降级。
@@ -316,10 +316,10 @@ Windows 版必须按真实启动状态驱动 UI：
 - 断言文案、chip、CTA、pipeline class、milestone、日志、icon 数量、旧恢复面板隐藏、无横向/纵向溢出。
 - 截图保留到 release artifacts，方便看字体是否挤压。
 
-这次还暴露了一个 dev-docs 自身易错点：发布验收脚本里 `python3` 不一定是有 Playwright 的 Python。Windows 版不要假设全局 `python` 正确，应支持：
+这次还暴露了一个验收脚本自身易错点：发布验收脚本里 `python3` 不一定是有 Playwright 的 Python。Windows 版不要假设全局 `python` 正确，应支持：
 
 - `HOROSA_PLAYWRIGHT_PYTHON` 或等价环境变量显式指定。
-- 自动探测项目虚拟环境、工具链 Python、系统 Python，只有能 `import playwright` 的候选才可用于 UI dev-docs。
+- 自动探测项目虚拟环境、工具链 Python、系统 Python，只有能 `import playwright` 的候选才可用于 UI 自动化验收。
 - 如果找不到，不要跳过启动页检查；直接让 release gate 失败并提示安装/指定 Playwright Python。
 
 ## 窗口大小和用户设置持久化

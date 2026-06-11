@@ -43,6 +43,8 @@ import {
 	DEFAULT_PD_TYPE,
 	mergePrimaryDirectionChartObj,
 	normalizePrimaryDirectionSubTabKey,
+	getPdMethodLabel,
+	getPdTimeKeyLabel,
 } from '../../utils/primaryDirectionSync';
 
 const TabPane = Tabs.TabPane;
@@ -65,6 +67,7 @@ const CORE_PD_SUPPORTED_BASE_IDS = new Set([
 	AstroConst.PARS_FORTUNA,
 	AstroConst.ASC,
 	AstroConst.MC,
+	AstroConst.VERTEX,
 ]);
 
 function msg(id){
@@ -108,18 +111,15 @@ function degreeText(value, pdMethod){
 	return `${neg}${d}度${m}分`;
 }
 
+// 方位法 / 时间换算的显示名统一走 primaryDirectionSync 的权威 label 字典(核方位法 + 22 时间换算)，
+// 供 AI 导出 / AI 挂载快照复用。此前这里只识别 horosa_legacy、其余一律回退 'Alchabitius'，
+// 会把 Meridian/Porphyry 等核方位法误标为 Alchabitius——已并入共享字典消除分叉。
 function primaryDirectionMethodText(val){
-	if(val === 'horosa_legacy'){
-		return 'Horosa原方法';
-	}
-	return 'Alchabitius';
+	return getPdMethodLabel(val);
 }
 
 function primaryDirectionTimeKeyText(val){
-	if(val === 'Ptolemy'){
-		return 'Ptolemy';
-	}
-	return `${val || 'Ptolemy'}`;
+	return getPdTimeKeyLabel(val);
 }
 
 function directionObjText(text, chartObj){
@@ -335,7 +335,7 @@ function normalizePdYears(v){
 	if(!Number.isFinite(n)){
 		return 100;
 	}
-	return Math.max(1, Math.min(180, n));
+	return Math.max(1, Math.min(3000, n));
 }
 
 function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTimeKey, pdYears, options){

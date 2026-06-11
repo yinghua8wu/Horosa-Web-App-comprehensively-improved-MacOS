@@ -392,10 +392,10 @@ const PRIMARY_DIRECT_TABLE_FIELDS = [
 	{ name: 'pdConverse', label: '逆向（converse）', type: 'switch', options: ON_OFF, default: 1, group: '方向' },
 	{ name: 'pdAntiscia', label: '映点', type: 'switch', options: ON_OFF, default: 0, group: '方向' },
 	{ name: 'pdTerms', label: '界（terms）', type: 'switch', options: ON_OFF, default: 0, group: '方向' },
-	// 推算年数:默认 100(对齐 AstroPrimaryDirection.normalizePdYears 兜底),范围 1–180。
+	// 推算年数:默认 100(对齐 AstroPrimaryDirection.normalizePdYears 兜底),范围 1–3000(>360 走多圈复发行)。
 	// merge 进 record.pdYears → buildFieldObject/fieldParams 透传 /chart → Java 转发 → Python max_arc,
-	// 改它真实改变方向列表覆盖的年限(round-trip 通)。
-	{ name: 'pdYears', label: '推算年数', type: 'number', default: 100, min: 1, max: 180, group: '范围' },
+	// 改它真实改变方向列表覆盖的年限(round-trip 通)。>180 走 forward/complement 互补弧扩展。
+	{ name: 'pdYears', label: '推算年数', type: 'number', default: 100, min: 1, max: 3000, group: '范围' },
 ];
 // 主限法·盘（primarydirchart）：选一准确「时刻」→ 换算成主限年龄弧 → 出真盘快照。
 // 方位法 + 度数换算 + 时间(datetime,default '') + 向运方向；无 pdYears（盘是「单一时刻」不是「年限范围」）。

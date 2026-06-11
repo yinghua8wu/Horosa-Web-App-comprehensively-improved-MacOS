@@ -8,12 +8,12 @@
 
 **Western astrology and Chinese metaphysics, in one native macOS workstation**
 
-[![Version](https://img.shields.io/badge/version-2.6.5-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.5)
+[![Version](https://img.shields.io/badge/version-2.6.6-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.5)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.5)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.5/Horosa-Installer-macos-arm64-offline.pkg) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.6/Horosa-Installer-macos-arm64-offline.pkg) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@ This repository is the macOS delivery of that app: the application source, the s
 
 Regular users should go straight to the offline installer and open Horosa like any other macOS app.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.5/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.6/Horosa-Installer-macos-arm64-offline.pkg)**
 
 Best for:
 
@@ -91,7 +91,17 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## What's New in v2.6.5 beta
+## What's New in v2.6.6 beta
+
+This release headlines a **comprehensive Primary Directions upgrade** plus **AI-report polish**:
+
+- **Primary Directions: exact display-window semantics** — the planet-pair display window now uses a single criterion (the arc's pre-normalization value), and the In-Mundo row set is fixed accordingly — planet-pair direction rows that were previously missing are now all listed.
+- **Primary Directions: Vertex significator** — zodiacal directions gain Vertex significator rows (closed-form), wired through the table, AI snapshot and labels.
+- **Primary Directions: true per-chart time keys** — Simmonite / Kepler / Brahe now compute the natal Sun's true daily motion per chart; new **Kündig** and **Symbolic Solar Arc (longitude)** keys (per-arc ephemeris solve, table/dial round-trip).
+- **Primary Directions: year range up to 3000** — the year selector extends from 360 to 3000; directions beyond one revolution (360°) recur automatically per revolution. Default 100-year behaviour is unchanged.
+- **AI report polish** — fixes an occasional Gemini 400 caused by sampling-parameter wrapping; the "thinking effort" selector gains Extra-High / Max tiers; interface zoom persists across restarts.
+
+### Previous · What's New in v2.6.5 beta
 
 This release's headline is the **sidereal zodiac, fully built out**, with AI Analysis export/mount/storage kept in sync, plus two previously-finished feature sets folded in. Default behavior is bit-for-bit identical to v2.6.3:
 

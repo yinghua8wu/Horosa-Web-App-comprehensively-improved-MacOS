@@ -1269,11 +1269,10 @@ public class AIAnalysisProxyService {
 		return out;
 	}
 
-	private static Map<String, Object> buildAnthropicBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
+	static Map<String, Object> buildAnthropicBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
 		Map<String, Object> body = new LinkedHashMap<String, Object>();
 		body.put("model", model);
-		body.put("max_tokens", intVal(params.get("maxTokens"), 2048));
-		body.put("temperature", numVal(params.get("temperature"), 0.7));
+		int maxTokens = intVal(params.get("maxTokens"), 2048);
 		body.put("stream", stream);
 		List<Map<String, Object>> normalized = new ArrayList<Map<String, Object>>();
 		List<String> systemParts = new ArrayList<String>();
@@ -1318,8 +1317,32 @@ public class AIAnalysisProxyService {
 		List<String> existingStopSeqs = anthropicStopList(stopSeqVal);
 		if(!existingStopSeqs.isEmpty()) { stopList.addAll(existingStopSeqs); }
 		if(!stopList.isEmpty()) { body.put("stop_sequences", stopList); }
+		// 🔴 Anthropic extended thinking 有硬约束(不合规即 400)：① temperature 只能为 1 或不发；
+		//    ② 不兼容 top_p / top_k 修改；③ max_tokens 必须 > thinking.budget_tokens。
+		//    历史 bug：buildAnthropicBody 无条件发 temperature(默认 0.7) 并透传 top_k → 用户一旦开「思考档」,
+		//    聊天/测试连接必 400（"temperature ... only ... when thinking is enabled"）。本修复让思考档真正可用、零报错。
 		Object thinkingObj = aprov.remove("thinking");
-		if(thinkingObj instanceof Map) { body.put("thinking", thinkingObj); }
+		boolean thinkingEnabled = false;
+		if(thinkingObj instanceof Map) {
+			Map<?, ?> th = (Map<?, ?>) thinkingObj;
+			if("enabled".equals(stringFromAny(th.get("type")))) {
+				thinkingEnabled = true;
+				int budget = intVal(th.get("budget_tokens"), 0);
+				if(budget > 0 && maxTokens <= budget) {
+					maxTokens = budget + 1024; // 保证 max_tokens > budget_tokens
+				}
+			}
+			body.put("thinking", thinkingObj);
+		}
+		body.put("max_tokens", maxTokens);
+		if(thinkingEnabled) {
+			// 思考开启：不发 temperature（默认即 1）、剔除 top_p / top_k（均与思考不兼容）。
+			aprov.remove("temperature");
+			aprov.remove("top_p");
+			aprov.remove("top_k");
+		} else {
+			body.put("temperature", numVal(params.get("temperature"), 0.7));
+		}
 		// 频率/存在惩罚、response_format 都不是 Anthropic 字段，直接丢弃避免 400。
 		aprov.remove("frequency_penalty");
 		aprov.remove("presence_penalty");
@@ -1422,6 +1445,15 @@ public class AIAnalysisProxyService {
 		gprov.remove("frequency_penalty");
 		gprov.remove("presence_penalty");
 		body.put("generationConfig", generationConfig);
+		// 防漏(#23)：归属 generationConfig 的采样键绝不能留在请求顶层，否则 Gemini 报 400。
+		// 对照 buildAnthropicBody 的 aprov.remove("temperature")，此处同样剔除后再 putAll。
+		gprov.remove("temperature");
+		gprov.remove("max_tokens");
+		gprov.remove("maxTokens");
+		gprov.remove("maxOutputTokens");
+		gprov.remove("n");
+		gprov.remove("logprobs");
+		gprov.remove("top_logprobs");
 		body.putAll(gprov);
 		return body;
 	}

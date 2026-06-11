@@ -155,6 +155,8 @@ import {
 	applyThinkingLevel,
 	estimateUsageCost,
 	isReasoningModel,
+	encodeModelSelection,
+	parseModelSelection,
 } from '../../utils/aiAnalysisProviders';
 
 const { TextArea, Search } = Input;
@@ -437,25 +439,6 @@ function normalizeEmbeddingModels(profile){
 		return [];
 	}
 	return uniqueTextList(profile.embeddingModelIds || []);
-}
-
-function parseModelSelection(selection){
-	const text = `${selection || ''}`;
-	const idx = text.indexOf('::');
-	if(idx < 0){
-		return {
-			profileId: '',
-			model: text,
-		};
-	}
-	return {
-		profileId: text.slice(0, idx),
-		model: text.slice(idx + 2),
-	};
-}
-
-function encodeModelSelection(profileId, model){
-	return `${profileId || ''}::${model || ''}`;
 }
 
 function sortByUpdatedDesc(list){
@@ -5074,14 +5057,15 @@ function AIAnalysisMain(props){
 	function renderReportPane(){
 		const parsed = parseModelSelection(modelSelection);
 		const currentModel = parsed.model || '';
-		const modelOpts = activeProviderProfile ? normalizeProfileChatModels(activeProviderProfile).map((m)=>({value:m,label:m})) : [];
 		return (
 			<ReportPane
 				sources={sources}
 				profile={activeProviderProfile}
 				model={currentModel}
 				providerName={activeProviderProfile && activeProviderProfile.name || ''}
-				modelOptions={modelOpts}
+				providerProfiles={providerProfiles}
+				modelSelection={modelSelection}
+				modelOptions={modelOptions}
 				onAttachLaunch={(fn)=>{ reportLaunchRef.current = fn; }}
 			/>
 		);
@@ -5740,8 +5724,14 @@ function AIAnalysisMain(props){
 							if(providerType === 'anthropic'){
 								return (
 									<>
-										<Form.Item name="anthropicApiVersion" label="Anthropic API Version">
-											<Input placeholder="默认 2023-06-01" />
+										<Form.Item name="anthropicApiVersion" label="Anthropic API Version" extra="这是固定的 API 版本号（不是「当前日期」）。普通用户保持默认 2023-06-01 即可，无需改动。">
+											<Select
+												placeholder="默认 2023-06-01"
+												options={[
+													{ value: '2023-06-01', label: '2023-06-01（推荐 · 默认）' },
+													{ value: '2023-01-01', label: '2023-01-01（旧版）' },
+												]}
+											/>
 										</Form.Item>
 										<Form.Item name="anthropicMaxTokens" label="Anthropic max_tokens">
 											<Input placeholder="如 2048" />
