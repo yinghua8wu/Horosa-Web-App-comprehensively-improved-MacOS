@@ -216,6 +216,8 @@ base_replacements = {
     '__VERSION__': os.environ['RUNTIME_VERSION_ENV'],
     '__RUNTIME_ASSET__': config['runtimeAssetName'],
     '__RUNTIME_RELEASE_TAG__': os.environ['RUNTIME_RELEASE_TAG_ENV'],
+    # 共享目录名单源化:安装器与壳层必须看同一目录(配置缺省 Horosa)
+    '__SHARED_ROOT_NAME__': config.get('sharedRootName', 'Horosa'),
 }
 offline_scripts_dir = root / 'build/installer-scripts-rendered-offline'
 offline_scripts_dir.mkdir(parents=True, exist_ok=True)

@@ -15,5 +15,6 @@
   "releasePrerelease": false,
   "releaseMakeLatest": true,
   "releaseTagPrefix": "v",
-  "appName": "星阙"
+  "appName": "星阙",
+  "sharedRootName": "Horosa"
 }

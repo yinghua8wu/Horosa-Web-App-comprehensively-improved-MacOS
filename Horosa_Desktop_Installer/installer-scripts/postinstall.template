@@ -5,7 +5,9 @@ TARGET_VOLUME="${3:-/}"
 APP_NAME="__APP_NAME__"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_PATH="${HOROSA_APP_PATH:-${TARGET_VOLUME%/}/Applications/${APP_NAME}.app}"
-SHARED_ROOT="${HOROSA_RUNTIME_SHARED_ROOT:-${TARGET_VOLUME%/}/Users/Shared/Horosa}"
+# 共享目录名由构建时按本应用配置渲染(__SHARED_ROOT_NAME__),与壳层 HOROSA_SHARED_RUNTIME_DIR 同源——
+# 写死路径曾导致安装器与应用各看一个目录(装在 A 处、应用读 B 处)。
+SHARED_ROOT="${HOROSA_RUNTIME_SHARED_ROOT:-${TARGET_VOLUME%/}/Users/Shared/__SHARED_ROOT_NAME__}"
 RUNTIME_ROOT="${SHARED_ROOT}/runtime"
 CURRENT_DIR="${RUNTIME_ROOT}/current"
 WORK_DIR="${RUNTIME_ROOT}/_install"
@@ -89,7 +91,12 @@ runtime_payload_is_usable() {
 
 runtime_dir_is_usable() {
   local runtime_dir="$1"
-  [ -f "${runtime_dir}/runtime-manifest.json" ] \
+  # 身份验明:manifest 的 appName 必须等于本应用,异主/无戳 runtime 一律视为不可用并重装。
+  # 否则别的应用装过的 runtime 会被「看似可用」跳过复检,留下串内容。
+  local manifest_app
+  manifest_app="$(/usr/bin/plutil -extract appName raw -o - "${runtime_dir}/runtime-manifest.json" 2>/dev/null || true)"
+  [ "${manifest_app}" = "${APP_NAME}" ] \
+    && [ -f "${runtime_dir}/runtime-manifest.json" ] \
     && [ -f "${runtime_dir}/Horosa-Web/start_horosa_local.sh" ] \
     && [ -f "${runtime_dir}/Horosa-Web/astrostudyui/dist-file/index.html" ] \
     && [ -x "${runtime_dir}/runtime/mac/python/bin/python3" ] \

@@ -39,7 +39,8 @@ RSYNC_FILTERS=(
   "--exclude=*.temp"
   "--exclude=*.pid"
 )
-read -r VERSION ARCHIVE_NAME <<EOF
+# TAB 分隔(appName 可含空格)
+IFS=$'\t' read -r VERSION ARCHIVE_NAME PAYLOAD_APP_NAME <<EOF
 $(INSTALLER_ROOT_ENV="${INSTALLER_ROOT}" python3 - <<'PY'
 import json, os, pathlib
 root = pathlib.Path(os.environ['INSTALLER_ROOT_ENV'])
@@ -48,7 +49,7 @@ version = json.loads((root / 'package.json').read_text())['version']
 runtime_version = str(config.get('runtimeVersion') or '').strip()
 if runtime_version.lower() in ('', 'auto', 'same-as-app'):
     runtime_version = version
-print(runtime_version, config['runtimeAssetName'])
+print(runtime_version, config['runtimeAssetName'], config['appName'], sep='\t')
 PY
 )
 EOF
@@ -207,7 +208,8 @@ fi
 
 python3 - <<INNERPY
 import json, pathlib
-manifest = {"version": "${VERSION}", "built_at": "${BUILT_AT}"}
+# appName 身份戳:安装器据此判断既有 runtime 是否属于本应用,异主一律重装(防止串目录后被「看似可用」跳过)
+manifest = {"version": "${VERSION}", "built_at": "${BUILT_AT}", "appName": "${PAYLOAD_APP_NAME}"}
 path = pathlib.Path(r"${STAGE_ROOT}/runtime-manifest.json")
 path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
 INNERPY
