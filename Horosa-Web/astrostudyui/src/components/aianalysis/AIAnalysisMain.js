@@ -2212,7 +2212,7 @@ function AIAnalysisMain(props){
 		if(sending){
 			return;
 		}
-		// overrideText 只认字符串：onClick={handleSend} 这类直挂会把点击事件对象塞进来，
+		// overrideText 只认字符串：onClick 直挂 handleSend 这类写法会把点击事件对象塞进来，
 		// 模板串化后用户消息就成了 "[object Object]"（Windows #24/#25 实锅）——非字符串一律回落输入框内容。
 		const overrideStr = typeof overrideText === 'string' ? overrideText : null;
 		const trimmed = `${(overrideStr != null ? overrideStr : prompt) || ''}`.trim();

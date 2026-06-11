@@ -29,7 +29,8 @@ class Midpoint extends Component{
 		let degs = AstroHelper.splitDegree(obj.signlon);
 		let term = AstroHelper.whichTerm(obj.sign, obj.signlon);
 			let dom = (
-				<div key={randomStr(8)} style={{marginTop:3}}>
+				// 外层 genMidsDom 已用稳定 key 的 <Col> 包裹,单子节点无需 key
+				<div style={{marginTop:3}}>
 					{wrapWithMeaning(
 						<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[obj.idA]}</span>,
 						this.showMeaning(),

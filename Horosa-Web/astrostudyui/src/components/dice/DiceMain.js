@@ -253,63 +253,63 @@ class DiceMain extends Component{
 
 	genZone(){
 		let dom = [(
-			<Option key={randomStr(8)} value="+00:00">东0区</Option>
+			<Option key="+00:00" value="+00:00">东0区</Option>
 		),(
-			<Option key={randomStr(8)} value="+01:00">东1区</Option>
+			<Option key="+01:00" value="+01:00">东1区</Option>
 		),(
-			<Option key={randomStr(8)} value="+02:00">东2区</Option>
+			<Option key="+02:00" value="+02:00">东2区</Option>
 		),(
-			<Option key={randomStr(8)} value="+03:00">东3区</Option>
+			<Option key="+03:00" value="+03:00">东3区</Option>
 		),(
-			<Option key={randomStr(8)} value="+04:00">东4区</Option>
+			<Option key="+04:00" value="+04:00">东4区</Option>
 		),(
-			<Option key={randomStr(8)} value="+04:30">东4.5</Option>
+			<Option key="+04:30" value="+04:30">东4.5</Option>
 		),(
-			<Option key={randomStr(8)} value="+05:00">东5区</Option>
+			<Option key="+05:00" value="+05:00">东5区</Option>
 		),(
-			<Option key={randomStr(8)} value="+05:30">东5.5</Option>
+			<Option key="+05:30" value="+05:30">东5.5</Option>
 		),(
-			<Option key={randomStr(8)} value="+06:00">东6区</Option>
+			<Option key="+06:00" value="+06:00">东6区</Option>
 		),(
-			<Option key={randomStr(8)} value="+07:00">东7区</Option>
+			<Option key="+07:00" value="+07:00">东7区</Option>
 		),(
-			<Option key={randomStr(8)} value="+08:00">东8区</Option>
+			<Option key="+08:00" value="+08:00">东8区</Option>
 		),(
-			<Option key={randomStr(8)} value="+09:00">东9区</Option>
+			<Option key="+09:00" value="+09:00">东9区</Option>
 		),(
-			<Option key={randomStr(8)} value="+10:00">东10</Option>
+			<Option key="+10:00" value="+10:00">东10</Option>
 		),(
-			<Option key={randomStr(8)} value="+11:00">东11</Option>
+			<Option key="+11:00" value="+11:00">东11</Option>
 		),(
-			<Option key={randomStr(8)} value="+12:00">东12</Option>
+			<Option key="+12:00" value="+12:00">东12</Option>
 		),(
-			<Option key={randomStr(8)} value="-01:00">西1区</Option>
+			<Option key="-01:00" value="-01:00">西1区</Option>
 		),(
-			<Option key={randomStr(8)} value="-02:00">西2区</Option>
+			<Option key="-02:00" value="-02:00">西2区</Option>
 		),(
-			<Option key={randomStr(8)} value="-03:00">西3区</Option>
+			<Option key="-03:00" value="-03:00">西3区</Option>
 		),(
-			<Option key={randomStr(8)} value="-04:00">西4区</Option>
+			<Option key="-04:00" value="-04:00">西4区</Option>
 		),(
-			<Option key={randomStr(8)} value="-04:30">西4.5</Option>
+			<Option key="-04:30" value="-04:30">西4.5</Option>
 		),(
-			<Option key={randomStr(8)} value="-05:00">西5区</Option>
+			<Option key="-05:00" value="-05:00">西5区</Option>
 		),(
-			<Option key={randomStr(8)} value="-05:30">西5.5</Option>
+			<Option key="-05:30" value="-05:30">西5.5</Option>
 		),(
-			<Option key={randomStr(8)} value="-06:00">西6区</Option>
+			<Option key="-06:00" value="-06:00">西6区</Option>
 		),(
-			<Option key={randomStr(8)} value="-07:00">西7区</Option>
+			<Option key="-07:00" value="-07:00">西7区</Option>
 		),(
-			<Option key={randomStr(8)} value="-07:30">西7.5</Option>
+			<Option key="-07:30" value="-07:30">西7.5</Option>
 		),(
-			<Option key={randomStr(8)} value="-08:00">西8区</Option>
+			<Option key="-08:00" value="-08:00">西8区</Option>
 		),(
-			<Option key={randomStr(8)} value="-09:00">西9区</Option>
+			<Option key="-09:00" value="-09:00">西9区</Option>
 		),(
-			<Option key={randomStr(8)} value="-10:00">西10</Option>
+			<Option key="-10:00" value="-10:00">西10</Option>
 		),(
-			<Option key={randomStr(8)} value="-11:00">西11</Option>
+			<Option key="-11:00" value="-11:00">西11</Option>
 		)];
 
 		return dom;

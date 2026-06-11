@@ -340,17 +340,17 @@ class BookReader extends Component{
 
 		let dom = (
 			<Typography>
-				<Paragraph key={randomStr(8)}>
+				<Paragraph key="chapter-nav-top">
 					&emsp;
 					<span><Text onClick={this.prevChapter}><a href={null}>上一章</a></Text></span>
 					<span style={{float: 'right'}}><Text onClick={this.nextChapter}><a href={null}>下一章</a></Text>&emsp;</span>
-				</Paragraph>	
+				</Paragraph>
 				{parag}
-				<Paragraph key={randomStr(8)}>
+				<Paragraph key="chapter-nav-bottom">
 					&emsp;
 					<span><Text onClick={this.prevChapter}><a href={null}>上一章</a></Text></span>
 					<span style={{float: 'right'}}><Text onClick={this.nextChapter}><a href={null}>下一章</a></Text>&emsp;</span>
-				</Paragraph>	
+				</Paragraph>
 			</Typography>
 		);
 

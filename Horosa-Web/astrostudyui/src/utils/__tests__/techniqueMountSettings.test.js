@@ -11,6 +11,8 @@ import {
 	saveMountTechniqueDefaults,
 	getMountTechniqueDefault,
 	applyLocalStorageSettings,
+	snapshotLocalStorageSettings,
+	restoreLocalStorageSettings,
 	getMountableTechniqueAuditEntry,
 	MOUNT_TECHNIQUE_DEFAULTS_KEY,
 } from '../techniqueMountSettings';
@@ -625,6 +627,30 @@ describe('批B P5 主限法 盘/表格 字段拆分', ()=>{
 		expect(pruneOptionsToNonDefault('primarydirchart', { datetime: '2025-06-05 10:00', direction: 'converse' }))
 			.toEqual({ datetime: '2025-06-05 10:00', direction: 'converse' });
 		expect(pruneOptionsToNonDefault('primarydirect', { pdYears: 50 })).toEqual({ pdYears: 50 });
+	});
+});
+
+describe('C 类挂载覆盖快照/还原（防一次覆盖永久改写全局设置）', ()=>{
+	it('apply → restore 后全局 key 回到先前值,原本不存在的 key 被删除', ()=>{
+		// 先置场景:lifeMode 有用户自定值,nodeMode 不存在
+		window.localStorage.setItem('horosaGuolaoLifeMode', 'yumao');
+		window.localStorage.removeItem('horosaGuolaoNodeMode');
+		window.localStorage.removeItem('horosaGuolaoSu28Mode');
+		const snap = snapshotLocalStorageSettings('guolao');
+		// 施加非默认覆盖(会写 3 个全局 key)
+		applyLocalStorageSettings('guolao', { lifeMode: 'cotrans', nodeMode: 'northRahuSouthKetu', su28Mode: 4 });
+		expect(window.localStorage.getItem('horosaGuolaoLifeMode')).toBe('cotrans');
+		expect(window.localStorage.getItem('horosaGuolaoNodeMode')).toBe('northRahuSouthKetu');
+		// 还原:已有值回原值,原本不存在的回到不存在(null)
+		restoreLocalStorageSettings(snap);
+		expect(window.localStorage.getItem('horosaGuolaoLifeMode')).toBe('yumao');
+		expect(window.localStorage.getItem('horosaGuolaoNodeMode')).toBeNull();
+		expect(window.localStorage.getItem('horosaGuolaoSu28Mode')).toBeNull();
+	});
+
+	it('snapshot 对非 localStorage 技法返回 null,restore(null) 安全无操作', ()=>{
+		expect(snapshotLocalStorageSettings('ziwei')).toBeNull();
+		expect(()=>restoreLocalStorageSettings(null)).not.toThrow();
 	});
 });
 

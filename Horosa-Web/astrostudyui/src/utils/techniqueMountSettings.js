@@ -412,7 +412,9 @@ const PRIMARY_DIRECT_CHART_FIELDS = [
 
 // 七政四余（Moira）：命度模式 / 罗计模式 走全局 localStorage（buildGuolaoSnapshotForFields 经
 // guolaoLifeModeFromFields/guolaoNodeModeFromFields 读 fields，缺省回退 getStoredGuolaoLifeMode/NodeMode）。
-// 这两键即「全局显示默认」，写入即视为新默认（C 类，不还原）。默认值对齐 GuoLaoChartStyle 现状默认。
+// C 类语义（2026-06 修正）：挂载覆盖只「临时」写这些全局 key 供 builder 重算自读，调用方
+// （aiAnalysisContext）必须先 snapshotLocalStorageSettings 再在 finally restoreLocalStorageSettings——
+// 否则一次挂载覆盖会永久改写用户的全局显示设置。想真正改默认走「设为同类默认」（saveMountTechniqueDefaults）。
 const GUOLAO_FIELDS = [
 	{ name: 'lifeMode', label: '七政命度', type: 'select', default: 'asc', group: '命度', storageKey: 'horosaGuolaoLifeMode', options: [
 		{ value: 'asc', label: '占星上升（默认）' },
