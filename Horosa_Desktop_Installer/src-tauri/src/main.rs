@@ -222,6 +222,10 @@ enum UpdateSource {
 struct RuntimeManifest {
     version: String,
     built_at: String,
+    // runtime 身份戳(2.6.6 起由打包脚本写入):复用前验明归属,异主 runtime 一律拒绝。
+    // 旧版无戳 → None,按原版本逻辑处理(本应用历史 runtime,版本闸自会汰换)。
+    #[serde(default, rename = "appName")]
+    app_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2964,6 +2968,17 @@ fn prepare_runtime_dir(runtime_dir: &Path) -> Result<()> {
 fn runtime_dir_is_usable(runtime_dir: &Path) -> bool {
     if !runtime_dir_has_required_files(runtime_dir) {
         return false;
+    }
+    // 身份验明:manifest 带 appName 且与本应用不符 → 异主 runtime(同机多应用共存时
+    // 安装顺序意外可能串目录),无论内容多「健康」都拒绝复用,交由替换流程重装本应用 runtime。
+    if let Some(manifest) =
+        read_runtime_manifest_from_path(&runtime_dir.join("runtime-manifest.json"))
+    {
+        if let Some(owner) = manifest.app_name.as_deref() {
+            if owner != APP_NAME {
+                return false;
+            }
+        }
     }
     if let Some(cache) = runtime_health_cache(runtime_dir) {
         if runtime_health_cache_matches(runtime_dir, &cache) {
