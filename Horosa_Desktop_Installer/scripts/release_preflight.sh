@@ -892,9 +892,9 @@ fi
 #   集合必须精确等于 [43] 的核验集;pd_engine 只保留时间钥匙与共享量度原语。
 PD_TABLE_OS="${UISRC}/components/astro/AstroPrimaryDirection.js"
 PDENG_OS="${REPO_ROOT}/Horosa-Web/astropy/astrostudy/pd_engine.py"
-PD33_TABLE="$(python3 - <<'PY33'
-import re
-src = open('Horosa-Web/astrostudyui/src/components/astro/AstroPrimaryDirection.js', encoding='utf-8').read()
+PD33_TABLE="$(python3 - "${REPO_ROOT}" <<'PY33'
+import re, sys
+src = open(sys.argv[1] + '/Horosa-Web/astrostudyui/src/components/astro/AstroPrimaryDirection.js', encoding='utf-8').read()
 m = re.search(r"SUPPORTED_PD_METHODS\s*=\s*\[(.*?)\]", src, re.S)
 methods = sorted(re.findall(r"'([a-z_]+)'", m.group(1))) if m else []
 print(','.join(methods))
@@ -1140,16 +1140,16 @@ grep -q 'manifest_app.*APP_NAME' "${U43_TPL}" || { bad "[43] postinstall 缺 run
 grep -q "__SHARED_ROOT_NAME__" "${REPO_ROOT}/Horosa_Desktop_Installer/scripts/build_desktop_release.sh" || { bad "[43] build 脚本未渲染 __SHARED_ROOT_NAME__"; U43_BAD=1; }
 grep -q '"appName": "\${PAYLOAD_APP_NAME}"' "${REPO_ROOT}/Horosa_Desktop_Installer/scripts/package_runtime_payload.sh" || { bad "[43] runtime manifest 缺 appName 身份戳"; U43_BAD=1; }
 # 主限法方位法白名单精确集合(本仓=逐位核验核集;白名单之外任何名字混入即红,无需枚举黑名单)
-U43_PD="$(python3 - <<'PY43'
-import re
-src = open('Horosa-Web/astrostudyui/src/utils/primaryDirectionSync.js', encoding='utf-8').read()
+U43_PD="$(python3 - "${REPO_ROOT}" <<'PY43'
+import re, sys
+src = open(sys.argv[1] + '/Horosa-Web/astrostudyui/src/utils/primaryDirectionSync.js', encoding='utf-8').read()
 m = re.search(r'SUPPORTED_PD_METHODS\s*=\s*\[(.*?)\]', src, re.S)
 methods = sorted(re.findall(r"'([a-z_]+)'", m.group(1))) if m else []
 print(','.join(methods))
 PY43
 )"
 [ "${U43_PD}" = "core_alchabitius,equal_ecliptic,equal_hour_circle,horosa_legacy,meridian,porphyry" ] || { bad "[43] SUPPORTED_PD_METHODS 集合漂移: ${U43_PD}"; U43_BAD=1; }
-U43_REG="$(cd Horosa-Web/astropy && python3 -c "
+U43_REG="$(cd "${REPO_ROOT}/Horosa-Web/astropy" && python3 -c "
 import re
 src = open('astrostudy/perpredict.py', encoding='utf-8').read()
 m = re.search(r'_PD_METHOD_REGISTRY\s*=\s*\{(.*?)\n\}', src, re.S)
