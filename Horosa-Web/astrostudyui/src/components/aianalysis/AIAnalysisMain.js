@@ -40,6 +40,7 @@ import styles from './AIAnalysisMain.less';
 import MonacoEditor from './MonacoField';
 import XQIcon from '../xq-icons';
 import ReportPane, { ReportLaunchContext } from './ReportPane';
+import TechniqueSettingsFields from './TechniqueSettingsFields';
 import {
 	XQButton as Button,
 	XQCard as Card,
@@ -3722,109 +3723,6 @@ function AIAnalysisMain(props){
 		});
 	}
 
-	function renderTechniqueSettingField(field){
-		const value = Object.prototype.hasOwnProperty.call(techniqueSettingsDraft, field.name)
-			? techniqueSettingsDraft[field.name]
-			: field.default;
-		if(field.type === 'switch'){
-			return (
-				<div className={styles.techSettingRow} key={field.name}>
-					<span className={styles.techSettingLabel}>{field.label}</span>
-					<Switch
-						size="small"
-						checked={`${value}` === '1' || value === true}
-						onChange={(checked)=>updateTechniqueDraftField(field.name, checked ? 1 : 0)}
-					/>
-				</div>
-			);
-		}
-		if(field.type === 'select'){
-			return (
-				<div className={styles.techSettingRow} key={field.name}>
-					<span className={styles.techSettingLabel}>{field.label}</span>
-					<Select
-						size="small"
-						value={value}
-						style={{ minWidth: 180 }}
-						onChange={(val)=>updateTechniqueDraftField(field.name, val)}
-					>
-						{(field.options || []).map((opt)=>(
-							<Select.Option key={`${opt.value}`} value={opt.value}>{opt.label}</Select.Option>
-						))}
-					</Select>
-				</div>
-			);
-		}
-		if(field.type === 'multiselect'){
-			// 多选：value=draft 数组（空数组兜底 []，守「默认即现状」=不挂）；
-			// options 取静态 field.options 或动态 field.dynamicOptions（接受函数或数组）。
-			const arrVal = Array.isArray(value) ? value : [];
-			let opts = field.options;
-			if(!Array.isArray(opts) && field.dynamicOptions){
-				opts = typeof field.dynamicOptions === 'function' ? field.dynamicOptions(techniqueSettingsDraft) : field.dynamicOptions;
-			}
-			return (
-				<div className={styles.techSettingRow} key={field.name}>
-					<span className={styles.techSettingLabel}>{field.label}</span>
-					<Select
-						mode="multiple"
-						size="small"
-						value={arrVal}
-						allowClear
-						style={{ minWidth: 220, maxWidth: 280 }}
-						placeholder={field.placeholder || '不选=不挂'}
-						onChange={(val)=>updateTechniqueDraftField(field.name, Array.isArray(val) ? val : [])}
-					>
-						{(Array.isArray(opts) ? opts : []).map((opt)=>(
-							<Select.Option key={`${opt.value}`} value={opt.value}>{opt.label}</Select.Option>
-						))}
-					</Select>
-				</div>
-			);
-		}
-		if(field.type === 'datetime' || field.type === 'date' || field.type === 'time'){
-			// 日期/时刻 picker：schema 默认恒 ''（不破 prune）。空 → 显示「此刻 / 今日」(moment())但 draft 仍空；
-			// 选中 → 写 format 串。datetime 含时分；date 仅日；time 仅时刻。
-			const draftStr = value === undefined || value === null ? '' : `${value}`;
-			const isDatetime = field.type === 'datetime';
-			const isTime = field.type === 'time';
-			const fmt = isDatetime ? 'YYYY-MM-DD HH:mm' : (isTime ? 'HH:mm' : 'YYYY-MM-DD');
-			const mVal = draftStr ? moment(draftStr, fmt) : moment();
-			const pickerProps = {
-				size: 'small',
-				format: fmt,
-				value: mVal && mVal.isValid() ? mVal : moment(),
-				placeholder: field.placeholder || (draftStr ? '' : '此刻'),
-				style: { minWidth: 200 },
-				allowClear: true,
-				onChange: (mObj)=>updateTechniqueDraftField(field.name, mObj ? mObj.format(fmt) : ''),
-			};
-			if(isDatetime){
-				pickerProps.showTime = { format: 'HH:mm' };
-			}else if(isTime){
-				pickerProps.picker = 'time';
-			}
-			return (
-				<div className={styles.techSettingRow} key={field.name}>
-					<span className={styles.techSettingLabel}>{field.label}</span>
-					<XQDatePicker {...pickerProps} />
-				</div>
-			);
-		}
-		// 兜底：number / text
-		return (
-			<div className={styles.techSettingRow} key={field.name}>
-				<span className={styles.techSettingLabel}>{field.label}</span>
-				<Input
-					size="small"
-					value={`${value === undefined || value === null ? '' : value}`}
-					style={{ maxWidth: 180 }}
-					onChange={(e)=>updateTechniqueDraftField(field.name, field.type === 'number' ? (e.target.value === '' ? field.default : Number(e.target.value)) : e.target.value)}
-				/>
-			</div>
-		);
-	}
-
 	function renderTechniqueSettingsDrawer(){
 		const key = techniqueSettingsKey;
 		const open = !!key;
@@ -3837,19 +3735,7 @@ function AIAnalysisMain(props){
 		const astroMeaning = exportMeta ? exportMeta.astroMeaning : null;
 		const sectionsOnly = key ? isSectionsOnlyTechnique(key) : false;
 		const hasFields = key ? hasMountSettingsFields(key) : false;
-		// 按 group 分组渲染设置字段（仅本地变量，不改 schema 对象）。
-		const groups = [];
-		const groupMap = {};
-		if(schema && Array.isArray(schema.fields)){
-			schema.fields.forEach((field)=>{
-				// 条件揭示：field.showWhen(draft) 为假则不显示（如大六壬「选时支」仅 castMethod=xuanshi 时显示），
-				// 避免放出「当前起课法用不到」的项造成「选项与输出对不上」。
-				if(typeof field.showWhen === 'function' && !field.showWhen(techniqueSettingsDraft)){ return; }
-				const g = field.group || '设置';
-				if(!groupMap[g]){ groupMap[g] = []; groups.push(g); }
-				groupMap[g].push(field);
-			});
-		}
+		// 字段渲染(含 group 分组/条件揭示)已抽到共用件 <TechniqueSettingsFields/>(各设置界面同源)。
 		const pruned = key ? pruneOptionsToNonDefault(key, techniqueSettingsDraft) : {};
 		const customizedCount = Object.keys(pruned).length;
 		return (
@@ -3875,12 +3761,11 @@ function AIAnalysisMain(props){
 							</div>
 						) : (
 							<div className={styles.techSettingsFields}>
-								{groups.map((g)=>(
-									<div className={styles.techSettingGroup} key={g}>
-										<div className={styles.techSettingGroupTitle}>{g}</div>
-										{groupMap[g].map((field)=>renderTechniqueSettingField(field))}
-									</div>
-								))}
+								<TechniqueSettingsFields
+									schemaKey={key}
+									draft={techniqueSettingsDraft}
+									onChange={updateTechniqueDraftField}
+								/>
 								<XQToolbar compact className={styles.techSettingsActions}>
 									<Button size="small" type="primary" onClick={applyTechniqueSettings}>应用并重算</Button>
 									<Button size="small" onClick={saveTechniqueAsDefault}>设为同类默认</Button>
