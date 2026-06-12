@@ -60,7 +60,8 @@ class MyBookList extends Component{
 		const result = data[ResultKey];
 		result.Books.map((item, idx)=>{
 			if(typeof item.catalog === 'string'){
-				item.catalog = JSON.parse(item.catalog);
+				// 单本坏 catalog 不拖垮整个列表(与 models/user.js parseBookCatalogs 同口径)。
+				try{ item.catalog = JSON.parse(item.catalog); }catch(e){ item.catalog = []; }
 			}
 		});
 

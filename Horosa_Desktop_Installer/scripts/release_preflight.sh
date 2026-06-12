@@ -799,9 +799,9 @@ fi
 [ "${PD32_BAD}" = "0" ] && ok "[32] 铁律① Alcabitius+Ptolemy 字节级守卫 + byte-perfect 测试基线 + 子集实跑 均通过"
 
 
-# [33] 主限法方位+时间补全·strategy 分发完整性 + 前端选项扩 (v10 全方位法 + v11 铺满/盘宫制/label 收口)
-#  - perchart.py: pdMethod 白名单含 公开方法 + pdDirect 解析
-#  - 前端 primaryDirectionSync.js: PD_SYNC_REV = 'pd_method_sync_v12' + SUPPORTED_PD_METHODS(四方位法)
+# [33] 主限法方位+时间补全·strategy 分发完整性 + 前端选项扩 (含铺满/盘宫制/label 收口)
+#  - perchart.py: pdMethod 白名单与本仓核验集一致 + pdDirect 解析
+#  - 前端 primaryDirectionSync.js: PD_SYNC_REV = 'pd_method_sync_v12' + SUPPORTED_PD_METHODS(核验集)
 #  - 后端 helper.py / webchartsrv.py: PD_SYNC_REV 对齐 v10(否则新盘恒误判重算)
 #  - pd_engine.py: build_directions + solar_arc_for_years(真太阳弧动态钥匙逆函数)
 #  - 表格工具栏单行(无 advanced 第二行,不遮表格);TabPane 名「主限法」
@@ -1187,12 +1187,15 @@ else
   S45_A_ARGS=()
   for S45_P in "${HOROSA_FORBIDDEN_A[@]}"; do S45_A_ARGS+=(-e "${S45_P}"); done
   S45_VENDOR_EXCL=":(exclude)Horosa-Web/vendor/"
+  # -a 强制文本扫描(替换原 -I:它会静默跳过被判 binary 的 unicode 密集 JS,曾致盲漏过中文禁词);
+  # 真二进制资产按扩展名排除,防随机字节伪命中。
+  S45_BIN_EXCL=(":(exclude)*.png" ":(exclude)*.icns" ":(exclude)*.jar" ":(exclude)*.gz" ":(exclude)*.zip" ":(exclude)*.woff" ":(exclude)*.woff2" ":(exclude)*.ttf" ":(exclude)*.ico" ":(exclude)*.jpg" ":(exclude)*.dat")
   # ① 工作树 tracked 内容(含未提交修改)
-  S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -E "${S45_A_ARGS[@]}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | head -5)"
+  S45_HITS="$(cd "${REPO_ROOT}" && git grep -a -n -E "${S45_A_ARGS[@]}" -- "${S45_VENDOR_EXCL}" "${S45_BIN_EXCL[@]}" 2>/dev/null | head -5)"
   [ -n "${S45_HITS}" ] && { bad "[45] 工作树命中敏感词:"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
   for S45_ROW in "${HOROSA_FORBIDDEN_B[@]}"; do
     S45_P="${S45_ROW%%$'\t'*}"; S45_ALLOW="${S45_ROW#*$'\t'}"
-    S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -E "${S45_P}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | grep -Ev "${S45_ALLOW}" | head -5)"
+    S45_HITS="$(cd "${REPO_ROOT}" && git grep -a -n -E "${S45_P}" -- "${S45_VENDOR_EXCL}" "${S45_BIN_EXCL[@]}" 2>/dev/null | grep -Ev "${S45_ALLOW}" | head -5)"
     [ -n "${S45_HITS}" ] && { bad "[45] 工作树命中敏感词(豁免外): ${S45_P}"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
   done
   # ①' W 组(机器路径/PII/内部代号):仅工作树查 —— 保证最新快照干净;旧历史 + tag
@@ -1200,16 +1203,16 @@ else
   if [ "${#HOROSA_FORBIDDEN_W[@]}" -gt 0 ]; then
     S45_W_ARGS=()
     for S45_P in "${HOROSA_FORBIDDEN_W[@]}"; do S45_W_ARGS+=(-e "${S45_P}"); done
-    S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -F "${S45_W_ARGS[@]}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | head -5)"
+    S45_HITS="$(cd "${REPO_ROOT}" && git grep -a -n -F "${S45_W_ARGS[@]}" -- "${S45_VENDOR_EXCL}" "${S45_BIN_EXCL[@]}" 2>/dev/null | head -5)"
     [ -n "${S45_HITS}" ] && { bad "[45] 工作树命中机器路径/PII(W 组):"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
   fi
   # ② 未推区间每个 commit 的树(防「工作树已清但历史 blob 仍带」—— 推上去即留痕)
   for S45_C in $(git -C "${REPO_ROOT}" rev-list origin/main..HEAD 2>/dev/null); do
-    S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -E "${S45_A_ARGS[@]}" "${S45_C}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | head -5)"
+    S45_HITS="$(cd "${REPO_ROOT}" && git grep -a -n -E "${S45_A_ARGS[@]}" "${S45_C}" -- "${S45_VENDOR_EXCL}" "${S45_BIN_EXCL[@]}" 2>/dev/null | head -5)"
     [ -n "${S45_HITS}" ] && { bad "[45] 未推 commit ${S45_C:0:9} 树内命中敏感词:"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
     for S45_ROW in "${HOROSA_FORBIDDEN_B[@]}"; do
       S45_P="${S45_ROW%%$'\t'*}"; S45_ALLOW="${S45_ROW#*$'\t'}"
-      S45_HITS="$(cd "${REPO_ROOT}" && git grep -I -n -E "${S45_P}" "${S45_C}" -- "${S45_VENDOR_EXCL}" 2>/dev/null | grep -Ev "${S45_ALLOW}" | head -5)"
+      S45_HITS="$(cd "${REPO_ROOT}" && git grep -a -n -E "${S45_P}" "${S45_C}" -- "${S45_VENDOR_EXCL}" "${S45_BIN_EXCL[@]}" 2>/dev/null | grep -Ev "${S45_ALLOW}" | head -5)"
       [ -n "${S45_HITS}" ] && { bad "[45] 未推 commit ${S45_C:0:9} 命中敏感词(豁免外): ${S45_P}"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
     done
   done
@@ -1218,6 +1221,111 @@ else
   [ -n "${S45_HITS}" ] && { bad "[45] 未推 commit message 命中敏感词:"; printf '%s\n' "${S45_HITS}" >&2; S45_BAD=1; }
   [ "${S45_BAD}" = "0" ] && ok "[45] 工作树 + $(git -C "${REPO_ROOT}" rev-list --count origin/main..HEAD 2>/dev/null) 个未推 commit + message 敏感词零命中"
 fi
+
+# [46] 后端只绑回环 (2026-06-12): :9999 默认 0.0.0.0 局域网可达(AI 代理持用户 key)。双保险。
+echo "[46] 后端回环绑定双保险"
+S46_BAD=0
+grep -q "^server.address=127.0.0.1" "${REPO_ROOT}/Horosa-Web/astrostudysrv/astrostudyboot/src/main/resources/application.properties" || { bad "[46] application.properties 缺 server.address=127.0.0.1"; S46_BAD=1; }
+grep -q -- "--server.address=127.0.0.1" "${REPO_ROOT}/Horosa-Web/start_horosa_local.sh" || { bad "[46] start 脚本缺 --server.address=127.0.0.1"; S46_BAD=1; }
+[ "${S46_BAD}" = "0" ] && ok "[46] properties + start 脚本 双双只绑 127.0.0.1"
+
+# [47] Java component-scan 集合不漂移 (2026-06-12): spring-mvc.xml base-package = 注册真相,
+#      新增包须过可达性评审(遗留死模块绝不悄然激活)。
+echo "[47] Java 扫描包集合"
+S47_GOT="$(python3 -c "
+import re
+src = open('${REPO_ROOT}/Horosa-Web/astrostudysrv/astrostudyboot/src/main/resources/conf/spring-mvc.xml', encoding='utf-8').read()
+m = re.search(r'base-package=\"(.*?)\"', src, re.S)
+pkgs = sorted(p.strip() for p in m.group(1).split(',') if p.strip()) if m else []
+print(','.join(pkgs))" 2>/dev/null)"
+S47_WANT="boundless.spring.help.controller,boundless.spring.help.springcomp,spacex.astrodeeplearn.controller,spacex.astroesp.controller,spacex.astroreader.controller,spacex.astrostudy.controller,spacex.astrostudy.service,spacex.astrostudycn.controller,spacex.basecomm.controller"
+[ "${S47_GOT}" = "${S47_WANT}" ] && ok "[47] component-scan 9 包精确不漂移" || bad "[47] 扫描包集合漂移: ${S47_GOT}"
+
+# [48] didMount 副作用必须有清理 (2026-06-12): 持续副作用(listener/interval/observer)无
+#      willUnmount = SPA 反复挂卸的累积泄漏。负向门禁,新增即红。
+echo "[48] 前端挂载副作用清理"
+S48_HITS="$(python3 - "${REPO_ROOT}/Horosa-Web/astrostudyui/src" <<'PY48'
+import os, re, sys
+root = sys.argv[1]
+bad = []
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [d for d in dirnames if d not in ('__tests__', 'node_modules')]
+    for fn in filenames:
+        if not fn.endswith('.js') or fn.endswith('.test.js'):
+            continue
+        path = os.path.join(dirpath, fn)
+        try:
+            src = open(path, encoding='utf-8').read()
+        except Exception:
+            continue
+        m = re.search(r'componentDidMount\s*\(', src)
+        if not m:
+            continue
+        # didMount 起到下一个同级方法名的粗块
+        block = src[m.start():m.start() + 4000]
+        nxt = re.search(r'\n\t(?:async )?[a-zA-Z_$][\w$]*\s*\(', block[20:])
+        if nxt:
+            block = block[:20 + nxt.start()]
+        if re.search(r'addEventListener|setInterval|new (Resize|Mutation|Intersection)Observer', block):
+            if 'componentWillUnmount' not in src:
+                bad.append(os.path.relpath(path, root))
+print('\n'.join(sorted(bad)))
+PY48
+)"
+[ -z "${S48_HITS}" ] && ok "[48] didMount 持续副作用均有 willUnmount" || { bad "[48] 以下组件 didMount 注册持续副作用但无 willUnmount:"; printf '%s\n' "${S48_HITS}" >&2; }
+
+# [49] CSP 双表面在位 (2026-06-12): 主界面经 tiny_http(main.rs),launcher 经 tauri.conf。
+echo "[49] CSP 双表面"
+S49_BAD=0
+grep -q "Content-Security-Policy" "${REPO_ROOT}/Horosa_Desktop_Installer/src-tauri/src/main.rs" || { bad "[49] main.rs 静态服务器缺 CSP 头"; S49_BAD=1; }
+python3 -c "
+import json
+c = json.load(open('${REPO_ROOT}/Horosa_Desktop_Installer/src-tauri/tauri.conf.json'))
+csp = c['app']['security'].get('csp')
+raise SystemExit(0 if csp and 'default-src' in csp else 1)" || { bad "[49] tauri.conf launcher CSP 为空"; S49_BAD=1; }
+[ "${S49_BAD}" = "0" ] && ok "[49] 主界面 + launcher CSP 均在位"
+
+# [50] 安装分发守卫 (2026-06-12): arm64-only + macOS 12+ gate + entitlements,缺一不可
+#      (productbuild 默认 Distribution 允许 x86_64,Intel/旧 OS 用户装完即崩)。
+echo "[50] 安装分发守卫"
+S50_BAD=0
+S50_DIST="${REPO_ROOT}/Horosa_Desktop_Installer/installer-scripts/distribution.xml.template"
+[ -f "${S50_DIST}" ] || { bad "[50] distribution.xml.template 缺失"; S50_BAD=1; }
+grep -q 'hostArchitectures="arm64"' "${S50_DIST}" 2>/dev/null || { bad "[50] Distribution 缺 arm64-only gate"; S50_BAD=1; }
+grep -q 'os-version min="12.0"' "${S50_DIST}" 2>/dev/null || { bad "[50] Distribution 缺 macOS 12+ gate"; S50_BAD=1; }
+grep -q -- "--distribution" "${REPO_ROOT}/Horosa_Desktop_Installer/scripts/build_desktop_release.sh" || { bad "[50] build 脚本未走 --distribution"; S50_BAD=1; }
+grep -q 'uname -m' "${REPO_ROOT}/Horosa_Desktop_Installer/installer-scripts/postinstall.template" || { bad "[50] postinstall 缺 arch 兜底守卫"; S50_BAD=1; }
+[ -f "${REPO_ROOT}/Horosa_Desktop_Installer/installer-scripts/horosa.entitlements" ] || { bad "[50] entitlements 文件缺失"; S50_BAD=1; }
+grep -q "horosa.entitlements" "${REPO_ROOT}/Horosa_Desktop_Installer/scripts/build_desktop_release.sh" || { bad "[50] build 脚本未默认挂 entitlements"; S50_BAD=1; }
+[ "${S50_BAD}" = "0" ] && ok "[50] arm64+12.0 gate / postinstall 兜底 / entitlements 全在位"
+
+# [51] 退出不阻塞 + 启动不冻结 (2026-06-12):
+#      ① 退出两臂(ExitRequested/Exit)禁同步 cleanup_state/.status()(macOS Quit=terminate: 只回调
+#        Exit,同步子进程=主循环停摆=not responding),必须走 detached+去重的 spawn_exit_cleanup;
+#      ② 运行时脚本端口检查禁 lsof(全进程 FD 扫描遇卡死进程单次 stall 30~100s,实测),必须 netstat;
+#      ③ start_runtime 的全树元数据清理必须在 !trusted_runtime 守卫下(冷缓存下遍历数十秒=卡 36%),
+#        且重活前必须先发 indeterminate 进度。
+echo "[51] 退出不阻塞 + 启动不冻结"
+S51_BAD=0
+S51_MAIN="${REPO_ROOT}/Horosa_Desktop_Installer/src-tauri/src/main.rs"
+S51_EXIT_BLOCK="$(awk '/RunEvent::ExitRequested \{ .. \} =>/,/^            _ => \{\}/' "${S51_MAIN}")"
+[ -n "${S51_EXIT_BLOCK}" ] || { bad "[51] 未能定位 run loop 退出两臂(结构变了?同步更新本哨兵)"; S51_BAD=1; }
+printf '%s' "${S51_EXIT_BLOCK}" | grep -q "cleanup_state(" && { bad "[51] 退出臂回归了同步 cleanup_state(会阻塞主循环)"; S51_BAD=1; }
+printf '%s' "${S51_EXIT_BLOCK}" | grep -q "\.status()" && { bad "[51] 退出臂出现同步 .status()"; S51_BAD=1; }
+[ "$(printf '%s' "${S51_EXIT_BLOCK}" | grep -c "spawn_exit_cleanup(app)")" -ge 2 ] || { bad "[51] 退出两臂缺 spawn_exit_cleanup"; S51_BAD=1; }
+for S51_SCRIPT in "${REPO_ROOT}/Horosa-Web/stop_horosa_local.sh" "${REPO_ROOT}/Horosa-Web/start_horosa_local.sh"; do
+  if grep -v '^[[:space:]]*#' "${S51_SCRIPT}" | grep -q "lsof"; then
+    bad "[51] $(basename "${S51_SCRIPT}") 非注释行出现 lsof(必须 netstat 读内核表)"; S51_BAD=1
+  fi
+done
+grep -q "netstat -anv -p tcp" "${REPO_ROOT}/Horosa-Web/stop_horosa_local.sh" || { bad "[51] stop 脚本缺 netstat 端口扫描"; S51_BAD=1; }
+grep -Fq 'grep -Fq "${ROOT}"' "${REPO_ROOT}/Horosa-Web/stop_horosa_local.sh" || { bad "[51] stop 脚本丢了工作区守卫(会误杀第二份 checkout)"; S51_BAD=1; }
+grep -q "sleep 0.1" "${REPO_ROOT}/Horosa-Web/stop_horosa_local.sh" || { bad "[51] stop 脚本 0.1s 轮询丢失"; S51_BAD=1; }
+grep -v '^[[:space:]]*#' "${REPO_ROOT}/Horosa-Web/stop_horosa_local.sh" | grep -Eq '^[[:space:]]*sleep 1([[:space:]]|$)' && { bad "[51] stop 脚本回归整秒 sleep"; S51_BAD=1; }
+grep -A1 "if !trusted_runtime {" "${S51_MAIN}" | grep -q "prepare_runtime_dir" || { bad "[51] start_runtime 的 prepare_runtime_dir 失去 !trusted_runtime 守卫(冷缓存全树遍历会卡 36%)"; S51_BAD=1; }
+grep -q '正在准备启动环境' "${S51_MAIN}" || { bad "[51] start_runtime 入口缺 indeterminate 进度(重活前进度会冻在 36%)"; S51_BAD=1; }
+grep -q "'lsof', '-nP'" "${REPO_ROOT}/Horosa-Web/astropy/websrv/webchartsrv.py" || { bad "[51] webchartsrv.py 的 lsof 回退缺 -nP(DNS 反查会超 timeout 假阴性)"; S51_BAD=1; }
+[ "${S51_BAD}" = "0" ] && ok "[51] 退出 detached+去重 / 端口检查 netstat 化 / trusted 跳全树遍历 全在位"
 
 echo "== 结果 =="
 if [ "${fail}" -ne 0 ]; then echo "pre-flight 有 ❌,先修再发。" >&2; exit 1; fi

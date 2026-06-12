@@ -59,25 +59,31 @@ class LiuRengChart extends Component{
 	}
 
 	handleResize(){
-		let svgdom = document.getElementById(this.state.chartid);
-		if(svgdom === undefined || svgdom === null){
+		// 读 host(真实可视容器)而非 svg 自身——svg 可能已被 RengChart 撑高(≥440/720),
+		// 旧实现 h<560 直接 return 让缩窗后常常根本不重画,留下上一尺寸的盘(下端超界的帮凶)。
+		const svgdom = document.getElementById(this.state.chartid);
+		if(!svgdom){
 			return;
 		}
-		let w = svgdom.clientWidth;
-		let h = svgdom.clientHeight;
-		if(h < 560 || w < 560){
+		const hostEl = svgdom.parentNode;
+		const w = hostEl && hostEl.clientWidth ? hostEl.clientWidth : svgdom.clientWidth;
+		const h = hostEl && hostEl.clientHeight ? hostEl.clientHeight : svgdom.clientHeight;
+		if(w < 200 || h < 120){
+			return; // 仅防折叠/隐藏态
+		}
+		if(this._resizeRaf && typeof cancelAnimationFrame === 'function'){
+			cancelAnimationFrame(this._resizeRaf);
+		}
+		// 隐藏页(最小化/headless)rAF 完全挂起:降级 setTimeout,恢复可见前几何也保持正确。
+		if(typeof document !== 'undefined' && document.hidden){
+			this._resizeRaf = null;
+			setTimeout(()=>{ this.safeDrawChart(); }, 50);
 			return;
 		}
-	
-		let orgx = w / 2;
-		let orgy = h / 2;
-		let delta = 30;
-		let chartR = Math.min(w, h) / 2 - delta;
-		this.setState({
-			ox: orgx,
-			oy: orgy,
-			radius: chartR,
-		}, this.safeDrawChart);
+		this._resizeRaf = requestAnimationFrame(()=>{
+			this._resizeRaf = null;
+			this.safeDrawChart();
+		});
 	}
 
 	drawChart(){
@@ -118,6 +124,15 @@ class LiuRengChart extends Component{
 		d3.select('body').append('div').attr('id', this.state.tooltipId);
 		const tip = d3.select('#' + this.state.tooltipId);
 		this.setupToolTip(tip);
+		// host 尺寸变化(侧栏收合等不触发 window resize 的场景)也要重画——观察 host 而非 svg
+		// (svg 高度被 RengChart 自己改写,观察它会自触发循环)。
+		const svgdom = document.getElementById(this.state.chartid);
+		if(svgdom && svgdom.parentNode && typeof window !== 'undefined' && typeof window.ResizeObserver === 'function'){
+			this.hostResizeObserver = new window.ResizeObserver(()=>{
+				this.handleResize();
+			});
+			this.hostResizeObserver.observe(svgdom.parentNode);
+		}
 		this.safeDrawChart();
 	}
 
@@ -138,6 +153,14 @@ class LiuRengChart extends Component{
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.handleResize)
+		if(this._resizeRaf && typeof cancelAnimationFrame === 'function'){
+			cancelAnimationFrame(this._resizeRaf);
+			this._resizeRaf = null;
+		}
+		if(this.hostResizeObserver){
+			this.hostResizeObserver.disconnect();
+			this.hostResizeObserver = null;
+		}
 		d3.select('#' + this.state.tooltipId).remove();
 	}
 

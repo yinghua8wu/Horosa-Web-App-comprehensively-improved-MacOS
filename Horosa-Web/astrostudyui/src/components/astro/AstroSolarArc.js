@@ -10,7 +10,7 @@ import * as Constants from '../../utils/constants';
 import { randomStr, convertToArray} from '../../utils/helper';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
-import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
 import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
 
@@ -158,7 +158,8 @@ class AstroSolarArc extends Component{
 		};
 
 		this.setState(st, ()=>{
-			saveModuleAISnapshot('solararc', buildPredictiveSnapshotText(this.props.value, st.params, result), {
+			const chartValue = this.props.value;
+			saveModuleAISnapshotLazy('solararc', ()=>buildPredictiveSnapshotText(chartValue, st.params, result), {
 				module: 'solararc',
 			});
 		});

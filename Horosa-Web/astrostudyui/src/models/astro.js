@@ -6,7 +6,8 @@ import * as service from '../services/astro';
 import {randomStr,} from '../utils/helper';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
 import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
-import { saveAstroAISnapshot, } from '../utils/astroAiSnapshot';
+import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
+import { hookRafEnabled } from '../utils/perfFlags';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
 import * as AstroConst from '../constants/AstroConst';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
@@ -313,6 +314,9 @@ function closeAllDrawer(msg){
 	};
 	return drawer;
 }
+
+// doHook rAF 合并用:未执行的上一帧任务句柄(latest-wins,见 *doHook)。
+let pendingHookFrame = null;
 
 function hooking(hook, currentTab, fields, chartObj){
 	if(currentTab === 'indiachart' || currentTab === 'locastro'
@@ -1024,7 +1028,7 @@ export default {
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
-			saveAstroAISnapshot(Result, values);
+			saveAstroAISnapshotLazy(Result, values);
 
 			let drawer = closeAllDrawer('*fetch');
 
@@ -1103,7 +1107,7 @@ export default {
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
-			saveAstroAISnapshot(Result, fields);
+			saveAstroAISnapshotLazy(Result, fields);
 
 			fields.memo74.value = values.memo74;
 			fields.memoBaZi.value = values.memoBaZi;
@@ -1193,7 +1197,7 @@ export default {
 			if(fieldValues.orbs && fieldValues.orbs.value){ Result.params.orbs = fieldValues.orbs.value; }
 			if(fieldValues.orbScale && fieldValues.orbScale.value){ Result.params.orbScale = fieldValues.orbScale.value; }
 			Result.chartId = randomStr(8);
-			saveAstroAISnapshot(Result, fieldValues);
+			saveAstroAISnapshotLazy(Result, fieldValues);
 
 			let fld = {
 				...fieldValues,
@@ -1222,10 +1226,27 @@ export default {
 		},
 
 		*doHook({ payload: values }, { call, put }){
-            const store = getStore();
-			const state = store.astro;
-			let hook = state.predictHook;
-			hooking(hook, state.currentTab, values.fields, values.chartObj);
+			// rAF 化(流畅度):hooking 同步遍历 predictHook 命令式刷新各技法面板,曾与主盘渲染
+			// 挤在同一帧。改为下一帧执行:主盘先上屏,技法面板随后刷新;cancel 上一帧未执行的
+			// 任务(latest-wins,连发只跑最后一次)。predictHook/currentTab 在回调时刻重读
+			// (防延迟一帧后打到已切走的 tab/已注销的 hook);fields/chartObj 用触发时 payload
+			// (数据正确性)。已核查全部 5 个 dispatch 点之后均无依赖 hooking 同步完成的代码。
+			const runHooking = ()=>{
+				const store = getStore();
+				const state = store.astro;
+				hooking(state.predictHook, state.currentTab, values.fields, values.chartObj);
+			};
+			if(hookRafEnabled() && typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'){
+				if(pendingHookFrame !== null){
+					window.cancelAnimationFrame(pendingHookFrame);
+				}
+				pendingHookFrame = window.requestAnimationFrame(()=>{
+					pendingHookFrame = null;
+					runHooking();
+				});
+				return;
+			}
+			runHooking();
 		},
 
 		*nowChart({ payload: values }, { call, put, select }){
@@ -1244,7 +1265,7 @@ export default {
 			}
 			const Result = rsp.Result;
 			Result.chartId = randomStr(8);
-			saveAstroAISnapshot(Result, fields);
+			saveAstroAISnapshotLazy(Result, fields);
 
 			let drawer = closeAllDrawer('*nowChart');
             yield put({

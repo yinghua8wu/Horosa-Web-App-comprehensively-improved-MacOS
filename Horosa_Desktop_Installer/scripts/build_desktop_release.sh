@@ -11,7 +11,9 @@ POSTINSTALL_TEMPLATE="${INSTALLER_ROOT}/installer-scripts/postinstall.template"
 RELEASE_CONFIG="${INSTALLER_ROOT}/config/release_config.json"
 APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-}"
 APPLE_INSTALLER_IDENTITY="${APPLE_INSTALLER_IDENTITY:-}"
-APPLE_ENTITLEMENTS_PATH="${APPLE_ENTITLEMENTS_PATH:-}"
+# 默认带防御性 entitlements(JIT/可执行内存/库校验豁免,内嵌 Java/Python 子进程在
+# hardened runtime 下的最小集);显式置空 APPLE_ENTITLEMENTS_PATH="" 可退回无 entitlements。
+APPLE_ENTITLEMENTS_PATH="${APPLE_ENTITLEMENTS_PATH-${INSTALLER_ROOT}/installer-scripts/horosa.entitlements}"
 APPLE_SIGNING_KEYCHAIN="${APPLE_SIGNING_KEYCHAIN:-${HOME}/Library/Keychains/login.keychain-db}"
 NOTARYTOOL_KEYCHAIN_PROFILE="${NOTARYTOOL_KEYCHAIN_PROFILE:-horosa-notary}"
 HOROSA_PUBLIC_DISTRIBUTION_RAW="${HOROSA_PUBLIC_DISTRIBUTION:-auto}"
@@ -290,7 +292,26 @@ build_component_pkg() {
 build_product_pkg() {
   local component_pkg="$1"
   local output_pkg="$2"
-  PRODUCTBUILD_ARGS=(--package "${component_pkg}")
+  # 分发守卫:不再让 productbuild 自动生成 Distribution(默认 hostArchitectures="x86_64,arm64"
+  # 且无 OS 门,Intel/macOS 11.x 用户能装但首启崩)。用自定义模板钉 arm64-only + macOS 12+。
+  local dist_xml="${BUILD_ROOT}/distribution-$(basename "${output_pkg}" .pkg).xml"
+  DIST_TEMPLATE_ENV="${INSTALLER_ROOT}/installer-scripts/distribution.xml.template" \
+  DIST_OUT_ENV="${dist_xml}" \
+  DIST_APP_NAME_ENV="${APP_NAME}" \
+  DIST_BUNDLE_ID_ENV="${BUNDLE_ID}" \
+  DIST_APP_VERSION_ENV="${APP_VERSION}" \
+  DIST_COMPONENT_ENV="$(basename "${component_pkg}")" \
+  python3 - <<'PYDIST'
+import os
+template = open(os.environ['DIST_TEMPLATE_ENV'], encoding='utf-8').read()
+for key, env in (('__APP_NAME__', 'DIST_APP_NAME_ENV'),
+                 ('__BUNDLE_ID__', 'DIST_BUNDLE_ID_ENV'),
+                 ('__APP_VERSION__', 'DIST_APP_VERSION_ENV'),
+                 ('__COMPONENT_PKG_NAME__', 'DIST_COMPONENT_ENV')):
+    template = template.replace(key, os.environ[env])
+open(os.environ['DIST_OUT_ENV'], 'w', encoding='utf-8').write(template)
+PYDIST
+  PRODUCTBUILD_ARGS=(--distribution "${dist_xml}" --package-path "$(dirname "${component_pkg}")")
   if [ -n "${APPLE_INSTALLER_IDENTITY}" ]; then
     PRODUCTBUILD_ARGS+=(--sign "${APPLE_INSTALLER_IDENTITY}" --keychain "${APPLE_SIGNING_KEYCHAIN}")
   fi

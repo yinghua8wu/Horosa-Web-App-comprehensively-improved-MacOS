@@ -1,3 +1,4 @@
+import { scheduleStorageWrite } from './deferredStorage';
 const NONG_LI_NS = 'horosa.localcalc.nongli.v1';
 const JIE_QI_NS = 'horosa.localcalc.jieqi.v2';
 const JIE_QI_YEAR_NS = 'horosa.localcalc.jieqiYear.v2';
@@ -68,7 +69,8 @@ function saveNS(ns, data){
 		return;
 	}
 	try{
-		window.localStorage.setItem(ns, JSON.stringify(data));
+		// 流畅度:缓存落盘移到空闲时段(读路径全走 *Mem 内存镜像)。
+		scheduleStorageWrite(ns, ()=>JSON.stringify(data));
 	}catch(e){
 		// Ignore storage quota and serialization errors; memory cache still works.
 	}

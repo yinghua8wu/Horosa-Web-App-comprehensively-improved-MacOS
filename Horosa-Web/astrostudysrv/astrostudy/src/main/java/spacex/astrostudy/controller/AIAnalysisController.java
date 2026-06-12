@@ -50,22 +50,27 @@ public class AIAnalysisController {
 		final SseEmitter emitter = SseHelper.push(UUID.randomUUID().toString());
 		final HttpServletRequest request = TransData.getRequestObject();
 		final HttpServletResponse response = TransData.getResponseObject();
-		Thread worker = new Thread(()->{
+		// 有界池替代每请求 new Thread(无界直建 burst 下线程堆积);池见 AIAnalysisProxyService.streamWorkerPool()。
+		AIAnalysisProxyService.streamWorkerPool().execute(()->{
 			TransData.setRequestData(new LinkedHashMap<String, Object>(), new LinkedHashMap<String, Object>());
 			TransData.setRequestObject(request, response);
 			SseHelper.markCurrentThread();
 			try {
-				// Give the servlet async pipeline a moment to fully enter SSE mode
-				// before the first frame; some desktop runtime starts otherwise prepend
-				// the default encrypted response body ahead of the event stream.
-				Thread.sleep(50L);
-			}catch(InterruptedException e) {
-				Thread.currentThread().interrupt();
+				try {
+					// Give the servlet async pipeline a moment to fully enter SSE mode
+					// before the first frame; some desktop runtime starts otherwise prepend
+					// the default encrypted response body ahead of the event stream.
+					Thread.sleep(50L);
+				}catch(InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				service.chatStream(params, emitter);
+			} finally {
+				// 池线程复用:清掉 ThreadLocal 里的请求数据(解密后的挂载快照可达 MB 级),
+				// 避免滞留到该线程下一次复用。
+				TransData.setRequestData(new LinkedHashMap<String, Object>(), new LinkedHashMap<String, Object>());
 			}
-			service.chatStream(params, emitter);
-		}, "ai-analysis-chat-stream");
-		worker.setDaemon(true);
-		worker.start();
+		});
 		return emitter;
 	}
 

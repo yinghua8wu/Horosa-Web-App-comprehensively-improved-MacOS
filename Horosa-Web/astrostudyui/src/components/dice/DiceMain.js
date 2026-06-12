@@ -19,7 +19,7 @@ import * as Constants from '../../utils/constants';
 import { randomStr, randomNum, gcj02ToGps,} from '../../utils/helper';
 import { buildMeaningTipByCategory, } from '../astro/AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
-import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 
@@ -237,7 +237,8 @@ class DiceMain extends Component{
 		};
 
 		this.setState(st);
-		saveModuleAISnapshot('otherbu', buildDiceSnapshotText(params, result, this.state.txt), {
+		const diceTxt = this.state.txt;
+		saveModuleAISnapshotLazy('otherbu', ()=>buildDiceSnapshotText(params, result, diceTxt), {
 			date: params.date,
 			time: params.time,
 			zone: params.zone,

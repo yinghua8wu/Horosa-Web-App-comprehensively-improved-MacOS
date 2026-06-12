@@ -256,7 +256,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'astrochart_like', label: '十三分盘/占星地图' },
 	{ key: 'mundane', label: '世俗盘' },
 	{ key: 'relative', label: '合盘' },
-	{ key: 'primarydirect', label: '星运-主/界限法' },
+	{ key: 'primarydirect', label: '星运-主限法' },
 	{ key: 'primarydirchart', label: '星运-主限法盘' },
 	{ key: 'zodialrelease', label: '星运-黄道星释' },
 	{ key: 'firdaria', label: '星运-法达星限' },
@@ -324,7 +324,7 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '寿命格局', '可能性'],
 	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '世俗宫义', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '寿命格局', '可能性'],
 	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '合成图盘', '影响图盘-星盘A', '影响图盘-星盘B'],
-	primarydirect: ['出生时间', '星盘信息', '主/界限法设置', '主/界限法表格'],
+	primarydirect: ['出生时间', '星盘信息', '主限法设置', '主限法表格', '主/界限法设置', '主/界限法表格'],
 	distributions: ['界推运（分配法 / Distributions）'],
 	agepoint: ['年龄推进点（Age Point / Huber）'],
 	primarydirchart: ['出生时间', '星盘信息', '主限法盘设置', '本命盘配置', '主限法盘配置', '主限法盘说明'],
@@ -1655,8 +1655,9 @@ function resolveActiveContext(){
 	};
 
 	const predictiveLabelMap = [
-		{ label: '主/界限法', key: 'primarydirect', name: '星运-主/界限法' },
+		// 「主限法盘」必须排在「主限法」前:匹配用 subLabel.includes(label),「主限法盘」包含「主限法」。
 		{ label: '主限法盘', key: 'primarydirchart', name: '星运-主限法盘' },
+		{ label: '主限法', key: 'primarydirect', name: '星运-主限法' },
 		{ label: '黄道星释', key: 'zodialrelease', name: '星运-黄道星释' },
 		{ label: '法达星限', key: 'firdaria', name: '星运-法达星限' },
 		{ label: '界推运', key: 'distributions', name: '星运-界推运' },
@@ -1723,7 +1724,7 @@ function resolveActiveContext(){
 	}
 
 	if(topLabel.includes('星运') || topLabel.includes('推运盘')){
-		const subTabs = findTabsContainerByLabels(topPane, ['主/界限法', '黄道星释', '法达星限', '小限法', '太阳弧', '太阳返照', '月亮返照', '流年法', '十年大运'], false);
+		const subTabs = findTabsContainerByLabels(topPane, ['主限法', '黄道星释', '法达星限', '小限法', '太阳弧', '太阳返照', '月亮返照', '流年法', '十年大运'], false);
 		const subActiveTab = subTabs ? getTabsNavItems(subTabs).find((n)=>n.classList.contains('ant-tabs-tab-active')) : null;
 		const subLabel = textOf(subActiveTab);
 		context.subLabel = subLabel || '';
@@ -2000,7 +2001,7 @@ function resolveContextByAstroState(){
 			return null;
 		}
 		const predictiveMap = {
-			primarydirect: { key: 'primarydirect', displayName: '星运-主/界限法', domain: 'predictive_raw' },
+			primarydirect: { key: 'primarydirect', displayName: '星运-主限法', domain: 'predictive_raw' },
 			primarydirchart: { key: 'primarydirchart', displayName: '星运-主限法盘', domain: 'predictive_raw' },
 			zodialrelease: { key: 'zodialrelease', displayName: '星运-黄道星释', domain: 'predictive_raw' },
 			firdaria: { key: 'firdaria', displayName: '星运-法达星限', domain: 'predictive_raw' },
@@ -2186,7 +2187,7 @@ function resolveExportContextForPayload(rawContext){
 		return {
 			...context,
 			key: 'primarydirect',
-			displayName: context.displayName || '星运-主/界限法',
+			displayName: context.displayName || '星运-主限法',
 		};
 	}
 	if(context.key === 'jieqi'){
@@ -5129,7 +5130,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 		push(contextKey);
 		return keys;
 	}
-	if(topInfo.includes('星运') || topInfo.includes('推运盘') || topInfo.includes('主/界限法') || topInfo.includes('法达星限')
+	if(topInfo.includes('星运') || topInfo.includes('推运盘') || topInfo.includes('主限法') || topInfo.includes('法达星限')
 		|| topInfo.includes('太阳弧') || topInfo.includes('太阳返照') || topInfo.includes('月亮返照')){
 		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns');
 	}

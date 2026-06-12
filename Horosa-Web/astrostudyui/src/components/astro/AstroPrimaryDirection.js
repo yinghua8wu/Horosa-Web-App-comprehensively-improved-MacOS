@@ -41,6 +41,23 @@ const CORE_PD_SUPPORTED_BASE_IDS = new Set([
 	AstroConst.VERTEX,
 ]);
 
+const PD_PAGE_SIZE_KEY = 'horosa.pd.pageSize';
+const PD_PAGE_SIZE_OPTIONS = ['20', '50', '100', '200'];
+
+function readPdPageSize(){
+	try{
+		if(typeof window !== 'undefined' && window.localStorage){
+			const v = parseInt(window.localStorage.getItem(PD_PAGE_SIZE_KEY), 10);
+			if(Number.isFinite(v) && PD_PAGE_SIZE_OPTIONS.indexOf(`${v}`) >= 0){
+				return v;
+			}
+		}
+	}catch(e){
+		// localStorage 不可用回默认
+	}
+	return 50;
+}
+
 class AstroPrimaryDirection extends Component{
 
 	constructor(props) {
@@ -58,6 +75,9 @@ class AstroPrimaryDirection extends Component{
 			pdConverseValue: props.pdConverse === 0 ? 0 : 1,
 			pdAntisciaValue: props.pdAntiscia ? 1 : 0,
 			pdTermsValue: props.pdTerms ? 1 : 0,
+			// 分页大小受控+持久化:antd4 在 total>50 时自动显示「X 条/页」选择器,此前 pageSize 写死 50
+			// 又无 onChange → 用户改完被立即重置(「点了没反应」)。
+			pdPageSize: readPdPageSize(),
 		}
 
 		this.searchInput = null;
@@ -675,8 +695,11 @@ class AstroPrimaryDirection extends Component{
 		// 顶部工具栏强制单行(无第二行,否则会遮挡表格),空间不够时下拉收窄 + 横向滚动兜底。
 		const controlHeight = 56;
 		const controlBottom = 10;
-		const bottomSafeReserve = 18;
-		const tableReserve = controlHeight + controlBottom + 60 + bottomSafeReserve;
+		// 修表底大块空白:旧预留 56+10+60+18=144px 偏大(分页行实际 ~40px、安全边 8px 足够),
+		// scroll.y 偏小导致表格底边与窗底之间留白。预留收准为 56+10+40+8=114。
+		const paginationReserve = 40;
+		const bottomSafeReserve = 8;
+		const tableReserve = controlHeight + controlBottom + paginationReserve + bottomSafeReserve;
 		let tblY = height - tableReserve;
 		if(tblY < 200){
 			tblY = 200;
@@ -922,7 +945,25 @@ class AstroPrimaryDirection extends Component{
 						key={tableKey}
 						dataSource={ds} columns={columns} 
 						rowKey='Seq'  
-						pagination={{pageSize: 50}}
+						pagination={{
+							pageSize: this.state.pdPageSize,
+							showSizeChanger: true,
+							pageSizeOptions: PD_PAGE_SIZE_OPTIONS,
+							showTotal: (total)=>`共 ${total} 条`,
+							// 受控 pageSize 必须接 onChange,否则选择器选完即被重置(用户实告「点了没反应」)。
+							onChange: (page, pageSize)=>{
+								if(pageSize && pageSize !== this.state.pdPageSize){
+									this.setState({ pdPageSize: pageSize });
+									try{
+										if(typeof window !== 'undefined' && window.localStorage){
+											window.localStorage.setItem(PD_PAGE_SIZE_KEY, `${pageSize}`);
+										}
+									}catch(e){
+										// 持久化失败不影响本会话生效
+									}
+								}
+							},
+						}}
 						bordered size='small'
 						scroll={{x: '100%', y: tblY }}
 						onRow={(record, index)=>{

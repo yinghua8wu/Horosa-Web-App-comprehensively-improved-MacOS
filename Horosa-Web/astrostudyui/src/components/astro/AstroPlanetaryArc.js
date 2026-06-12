@@ -7,7 +7,7 @@ import * as AstroText from '../../constants/AstroText';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { convertToArray } from '../../utils/helper';
-import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
 import { buildStarAndLotPositionLines, buildHouseCuspLines, } from '../../utils/astroAiSnapshot';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
@@ -118,6 +118,7 @@ class AstroPlanetaryArc extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.requestData();
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -125,6 +126,7 @@ class AstroPlanetaryArc extends Component{
 	}
 
 	componentWillUnmount(){
+		this._mounted = false;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -147,8 +149,9 @@ class AstroPlanetaryArc extends Component{
 		const tm = new DateTime();
 		const dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');
 		if(params.dirZone){ dt.setZone(params.dirZone); }
+		if(!this._mounted) return;
 		this.setState({ dirChart: result, params: { ...params, datetime: dt } }, () => {
-			saveModuleAISnapshot('planetaryarc', formatArcSnapshot(result, '行星弧（Planetary Arc）', '行星弧：以所选天体的二次推运移动量为弧推进全盘。'), { module: 'planetaryarc' });
+			saveModuleAISnapshotLazy('planetaryarc', ()=>formatArcSnapshot(result, '行星弧（Planetary Arc）', '行星弧：以所选天体的二次推运移动量为弧推进全盘。'), { module: 'planetaryarc' });
 		});
 	}
 

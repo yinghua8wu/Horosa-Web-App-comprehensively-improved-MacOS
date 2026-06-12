@@ -56,11 +56,13 @@ class AstroAgePoint extends Component {
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.load();
 		if(typeof window !== 'undefined'){ window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest); }
 	}
 
 	componentWillUnmount(){
+		this._mounted = false;
 		if(typeof window !== 'undefined'){ window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest); }
 	}
 
@@ -89,8 +91,10 @@ class AstroAgePoint extends Component {
 				body: JSON.stringify({ ...chartParams(this.props.value) }),
 				timeoutMs: 60000,
 			});
+			if(!this._mounted) return;
 			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k });
 		}catch(e){
+			if(!this._mounted) return;
 			this.setState({ loading: false, requestKey: k });
 		}
 	}

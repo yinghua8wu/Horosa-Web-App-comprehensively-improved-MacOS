@@ -110,7 +110,11 @@ cleanup_metadata_files "${ROOT_PARENT}"
 
 port_listening() {
   local port="$1"
-  lsof -tiTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+  # 弃用 lsof:此函数在就绪轮询循环里高频调用,lsof 遍历全系统进程 FD,遇到卡死进程
+  # 单次可 stall 30~100s(实测,带 -n -P 也偶发)→ 启动假性卡死。netstat 只读内核表 ~0.006s。
+  netstat -anv -p tcp 2>/dev/null \
+    | awk -v port="${port}" '$6 == "LISTEN" && $4 ~ ("[.:]" port "$") { exit_found=1; exit }
+                             END { exit exit_found ? 0 : 1 }'
 }
 
 http_responding() {
@@ -592,7 +596,8 @@ fi
 reclaim_stale_port() {
   local port="$1" tag="$2" pids pid cmd killed=0
   port_listening "${port}" || return 0
-  pids="$(lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null)"
+  # 弃用 lsof(全进程 FD 扫描可 stall 数十秒),netstat 读内核表取监听 pid(列布局见 stop 脚本同名注释)。
+  pids="$(netstat -anv -p tcp 2>/dev/null | awk -v port="${port}" '$6 == "LISTEN" && $4 ~ ("[.:]" port "$") { print $11 }' | sort -u)"
   for pid in ${pids}; do
     cmd="$(ps -p "${pid}" -o command= 2>/dev/null | tr 'A-Z' 'a-z')"
     case "${cmd}" in

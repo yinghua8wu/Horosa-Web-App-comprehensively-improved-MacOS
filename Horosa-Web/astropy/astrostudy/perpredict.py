@@ -511,6 +511,7 @@ class PerPredict:
             return 0.0
 
     def _coreTrueNodeBaseLons(self, chart):
+        # ⚠️ 并发约定:set_sid_mode→calc_ut 两行必须相邻直线(swisseph 全局态,见 tests/test_swe_concurrency.py)。
         swisseph.set_sid_mode(swe.SEDEFAULT_SIDM__MODE)
         north = swisseph.calc_ut(chart.date.jd, swisseph.TRUE_NODE, self._coreEphemerisFlags())[0][0]
         north = angle.norm(float(north))

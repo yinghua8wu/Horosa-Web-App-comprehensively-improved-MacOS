@@ -621,6 +621,10 @@ class BookReader extends Component{
 		let audio = document.getElementById(this.state.ttsId);
 		if(audio){
 			audio.pause();
+			// 长篇逐句朗读防 blob 累积：换源前释放旧 blob URL
+			if(audio.src && audio.src.startsWith('blob:')){
+				(window.webkitURL || URL).revokeObjectURL(audio.src);
+			}
 			audio.type = "audio/mpeg";
 			audio.src = window.webkitURL.createObjectURL(blob)|| URL.createObjectURL(blob);
 			audio.currentTime = 0;

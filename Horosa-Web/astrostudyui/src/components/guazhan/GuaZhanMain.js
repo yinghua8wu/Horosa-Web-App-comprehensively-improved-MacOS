@@ -1132,12 +1132,24 @@ class GuaZhanMain extends Component{
 			|| prevState.yao !== this.state.yao
 			|| prevState.nongli !== this.state.nongli
 			|| prevState.guaDesc !== this.state.guaDesc){
-			saveModuleAISnapshot('guazhan', buildGuaSnapshotText(this.props.fields, this.state));
+			const fields = this.props.fields;
+		const state = this.state;
+		saveModuleAISnapshotLazy('guazhan', ()=>buildGuaSnapshotText(fields, state));
 		}
 	}
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		// 摇卦/周期动画 interval:用户在动画态直接切走技法时这里是唯一的清理出口,
+		// 不清则 interval 持续 setState 打已卸载组件(告警刷屏+闭包持组件泄漏)。
+		if(this.guaPeriodTask !== null){
+			clearInterval(this.guaPeriodTask);
+			this.guaPeriodTask = null;
+		}
+		if(this.periodTask !== null){
+			clearInterval(this.periodTask);
+			this.periodTask = null;
+		}
 		if(typeof window !== 'undefined' && this._dayBoundaryListener){
 			window.removeEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
 		}

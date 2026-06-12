@@ -79,6 +79,7 @@ class AstroVedicProgressions extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.load();
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -86,6 +87,7 @@ class AstroVedicProgressions extends Component{
 	}
 
 	componentWillUnmount(){
+		this._mounted = false;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -126,8 +128,10 @@ class AstroVedicProgressions extends Component{
 				timeoutMs: 45000,
 			});
 			const result = unwrapResult(data) || {};
+			if(!this._mounted) return;
 			this.setState({ result, loading: false, requestKey: key });
 		}catch(e){
+			if(!this._mounted) return;
 			this.setState({ loading: false, requestKey: key });
 		}
 	}

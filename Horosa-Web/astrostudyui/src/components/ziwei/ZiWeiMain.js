@@ -23,7 +23,8 @@ import * as ZiWeiHelper from './ZiWeiHelper';
 import * as ZWText from '../../constants/ZWText';
 import * as ZWConst from '../../constants/ZWConst';
 import DateTime from '../comp/DateTime';
-import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
+import { ziweirulesCached } from '../../services/rules';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 
 const TabPane = Tabs.TabPane;
@@ -585,14 +586,16 @@ class ZiWeiMain extends Component{
 		}
 		const params = this.genParams(fields);
 
-		const data = await request(`${Constants.ServerRoot}/ziwei/birth`, {
-			body: JSON.stringify(params),
-		});
+		// 并行 + rules 会话缓存:rules 与本盘无关(body 恒 {}),原串行瀑布白付一次 RTT;
+		// 启动已 prime 缓存(models/app.js dispatch rules/ziwei),此处通常零成本命中。
+		// 任一失败整体 throw、不 setState,与原「串行中途失败不 setState」口径一致。
+		const [data, rules] = await Promise.all([
+			request(`${Constants.ServerRoot}/ziwei/birth`, {
+				body: JSON.stringify(params),
+			}),
+			ziweirulesCached({}),
+		]);
 		const result = data[Constants.ResultKey]
-
-		const rules = await request(`${Constants.ServerRoot}/ziwei/rules`, {
-			body: JSON.stringify({}),
-		});
 
 		let currentIdx = this.getNowDirectionIdx(result.chart);
 
@@ -605,7 +608,10 @@ class ZiWeiMain extends Component{
 
 
 		this.setState(st);
-		saveModuleAISnapshot('ziwei', buildZiWeiSnapshotText(params, result), {
+		// 惰性构建:12 宫×星曜×四化遍历挪出排盘关键路径(params/result 为本函数局部量,闭包安全;
+		// builder 读的全局流派 ZWConst.ZWSchool 若在 idle 前被切换,切换路径必经 requestZiWei
+		// 重排 → 新 save 覆盖本 pending,latest-wins 兜底)。
+		saveModuleAISnapshotLazy('ziwei', ()=>buildZiWeiSnapshotText(params, result), {
 			date: params.date,
 			time: params.time,
 			zone: params.zone,

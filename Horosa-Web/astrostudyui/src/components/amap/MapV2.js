@@ -18,6 +18,7 @@ class MapV2 extends Component {
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		let plugin = [];
 		if(this.props.plugin){
 			plugin = this.props.plugin;
@@ -38,6 +39,7 @@ class MapV2 extends Component {
 			};
 		}
 		AMapLoader.load(loadOpts).then((AMap)=>{
+			if(!this._mounted) return; // 卸载后不再建图/setState
 			let map = new AMap.Map(this.state.mapid);
 			this.setState({
 				map: map,
@@ -55,6 +57,14 @@ class MapV2 extends Component {
 				this.props.onLoadError(err);
 			}
 		});
+	}
+
+	componentWillUnmount(){
+		// 销毁 AMap 实例，防多次进出页面累积泄漏
+		if(this.state.map){
+			try{ this.state.map.destroy(); }catch(e){}
+		}
+		this._mounted = false;
 	}
 
 	render(){

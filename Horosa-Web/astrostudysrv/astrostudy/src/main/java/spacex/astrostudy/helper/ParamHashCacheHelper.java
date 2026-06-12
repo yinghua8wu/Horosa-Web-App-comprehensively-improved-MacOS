@@ -45,6 +45,90 @@ public class ParamHashCacheHelper {
 	private static final ICache RedisCache = CacheHelper.getCache();
 	private static final ConcurrentHashMap<String, Object> KeyLocks = new ConcurrentHashMap<String, Object>();
 
+	// 本地缓存磁盘上限(字节)。旧实现只有「被再次读到时」的惰性过期删除——冷 key 永不回收,
+	// 目录只增不减(每个参数组合一个文件,十项术数长期使用可撑爆用户磁盘)。
+	private static final long LocalMaxBytes = PropertyPlaceholder.getPropertyAsInt("paramhash.cache.local.maxmb", 512) * 1024L * 1024L;
+	private static final java.util.concurrent.ScheduledExecutorService LocalSweeper;
+	static {
+		java.util.concurrent.ScheduledExecutorService sweeper = null;
+		if(EnableCache && EnableLocal) {
+			sweeper = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+				Thread t = new Thread(r, "paramhash-local-sweeper");
+				t.setDaemon(true);
+				return t;
+			});
+			// 启动 60s 后首扫(避开冷启动忙时),此后每 6 小时一次。
+			sweeper.scheduleWithFixedDelay(ParamHashCacheHelper::sweepLocal, 60, 6 * 3600, java.util.concurrent.TimeUnit.SECONDS);
+		}
+		LocalSweeper = sweeper;
+	}
+
+	/**
+	 * 本地缓存目录清扫:① mtime 超过最长 TTL(AnnualExpireInSec)的绝对过期文件直接删
+	 * (精确 TTL 的过期仍由读路径惰性删,这里兜底冷 key);② 总量超 LocalMaxBytes 时按
+	 * mtime 升序(LRU 近似)删到 80% 上限。纯文件系统操作零 JSON 解析;全程吞错,绝不影响主流程。
+	 */
+	static void sweepLocal() {
+		try {
+			Path root = Paths.get(LocalDir);
+			if(!Files.isDirectory(root)) {
+				return;
+			}
+			long now = System.currentTimeMillis();
+			long hardExpireMs = AnnualExpireInSec * 1000L;
+			List<Path> files = new ArrayList<Path>();
+			long total = 0;
+			try (Stream<Path> walk = Files.walk(root)) {
+				for(Path p : (Iterable<Path>) walk::iterator) {
+					if(!Files.isRegularFile(p) || !p.toString().endsWith(".json")) {
+						continue;
+					}
+					long mtime;
+					long size;
+					try {
+						mtime = Files.getLastModifiedTime(p).toMillis();
+						size = Files.size(p);
+					}catch(Exception e) {
+						continue;
+					}
+					if(now - mtime > hardExpireMs) {
+						try { Files.deleteIfExists(p); }catch(Exception e) { /* 忙时跳过,下轮再删 */ }
+						continue;
+					}
+					files.add(p);
+					total += size;
+				}
+			}
+			if(total <= LocalMaxBytes) {
+				return;
+			}
+			files.sort((a, b) -> {
+				try {
+					return Files.getLastModifiedTime(a).compareTo(Files.getLastModifiedTime(b));
+				}catch(Exception e) {
+					return 0;
+				}
+			});
+			long target = (long) (LocalMaxBytes * 0.8);
+			for(Path p : files) {
+				if(total <= target) {
+					break;
+				}
+				try {
+					long size = Files.size(p);
+					if(Files.deleteIfExists(p)) {
+						total -= size;
+					}
+				}catch(Exception e) {
+					// 单文件失败不影响整轮
+				}
+			}
+			QueueLog.info(AppLoggers.InfoLogger, "paramhash local cache sweep done, size now ~" + total + " bytes");
+		}catch(Exception e) {
+			QueueLog.error(AppLoggers.ErrorLogger, e);
+		}
+	}
+
 	private static final class LocalPayload {
 		Object value;
 		boolean expired;

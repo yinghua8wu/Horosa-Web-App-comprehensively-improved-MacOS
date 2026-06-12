@@ -139,9 +139,22 @@ class RengChart {
 
 		let realW = width;
 		let realH = height;
-		// ② 防裁切可下滑:圆盘含神煞大表(预留最小约 720),方盘较矮(约 440)。窗口短于此则按最小高度绘制,
+		// 方盘按「中间栏最下端」钳住(用户实告:缩放窗口时方盘下端超过窗口最下端):host 自身可能比
+		// 可视区高(grid 隐式行收敛失败时),用视口底再钳一次,svg 永不越过窗口最下端。
+		// 仅方盘+非紧凑生效,圆盘(底部神煞大表依赖滚动看全)与紧凑预览路径零波及。
+		if(!this.compactPreview && !this.isCircleChart() && typeof window !== 'undefined'
+			&& hostEl && typeof hostEl.getBoundingClientRect === 'function'){
+			const hostTop = hostEl.getBoundingClientRect().top;
+			const viewportAvail = (window.innerHeight || height) - hostTop - 8;
+			if(viewportAvail > 0 && viewportAvail < height){
+				height = viewportAvail;
+				realH = height;
+			}
+		}
+		// ② 防裁切可下滑:圆盘含神煞大表(预留最小约 720)。方盘自适应收缩(下方 drawSimple* 已按 cord.h
+		// 收纳),仅低于最小可读阈值 360 才回落「撑高 svg + host 滚动」;窗口短于阈值则按最小高度绘制,
 		// 并把 svg 自身撑到该高度 → 外层 host(overflow-y:auto)即可纵向滚动看全(compactPreview 预览不强制)。
-		const minChartH = this.compactPreview ? 0 : (this.isCircleChart() ? 720 : 440);
+		const minChartH = this.compactPreview ? 0 : (this.isCircleChart() ? 720 : 360);
 		if(minChartH > 0 && realH < minChartH){
 			realH = minChartH;
 		}
@@ -655,11 +668,22 @@ class RengChart {
 		const jiangSize = Math.max(16, Math.min(34, size * 0.084));
 		const ganSize = Math.max(15, Math.min(30, size * 0.074));
 		const maxRowGap = Math.max(branchSize * 1.45, (cord.h - 16) / 7.55);
-		const rowGap = Math.max(branchSize * 1.45, Math.min(92, size * 0.17, maxRowGap));
-		const colGap = Math.max(branchSize * 1.48, Math.min(68, cord.w * 0.16));
+		// 收纳钳制(用户实告方盘下端超界):盘面垂直总需求 ≈ rowGap*(0.82顶偏+7.58行距)+半字高,
+		// 旧公式无此约束、正常窗口下末行就已画到 cord 之外(被 svg 底边裁掉/溢出窗口)。
+		// fitRowGap 保证「末行基线+下半字」收在 cord.h 内;20 为硬下限(对应 draw() 的 360 回落滚动阈值)。
+		const fitRowGap = (cord.h - branchSize * 0.6) / 8.4;
+		const rowGap = Math.max(20, Math.min(92, size * 0.17, maxRowGap, fitRowGap));
+		// 超矮窗下行距被压缩时字号随行距缩,防上下行文字重叠;正常窗口 rowGap 远大于阈值,字号不变。
+		const branchSizeFit = Math.min(branchSize, rowGap * 0.72);
+		const jiangSizeFit = Math.min(jiangSize, rowGap * 0.66);
+		const ganSizeFit = Math.min(ganSize, rowGap * 0.60);
+		const colGap = Math.max(branchSizeFit * 1.48, Math.min(68, cord.w * 0.16));
 		const centerX = cord.x + cord.w * 0.46;
 		const panHeight = rowGap * 7.75;
-		const topY = cord.y + Math.max(rowGap * 0.82, Math.min(cord.h * 0.36, (cord.h - panHeight) / 2 + rowGap * 0.86));
+		// min() 第三项 = 「底部必须装得下」上限:正常窗口下大于前两项不生效,矮窗时把盘面整体上提。
+		const topY = cord.y + Math.max(rowGap * 0.82, Math.min(cord.h * 0.36,
+			(cord.h - panHeight) / 2 + rowGap * 0.86,
+			cord.h - rowGap * 7.58 - branchSizeFit * 0.6));
 		const branches = LRConst.ZiList;
 		const house = branches.reduce((acc, branch)=>{
 			acc[branch] = this.getSimpleHouse(chart, branch);
@@ -677,9 +701,9 @@ class RengChart {
 				});
 			});
 		};
-		drawRow(['巳', '午', '未', '申'], topY, 'jiang', gold, jiangSize, 760);
-		drawRow(['巳', '午', '未', '申'], topY + rowGap, 'gan', muted, ganSize, 560);
-		drawRow(['巳', '午', '未', '申'], topY + rowGap * 2, 'up', main, branchSize, 760);
+		drawRow(['巳', '午', '未', '申'], topY, 'jiang', gold, jiangSizeFit, 760);
+		drawRow(['巳', '午', '未', '申'], topY + rowGap, 'gan', muted, ganSizeFit, 560);
+		drawRow(['巳', '午', '未', '申'], topY + rowGap * 2, 'up', main, branchSizeFit, 760);
 
 			const middleY = topY + rowGap * 3.18;
 		[
@@ -687,24 +711,24 @@ class RengChart {
 				{ branch: '卯', x: centerX - colGap * 2.18, y: middleY + rowGap },
 		].forEach((item)=>{
 			const data = house[item.branch] || {};
-			this.drawSimpleText(panGroup, data.jiang, item.x - colGap * 0.74, item.y, { fill: gold, size: jiangSize, weight: 760, houseIndex: data.idx });
-			this.drawSimpleText(panGroup, data.gan, item.x, item.y, { fill: muted, size: ganSize, weight: 560 });
-			this.drawSimpleText(panGroup, data.up, item.x + colGap * 0.74, item.y, { fill: main, size: branchSize, weight: 760, branch: data.up });
+			this.drawSimpleText(panGroup, data.jiang, item.x - colGap * 0.74, item.y, { fill: gold, size: jiangSizeFit, weight: 760, houseIndex: data.idx });
+			this.drawSimpleText(panGroup, data.gan, item.x, item.y, { fill: muted, size: ganSizeFit, weight: 560 });
+			this.drawSimpleText(panGroup, data.up, item.x + colGap * 0.74, item.y, { fill: main, size: branchSizeFit, weight: 760, branch: data.up });
 		});
 		[
 				{ branch: '酉', x: centerX + colGap * 2.18, y: middleY },
 				{ branch: '戌', x: centerX + colGap * 2.18, y: middleY + rowGap },
 		].forEach((item)=>{
 			const data = house[item.branch] || {};
-			this.drawSimpleText(panGroup, data.up, item.x - colGap * 0.74, item.y, { fill: main, size: branchSize, weight: 760, branch: data.up });
-			this.drawSimpleText(panGroup, data.gan, item.x, item.y, { fill: muted, size: ganSize, weight: 560 });
-			this.drawSimpleText(panGroup, data.jiang, item.x + colGap * 0.74, item.y, { fill: gold, size: jiangSize, weight: 760, houseIndex: data.idx });
+			this.drawSimpleText(panGroup, data.up, item.x - colGap * 0.74, item.y, { fill: main, size: branchSizeFit, weight: 760, branch: data.up });
+			this.drawSimpleText(panGroup, data.gan, item.x, item.y, { fill: muted, size: ganSizeFit, weight: 560 });
+			this.drawSimpleText(panGroup, data.jiang, item.x + colGap * 0.74, item.y, { fill: gold, size: jiangSizeFit, weight: 760, houseIndex: data.idx });
 		});
 
 			const bottomY = topY + rowGap * 5.58;
-		drawRow(['寅', '丑', '子', '亥'], bottomY, 'up', main, branchSize, 760);
-		drawRow(['寅', '丑', '子', '亥'], bottomY + rowGap, 'gan', muted, ganSize, 560);
-		drawRow(['寅', '丑', '子', '亥'], bottomY + rowGap * 2, 'jiang', gold, jiangSize, 760);
+		drawRow(['寅', '丑', '子', '亥'], bottomY, 'up', main, branchSizeFit, 760);
+		drawRow(['寅', '丑', '子', '亥'], bottomY + rowGap, 'gan', muted, ganSizeFit, 560);
+		drawRow(['寅', '丑', '子', '亥'], bottomY + rowGap * 2, 'jiang', gold, jiangSizeFit, 760);
 	}
 
 	formatChuanGanZi(gz){
@@ -742,12 +766,15 @@ class RengChart {
 		const size = Math.min(cord.w, cord.h);
 		const big = Math.max(22, Math.min(52, size * 0.112));
 		const small = Math.max(14, Math.min(30, size * 0.058));
+		// 收纳钳制(同 drawSimpleTextPan):三行课/三传必须收在 cord.h 内——字号随高缩(下限 14),
+		// keGap 加「keY(0.27h) 以下两段行距装得下」上限项;正常窗口取值与旧公式一致(124 封顶)。
+		const bigFit = Math.min(big, Math.max(14, cord.h * 0.135));
 		const keOrder = [3, 2, 1, 0];
 		const keList = Array.isArray(this.ke) ? this.ke : [];
 		const keX = cord.x + cord.w * 0.03;
 		const keY = cord.y + cord.h * 0.27;
-		const keGap = Math.max(big * 1.48, Math.min(124, cord.h * 0.205));
-		const tokenGap = big * 1.06;
+		const keGap = Math.max(bigFit * 1.3, Math.min(124, cord.h * 0.205, (cord.h * 0.73 - bigFit * 0.6) / 2));
+		const tokenGap = bigFit * 1.06;
 		const drawKeTokenRow = (rowIdx, y)=>{
 			keOrder.forEach((keIdx, tokenIdx)=>{
 				const ke = keList[keIdx] || [];
@@ -769,7 +796,7 @@ class RengChart {
 				this.drawSimpleText(rightGroup, text, keX + tokenIdx * tokenGap, y, {
 					anchor: 'start',
 					fill: rowIdx === 0 ? gold : (rowIdx === 1 ? main : muted),
-					size: rowIdx === 0 ? big : big * 0.96,
+					size: rowIdx === 0 ? bigFit : bigFit * 0.96,
 					weight: rowIdx === 0 ? 760 : 620,
 					...options,
 				});
@@ -786,10 +813,10 @@ class RengChart {
 			const startX = cord.x + cord.w * 0.61;
 			const startY = keY;
 			const rowGap = keGap;
-			const chuanAuxSize = big * 0.78;
-			const chuanGanX = startX + Math.max(big * 1.02, cord.w * 0.060);
-			const chuanBranchX = startX + Math.max(big * 1.86, cord.w * 0.124);
-			const chuanJiangX = startX + Math.max(big * 2.72, cord.w * 0.190) + big * 0.52;
+			const chuanAuxSize = bigFit * 0.78;
+			const chuanGanX = startX + Math.max(bigFit * 1.02, cord.w * 0.060);
+			const chuanBranchX = startX + Math.max(bigFit * 1.86, cord.w * 0.124);
+			const chuanJiangX = startX + Math.max(bigFit * 2.72, cord.w * 0.190) + bigFit * 0.52;
 			for(let i=0; i<3; i++){
 				const y = startY + i * rowGap;
 				const liuqin = liuQin[i] ? `${liuQin[i]}`.substr(0, 1) : '';
@@ -810,14 +837,14 @@ class RengChart {
 			this.drawSimpleText(rightGroup, parsedChuan.branch, chuanBranchX, y, {
 				anchor: 'middle',
 				fill: main,
-				size: big,
+				size: bigFit,
 				weight: 760,
 				branch: parsedChuan.branch,
 				});
 				this.drawSimpleText(rightGroup, this.getShortJiang(tianJiang[i] ? tianJiang[i] : ''), chuanJiangX, y, {
 					anchor: 'middle',
 					fill: gold,
-					size: big,
+					size: bigFit,
 					weight: 760,
 				houseIndex: this.getHouseIndexByUpBranch(chuanText),
 			});

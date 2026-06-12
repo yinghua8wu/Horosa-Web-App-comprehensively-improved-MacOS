@@ -14,7 +14,9 @@ class AstroDraconicLab extends Component {
 		this.load = this.load.bind(this);
 	}
 
-	componentDidMount(){ this.load(); }
+	componentDidMount(){ this._mounted = true; this.load(); }
+
+	componentWillUnmount(){ this._mounted = false; }
 
 	componentDidUpdate(){
 		const key = chartRequestKey(this.props.value, 'draconic');
@@ -35,8 +37,10 @@ class AstroDraconicLab extends Component {
 				body: JSON.stringify({ ...chartParams(this.props.value), orb: 2 }),
 				timeoutMs: 30000,
 			});
+			if(!this._mounted) return;
 			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: key });
 		}catch(e){
+			if(!this._mounted) return;
 			this.setState({ loading: false, requestKey: key });
 		}
 	}

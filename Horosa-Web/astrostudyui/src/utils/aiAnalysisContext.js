@@ -125,7 +125,7 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	jieqi_xiazhi: '节气盘-夏至',
 	jieqi_qiufen: '节气盘-秋分',
 	jieqi_dongzhi: '节气盘-冬至',
-	primarydirect: '星运-主/界限法',
+	primarydirect: '星运-主限法',
 	primarydirchart: '星运-主限法盘',
 	zodialrelease: '星运-黄道星释',
 	firdaria: '星运-法达星限',
@@ -1629,7 +1629,7 @@ async function regenerateChartTechniqueSnapshot(record, key){
 			}
 			// 显式把用户配置的方位法/时间换算/方向类型/顺逆/映点/界回填进快照 params——与 fetchChart
 			// 复算所用 fieldParams 同源(buildFieldObject)，不依赖后端是否把请求参回显进 Result.params。
-			// 否则 [主/界限法设置] 段的「向运方向/映点迫星/界迫星」会误显默认值(顺向/否/否)。
+			// 否则 [主限法设置] 段的「向运方向/映点迫星/界迫星」会误显默认值(顺向/否/否)。
 			const pdFields = buildFieldObject(record);
 			const snapshotChartObj = {
 				...chartObj,

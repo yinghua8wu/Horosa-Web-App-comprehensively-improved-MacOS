@@ -9,7 +9,7 @@ export default {
 		immer: false,
 	},
 	antd: {},
-	dynamicImport: false,
+	dynamicImport: {},
 	dll: false,
 	hardSource: false,
 	pwa: false,

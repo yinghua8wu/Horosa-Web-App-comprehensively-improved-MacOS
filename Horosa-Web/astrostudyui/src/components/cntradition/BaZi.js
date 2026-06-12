@@ -12,7 +12,7 @@ import FourZhuGuaDesc from './FourZhuGuaDesc';
 import BaZiLuckFlowPanel from './BaZiLuckFlowPanel';
 import BaZiAppInfoPanel from './BaZiAppInfoPanel';
 import { BaZiLegacyMain, BaZiLegacyInfoPanel } from './BaZiLegacyView';
-import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
 import { buildLocalBaziResult, buildFlowDays, buildFlowHours } from '../../utils/baziLunarLocal';
 
 const TabPane = Tabs.TabPane;
@@ -701,7 +701,8 @@ class BaZi extends Component{
 		};
 
 		this.setState(st);
-		saveModuleAISnapshot('bazi', buildBaziSnapshotText(params, result), {
+		// 惰性构建:快照文本拼装挪出排盘关键路径(params/result 为局部量,闭包安全)。
+		saveModuleAISnapshotLazy('bazi', ()=>buildBaziSnapshotText(params, result), {
 			date: params.date,
 			time: params.time,
 			zone: params.zone,

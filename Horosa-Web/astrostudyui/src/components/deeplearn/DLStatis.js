@@ -20,16 +20,22 @@ class DLStatis extends Component{
 
 	async requestStatis(){
 		const params = {};
-		const data = await request(`${Constants.ServerRoot}/deeplearn/count`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey]
+		try{
+			const data = await request(`${Constants.ServerRoot}/deeplearn/count`, {
+				body: JSON.stringify(params),
+			});
+			if(!this._mounted) return;
+			const result = data[Constants.ResultKey]
 
-		const st = {
-			result: result,
-		};
+			const st = {
+				result: result,
+			};
 
-		this.setState(st);
+			this.setState(st);
+		}catch(e){
+			// 统计接口失败仅告警，保持空数据不崩
+			console.warn(e);
+		}
 	}
 
 	clickQuery(){
@@ -37,7 +43,12 @@ class DLStatis extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.requestStatis();
+	}
+
+	componentWillUnmount(){
+		this._mounted = false;
 	}
 
 	render(){

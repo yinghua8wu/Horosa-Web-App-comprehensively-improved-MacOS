@@ -4,7 +4,7 @@ import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import XQIcon from '../xq-icons';
 import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
@@ -187,7 +187,8 @@ class TaiXuanMain extends Component{
 			pan: payload.pan || null,
 			seed: options.seed !== undefined ? options.seed : this.state.seed,
 		}, ()=>{
-			saveModuleAISnapshot('taixuan', buildSnapshotText(this.state.pan));
+			const pan = this.state.pan;
+			saveModuleAISnapshotLazy('taixuan', ()=>buildSnapshotText(pan));
 		});
 		return true;
 	}
@@ -274,7 +275,7 @@ class TaiXuanMain extends Component{
 				return;
 			}
 			this.setState({ pan, loading: false }, ()=>{
-				saveModuleAISnapshot('taixuan', buildSnapshotText(pan));
+				saveModuleAISnapshotLazy('taixuan', ()=>buildSnapshotText(pan));
 			});
 		}catch(e){
 			console.warn('taixuanshifa backend failed', e);

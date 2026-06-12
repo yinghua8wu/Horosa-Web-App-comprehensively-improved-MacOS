@@ -24,7 +24,8 @@ describe('aiAnalysisProviders', ()=>{
 	test('moonshot preset exposes expected defaults', ()=>{
 		const preset = getProviderPreset('moonshot');
 		expect(preset.baseUrl).toBe('https://api.moonshot.cn/v1');
-		expect(getProviderDefaultChatModels('moonshot')).toEqual(['kimi-k2.5', 'kimi-k2-turbo-preview']);
+		// 2026-06 官方现行模型(kimi-k2-* preview 系列 2026-05-25 停服,旧默认即「测试连接」400 来源)。
+		expect(getProviderDefaultChatModels('moonshot')).toEqual(['kimi-k2.6', 'kimi-k2.5']);
 	});
 
 	test('gemini preset exposes chat models distinct from embedding models', ()=>{
@@ -32,7 +33,8 @@ describe('aiAnalysisProviders', ()=>{
 		expect(preset.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta');
 		expect(getProviderProtocolFamily('gemini')).toBe('gemini');
 		expect(getProviderDefaultChatModels('gemini')).toEqual(['gemini-2.5-flash', 'gemini-2.5-pro']);
-		expect(getProviderDefaultEmbeddingModels('gemini')).toEqual(['text-embedding-004']);
+		// text-embedding-004 已于 2026-01-14 关停,官方迁移目标 gemini-embedding-001。
+		expect(getProviderDefaultEmbeddingModels('gemini')).toEqual(['gemini-embedding-001']);
 	});
 
 	test('splitProviderModels separates embedding-like ids', ()=>{

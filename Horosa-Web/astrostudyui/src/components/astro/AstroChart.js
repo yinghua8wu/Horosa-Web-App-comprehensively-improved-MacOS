@@ -3,6 +3,7 @@ import { Component } from 'react';
 import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as Constants from '../../utils/constants';
+import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import AstroChartCircle from './AstroChartCircle';
 
 class AstroChart extends Component{
@@ -59,13 +60,55 @@ class AstroChart extends Component{
 		});
 	}
 
+	// 重绘签名守卫(流畅度):本组件 componentDidUpdate 无条件 drawChart+scheduleDrawRetry,
+	// 任何无关 state/props 变化(开关 drawer、tooltip 点击、120ms retry)都触发整树 d3 重建。
+	// 签名 = 绘制实际消费的全部输入(数据引用 + 显示设置 + 容器尺寸):全等 → skip。
+	// 不用 chartObj.chartId(每次 fetch 都换新值,同数据不同 id),用引用相等(dva state 不变更新引用稳定)。
+	buildDrawSignature(chartobj){
+		const svgdom = document.getElementById(this.state.chartid);
+		return {
+			value: chartobj,
+			chartDisplay: this.props.chartDisplay,
+			planetDisplay: this.props.planetDisplay,
+			lotsDisplay: this.props.lotsDisplay,
+			keyPlanets: this.props.keyPlanets,
+			chartStyle: this.props.chartStyle,
+			meaning: this.getShowAstroMeaning(),
+			rStep: this.state.rStep,
+			w: svgdom ? svgdom.clientWidth : 0,
+			h: svgdom ? svgdom.clientHeight : 0,
+		};
+	}
+
+	sameDrawSignature(a, b){
+		if(!a || !b){
+			return false;
+		}
+		return a.value === b.value
+			&& a.chartDisplay === b.chartDisplay
+			&& a.planetDisplay === b.planetDisplay
+			&& a.lotsDisplay === b.lotsDisplay
+			&& a.keyPlanets === b.keyPlanets
+			&& a.chartStyle === b.chartStyle
+			&& a.meaning === b.meaning
+			&& a.rStep === b.rStep
+			&& a.w === b.w
+			&& a.h === b.h;
+	}
+
 	drawChart(){
 		let chartobj = this.props.value;
-		if(chartobj === undefined || chartobj === null || 
+		if(chartobj === undefined || chartobj === null ||
 			chartobj.chart === undefined || chartobj.chart === null || chartobj.err){
 			return;
 		}
-		
+
+		const guardOn = chartDrawGuardEnabled();
+		const sig = guardOn ? this.buildDrawSignature(chartobj) : null;
+		if(guardOn && this.sameDrawSignature(sig, this._lastDrawnSig)){
+			return; // 输入未变,跳过全量 d3 重建(零尺寸时签名从不被记录,retry 轮询不受影响)
+		}
+
 		let disp = [];
 		if(this.props.chartDisplay !== undefined && this.props.chartDisplay !== null){
 			disp = this.props.chartDisplay;
@@ -89,10 +132,12 @@ class AstroChart extends Component{
 			keyplanets = this.props.keyPlanets;
 		}
 
+		let drawOk = false;
 		if(this.chartCircle){
 			this.chartCircle.setShowAstroMeaning(this.getShowAstroMeaning());
 			try{
 				this.chartCircle.drawChart(this.state.chartid, chartobj, this.state.rStep, disp, planetDisp, keyplanets, this.props.chartStyle);
+				drawOk = true;
 			}catch(err){
 				console.error('AstroChart draw failed', err);
 			}
@@ -101,6 +146,10 @@ class AstroChart extends Component{
 		let svgdom = document.getElementById(this.state.chartid);
 		if(svgdom && (svgdom.clientWidth === 0 || svgdom.clientHeight === 0)){
 			this.scheduleDrawRetry();
+		}else if(sig && drawOk){
+			// 仅「非零尺寸成功绘制」后记录签名:隐藏期 retry 轮询、tab 变可见首画、resize 重画
+			// 三条现状机制全部保留(零尺寸/绘制失败时签名不记录,下次必重画)。
+			this._lastDrawnSig = sig;
 		}
 	}
 

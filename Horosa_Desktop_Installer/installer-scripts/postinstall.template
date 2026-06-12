@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+# 架构兜底守卫:Distribution 层已有 hostArchitectures="arm64" gate(GUI 安装器拒 Intel),
+# 这里防 `installer` CLI 直装组件包绕过 GUI gate —— arm64 runtime 在 Intel 机解压了也只会首启崩。
+if [ "$(/usr/bin/uname -m)" != "arm64" ]; then
+  echo "本安装包仅支持 Apple Silicon (M 系列) 的 Mac,当前机器为 $(/usr/bin/uname -m),安装中止。" >&2
+  exit 1
+fi
+
 TARGET_VOLUME="${3:-/}"
 APP_NAME="__APP_NAME__"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

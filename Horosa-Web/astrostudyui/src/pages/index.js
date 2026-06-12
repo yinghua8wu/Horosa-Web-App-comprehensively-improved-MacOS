@@ -1,3 +1,4 @@
+import React from 'react';
 import { connect  } from 'dva';
 import { Spin, } from 'antd';
 import DateTime from '../components/comp/DateTime';
@@ -14,40 +15,76 @@ import CaseEditFormComp from '../components/user/CaseEditFormComp';
 import CaseList from '../components/user/CaseList';
 import AstroFormComp from '../components/astro/AstroFormComp';
 import AstroChartMain from '../components/astro/AstroChartMain';
+
+// 流畅度:可预取的 lazy —— 启动仍只载首包(快),首屏就绪后空闲时段后台预载全部技法 chunk,
+// 用户切任何技法时模块早已就绪(零等待)。preload 引用同一 factory,React.lazy 缓存同一 promise。
+const LAZY_PRELOAD_QUEUE = [];
+function lazyPreloadable(factory){
+	const C = React.lazy(factory);
+	LAZY_PRELOAD_QUEUE.push(factory);
+	return C;
+}
+// 首屏可交互后逐个空闲预载(每次 1 个,绝不与用户操作抢主线程;requestIdleCallback 降级 setTimeout)。
+let lazyPreloadStarted = false;
+function startIdlePreload(){
+	if(lazyPreloadStarted) return;
+	lazyPreloadStarted = true;
+	const queue = LAZY_PRELOAD_QUEUE.slice();
+	const next = ()=>{
+		const f = queue.shift();
+		if(!f) return;
+		Promise.resolve().then(f).catch(()=>{}).finally(()=>{
+			if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
+				window.requestIdleCallback(next, { timeout: 3000 });
+			}else{
+				setTimeout(next, 300);
+			}
+		});
+	};
+	// 首帧后 2s 再开始,确保不影响启动与首屏交互。
+	setTimeout(()=>{
+		if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
+			window.requestIdleCallback(next, { timeout: 3000 });
+		}else{
+			setTimeout(next, 300);
+		}
+	}, 2000);
+}
+
 import AstroChartMain3D from '../components/astro3d/AstroChartMain3D';
-import PlanetariumMain from '../components/planetarium/PlanetariumMain';
-import AuxChartMain from '../components/auxchart/AuxChartMain';
-import IndiaChartMain from '../components/astro/IndiaChartMain';
+const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'));
+const AuxChartMain = lazyPreloadable(() => import('../components/auxchart/AuxChartMain'));
+const IndiaChartMain = lazyPreloadable(() => import('../components/astro/IndiaChartMain'));
 import AstroRelative from '../components/astro/AstroRelative';
-import AstroDirectMain from '../components/direction/AstroDirectMain';
+const AstroDirectMain = lazyPreloadable(() => import('../components/direction/AstroDirectMain'));
 import AspSelector from '../components/astro/AspSelector';
 import AstroOrbSetting from '../components/astro/AstroOrbSetting';
 import PlanetSelector from '../components/astro/PlanetSelector';
 import ChartDisplaySelector from '../components/astro/ChartDisplaySelector';
 import ChartsGps from '../components/user/ChartsGps';
 import ChartMemo from '../components/comp/ChartMemo';
-import JieQiChartsMain from '../components/jieqi/JieQiChartsMain';
-import CnTraditionMain from '../components/cntradition/CnTraditionMain';
-import CnYiBuMain from '../components/cnyibu/CnYiBuMain';
-import CalendarMain from '../components/calendar/CalendarMain';
-import FengShuiMain from '../components/fengshui/FengShuiMain';
-import SanShiUnitedMain from '../components/sanshi/SanShiUnitedMain';
-import AIAnalysisMain from '../components/aianalysis/AIAnalysisMain';
-import BookMain from '../components/reader/BookMain';
-import MediaMain from '../components/multimedia/MediaMain';
-import AdminToolsMain from '../components/admintools/AdminToolsMain';
-import GuoLaoChartMain from '../components/guolao/GuoLaoChartMain';
-import CommToolsMain from '../components/commtools/CommToolsMain';
+const JieQiChartsMain = lazyPreloadable(() => import('../components/jieqi/JieQiChartsMain'));
+const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/CnTraditionMain'));
+const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain'));
+const CalendarMain = lazyPreloadable(() => import('../components/calendar/CalendarMain'));
+const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'));
+const SanShiUnitedMain = lazyPreloadable(() => import('../components/sanshi/SanShiUnitedMain'));
+const AIAnalysisMain = lazyPreloadable(() => import('../components/aianalysis/AIAnalysisMain'));
+const BookMain = lazyPreloadable(() => import('../components/reader/BookMain'));
+const MediaMain = lazyPreloadable(() => import('../components/multimedia/MediaMain'));
+const AdminToolsMain = lazyPreloadable(() => import('../components/admintools/AdminToolsMain'));
+const GuoLaoChartMain = lazyPreloadable(() => import('../components/guolao/GuoLaoChartMain'));
+const CommToolsMain = lazyPreloadable(() => import('../components/commtools/CommToolsMain'));
 import DLFeature from '../components/deeplearn/DLFeature';
 import HomePageSetup from '../components/HomePageSetup';
 import BaZi from '../components/cntradition/BaZi';
-import ZiWeiMain from '../components/ziwei/ZiWeiMain';
-import GuaZhanMain from '../components/guazhan/GuaZhanMain';
-import LiuRengMain from '../components/lrzhan/LiuRengMain';
-import DunJiaMain from '../components/dunjia/DunJiaMain';
-import TaiYiMain from '../components/taiyi/TaiYiMain';
-import ShuSuanMain from '../components/shusuan/ShuSuanMain';
-import MingOtherMain from '../components/mingother/MingOtherMain';
+const ZiWeiMain = lazyPreloadable(() => import('../components/ziwei/ZiWeiMain'));
+const GuaZhanMain = lazyPreloadable(() => import('../components/guazhan/GuaZhanMain'));
+const LiuRengMain = lazyPreloadable(() => import('../components/lrzhan/LiuRengMain'));
+const DunJiaMain = lazyPreloadable(() => import('../components/dunjia/DunJiaMain'));
+const TaiYiMain = lazyPreloadable(() => import('../components/taiyi/TaiYiMain'));
+const ShuSuanMain = lazyPreloadable(() => import('../components/shusuan/ShuSuanMain'));
+const MingOtherMain = lazyPreloadable(() => import('../components/mingother/MingOtherMain'));
 import * as AstroConst from '../constants/AstroConst';
 import {convertToArray} from '../utils/helper';
 import { APPEARANCE_DARK } from '../utils/appearance';
@@ -93,7 +130,7 @@ const mainTabIcons = {
 };
 
 // keywords：该模块内部的术法/别名串（简体 + 常见叫法），供导航搜索匹配「模块内术法」。
-// 例：搜「卜卦盘」命中「辅盘」、搜「金口诀」命中「其他(卜)」。新增模块/术法须同步补此处（见 实现说明）。
+// 例：搜「卜卦盘」命中「辅盘」、搜「金口诀」命中「其他(卜)」。新增模块/术法须同步补此处（见 AGENTS.md）。
 const navigationPages = [
     { label: '占星', key: 'astrochart', icon: 'astro', group: '命', keywords: '西洋占星 本命盘 占星地图 ACG 星体地图 希腊星术 古典占星 寿命 界推运 12分度 主宰链 阿拉伯点 容许度' },
     { label: '星运', key: 'direction', icon: 'direction', group: '命', keywords: '推运 主限法 太阳弧 波斯向运 法达星限 十年大运 黄道星释 行星弧 小限法 流年法 太阳返照 月亮返照 三分主星 Balbillus 赤纬推运 恒星推运 二次推运 行星年龄 129年系统 数字相位 月相推运 多重回归 关键点 回归轴 年龄推进点 星历' },
@@ -163,6 +200,8 @@ function mainTab(label, group, options = {}){
 }
 
 function AstroIndex({dispatch, astro, app, user, rules, }){
+    // 首屏就绪后空闲预载全部技法 chunk(不影响启动;切技法零等待)。
+    React.useEffect(()=>{ startIdlePreload(); }, []);
     const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, chartStyle, indiaChartStyle, aspects, planetDisplay, lotsDisplay, resolvedAppearance, showPdBounds, showPlanetHouseInfo, showAstroMeaning, showOnlyRulExaltReception} = app;
     const {
         pwdFields,
@@ -365,6 +404,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	return (
 		<div style={idxstyle}>
         <Spin spinning={loading} size="large" tip={tip}>
+            <React.Suspense fallback={<div style={{padding:40,textAlign:'center'}}><Spin size="large" tip="加载中…" /></div>}>
             <XQTabs
                 defaultActiveKey="astrochart" tabPosition='left' onChange={changeTab}
                 activeKey={activeMainTab}
@@ -718,6 +758,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 }
 
             </XQTabs>
+            </React.Suspense>
 
             <Drawer
                 title='星盘配置'

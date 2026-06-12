@@ -273,6 +273,7 @@ class IndiaChart extends Component{
 			chartObj: result,
 		};
 
+		if(!this._mounted) return;
 		this.setState(st);
 		if(this.props.onChartLoad){
 			this.props.onChartLoad(result, params);
@@ -328,7 +329,12 @@ class IndiaChart extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.requestChartObj();
+	}
+
+	componentWillUnmount(){
+		this._mounted = false;
 	}
 
 	componentDidUpdate(prevProps){

@@ -23,19 +23,25 @@ class Statis extends Component{
 
 	async requestStatis(){
 		const params = {};
-		const data = await request(`${Constants.ServerRoot}/statis/count`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey]
+		try{
+			const data = await request(`${Constants.ServerRoot}/statis/count`, {
+				body: JSON.stringify(params),
+			});
+			if(!this._mounted) return;
+			const result = data[Constants.ResultKey]
 
-		const st = {
-			result: result,
-			points: [],
-		};
+			const st = {
+				result: result,
+				points: [],
+			};
 
-		this.setState(st, ()=>{
-			this.requestChartsGps("0");
-		});
+			this.setState(st, ()=>{
+				this.requestChartsGps("0");
+			});
+		}catch(e){
+			// 统计接口失败仅告警，保持空数据不崩
+			console.warn(e);
+		}
 	}
 
 	async requestChartsGps(cid, pnts){
@@ -43,24 +49,30 @@ class Statis extends Component{
 			cid: cid,
 			limit: this.state.limit,
 		};
-		const data = await request(`${Constants.ServerRoot}/statis/chartsgps`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey];
-		const sz = result.length;
+		try{
+			const data = await request(`${Constants.ServerRoot}/statis/chartsgps`, {
+				body: JSON.stringify(params),
+			});
+			if(!this._mounted) return;
+			const result = data[Constants.ResultKey];
+			const sz = result.length;
 
-		let dtpnt = pnts;
-		if(dtpnt === undefined || dtpnt === null){
-			dtpnt = this.state.points;
-		}
-		let points = dtpnt.concat(result);
-		if(sz === this.state.limit){
-			let last = result[sz - 1];
-			this.requestChartsGps(last.cid, points);
-		}else{
-			this.setState({
-				points: points,
-			})
+			let dtpnt = pnts;
+			if(dtpnt === undefined || dtpnt === null){
+				dtpnt = this.state.points;
+			}
+			let points = dtpnt.concat(result);
+			if(sz === this.state.limit){
+				let last = result[sz - 1];
+				this.requestChartsGps(last.cid, points);
+			}else{
+				this.setState({
+					points: points,
+				})
+			}
+		}catch(e){
+			// 分布数据拉取失败仅告警，保留已有数据不崩
+			console.warn(e);
 		}
 	}
 
@@ -69,7 +81,12 @@ class Statis extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.requestStatis();
+	}
+
+	componentWillUnmount(){
+		this._mounted = false;
 	}
 
 	render(){

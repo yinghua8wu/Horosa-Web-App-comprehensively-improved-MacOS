@@ -19,7 +19,7 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{
     AppHandle, LogicalPosition, LogicalSize, Manager, Position, RunEvent, Runtime, Size,
@@ -3801,6 +3801,24 @@ fn remove_dir_if_exists(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// 目标路径所在卷的可用字节数(df -k,1024 块)。取不到时返回 None(调用方按"不拦"处理)。
+fn available_disk_bytes(path: &Path) -> Option<u64> {
+    let probe = if path.exists() {
+        path.to_path_buf()
+    } else {
+        path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("/"))
+    };
+    let output = Command::new("/bin/df").arg("-k").arg(&probe).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let line = text.lines().nth(1)?;
+    // Filesystem 1024-blocks Used Available Capacity ... ; 第 4 列 = Available
+    let avail_kb: u64 = line.split_whitespace().nth(3)?.parse().ok()?;
+    Some(avail_kb.saturating_mul(1024))
+}
+
 fn archive_runtime_version(archive_path: &Path) -> Result<String> {
     let output = Command::new("/usr/bin/tar")
         .arg("-xOf")
@@ -3824,6 +3842,19 @@ fn archive_runtime_version(archive_path: &Path) -> Result<String> {
 fn extract_runtime_archive(archive_path: &Path, dest_root: &Path) -> Result<()> {
     let extract_root = dest_root.join("_extract");
     remove_dir_if_exists(&extract_root)?;
+    // 磁盘预检:解压产物 ≈ 2.3× 压缩包;不足时 tar 写到一半才败,留半成品且报错难懂。
+    if let Ok(meta) = fs::metadata(archive_path) {
+        let need = meta.len().saturating_mul(5) / 2; // 2.5× 余量
+        if let Some(avail) = available_disk_bytes(dest_root) {
+            if avail < need {
+                return Err(anyhow!(
+                    "磁盘空间不足:解压本机组件约需 {:.1} GB 可用空间,当前仅 {:.1} GB。请清理磁盘后重试。",
+                    need as f64 / 1e9,
+                    avail as f64 / 1e9
+                ));
+            }
+        }
+    }
     ensure_dir(&extract_root)?;
     let status = Command::new("/usr/bin/tar")
         .arg("-xzf")
@@ -3835,6 +3866,8 @@ fn extract_runtime_archive(archive_path: &Path, dest_root: &Path) -> Result<()> 
         .status()
         .with_context(|| format!("extract runtime archive {}", archive_path.display()))?;
     if !status.success() {
+        // tar 半途失败(磁盘满/坏包)的半成品必须当场清掉,否则磁盘累积孤立解压目录。
+        let _ = remove_dir_if_exists(&extract_root);
         return Err(anyhow!(
             "extract runtime archive failed for {}",
             archive_path.display()
@@ -3843,6 +3876,7 @@ fn extract_runtime_archive(archive_path: &Path, dest_root: &Path) -> Result<()> 
 
     let extracted_runtime = extract_root.join("runtime-payload");
     if !extracted_runtime.exists() {
+        let _ = remove_dir_if_exists(&extract_root);
         return Err(anyhow!("runtime-payload folder missing inside archive"));
     }
 
@@ -3857,9 +3891,18 @@ fn extract_runtime_archive(archive_path: &Path, dest_root: &Path) -> Result<()> 
         if had_previous && backup_runtime.exists() {
             let _ = fs::rename(&backup_runtime, &final_runtime);
         }
+        let _ = remove_dir_if_exists(&extract_root);
         return Err(err.into());
     }
-    prepare_runtime_dir(&final_runtime)?;
+    if let Err(err) = prepare_runtime_dir(&final_runtime) {
+        // prepare 失败时 current 已是新内容但不可用:回滚到 previous,保住可用旧版。
+        if had_previous && backup_runtime.exists() {
+            let _ = remove_dir_if_exists(&final_runtime);
+            let _ = fs::rename(&backup_runtime, &final_runtime);
+        }
+        let _ = remove_dir_if_exists(&extract_root);
+        return Err(err);
+    }
     let _ = Command::new("/usr/bin/xattr")
         .arg("-dr")
         .arg("com.apple.quarantine")
@@ -4266,9 +4309,24 @@ fn start_static_server(
             match fs::read(&target) {
                 Ok(bytes) => {
                     let mime = from_path(&target).first_or_octet_stream().to_string();
-                    let response = Response::from_data(bytes).with_header(
-                        Header::from_bytes(&b"Content-Type"[..], mime.as_bytes()).unwrap(),
-                    );
+                    // Header 构造改 infallible 兜底:异常 mime 字节序列不再 panic 静态服务线程。
+                    let mut response = Response::from_data(bytes);
+                    if let Ok(header) =
+                        Header::from_bytes(&b"Content-Type"[..], mime.as_bytes())
+                    {
+                        response = response.with_header(header);
+                    }
+                    // CSP 纵深防御:主界面经本静态服务器加载(不走 tauri 协议,tauri.conf 的
+                    // csp 管不到这里)。umi 产物含 inline script/style,antd 动态注入样式,
+                    // 3D(three/Babylon) 需 wasm;AI/排盘走本机回环端口。
+                    if mime == "text/html" {
+                        if let Ok(csp) = Header::from_bytes(
+                            &b"Content-Security-Policy"[..],
+                            &b"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; worker-src 'self' blob:; media-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'self'"[..],
+                        ) {
+                            response = response.with_header(csp);
+                        }
+                    }
                     let _ = request.respond(response);
                 }
                 Err(_) => {
@@ -4302,11 +4360,21 @@ fn start_runtime(
     skip_mongo_ping: bool,
     trusted_runtime: bool,
 ) -> Result<()> {
+    // 进度前置:下方预清理/预停止在冷文件系统缓存下可耗时数秒,先把进度从 36 推到 82
+    // (indeterminate 动画),否则 UI 冻在 36% 被当成卡死(用户实告)。
+    emit_indeterminate_progress(window, 82, "正在准备启动环境…");
     ensure_dir(&paths.logs_dir)?;
-    prepare_runtime_dir(&paths.runtime_dir)?;
+    // trusted 快路径跳过全树元数据清理:cleanup_runtime_metadata 递归遍历整棵 runtime 树
+    // (数万文件),冷缓存下可达数十秒;而解压末尾(extract_runtime_archive)与健康缓存 miss
+    // 慢路径(runtime_dir_is_usable)都已各清过一次,trusted 启动时纯冗余。启动成功后另有
+    // 后台 mop-up 兜底(runtime_bootstrap 尾部);fast-path 失败的回退分支以 trusted=false
+    // 重启 → 清理照跑,自愈链完整。
+    if !trusted_runtime {
+        prepare_runtime_dir(&paths.runtime_dir)?;
+    }
     stop_runtime(paths);
     emit_status(window, "正在后台启动 星阙 Python / Java 服务…");
-    emit_progress(window, 82, "启动本地服务");
+    emit_indeterminate_progress(window, 82, "正在后台启动本地服务,通常需 10~20 秒…");
 
     let python_bin = runtime_python_bin(&paths.runtime_dir);
     let java_bin = paths.runtime_dir.join("runtime/mac/java/bin/java");
@@ -4343,7 +4411,33 @@ fn start_runtime(
     if let Some(timeout_secs) = startup_timeout_secs {
         command.env("HOROSA_STARTUP_TIMEOUT", timeout_secs.to_string());
     }
-    let output = command.output().context("launch start_horosa_local.sh")?;
+    // 心跳:output() 阻塞等脚本(就绪轮询通常 5~20s,冷启更久),每秒刷一次 indeterminate
+    // 文案让进度条保持活动,避免长等待被当成卡死。错误路径同样先置停+join 再返回。
+    let heartbeat_stop = Arc::new(AtomicBool::new(false));
+    let heartbeat = {
+        let window = window.clone();
+        let stop = heartbeat_stop.clone();
+        thread::spawn(move || {
+            let started = Instant::now();
+            loop {
+                for _ in 0..10 {
+                    thread::sleep(Duration::from_millis(100));
+                    if stop.load(Ordering::Relaxed) {
+                        return;
+                    }
+                }
+                emit_indeterminate_progress(
+                    &window,
+                    82,
+                    &format!("正在启动本地服务…已等待 {} 秒", started.elapsed().as_secs()),
+                );
+            }
+        })
+    };
+    let output_result = command.output().context("launch start_horosa_local.sh");
+    heartbeat_stop.store(true, Ordering::Relaxed);
+    let _ = heartbeat.join();
+    let output = output_result?;
     if !output.status.success() {
         let code = output.status.code().unwrap_or(-1);
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -5470,6 +5564,65 @@ fn cleanup_state(app: &AppHandle) {
     }
 }
 
+/// 退出清理只跑一次:红点路径 ExitRequested 与 Exit 各回调一次、`app.exit(0)` 也双发,
+/// 不去重则 stop 脚本跑两遍。
+static EXIT_CLEANUP_SPAWNED: AtomicBool = AtomicBool::new(false);
+
+/// 抢占退出清理执行权:首个调用者得 true,其余 false(抽成函数便于单测)。
+fn claim_exit_cleanup() -> bool {
+    !EXIT_CLEANUP_SPAWNED.swap(true, Ordering::SeqCst)
+}
+
+/// 退出路径专用:detached 启动 stop 脚本,不等待。
+/// 🔴 macOS 上菜单/Dock 的 Quit 走 native `terminate:`,tao 只回调 RunEvent::Exit(无
+/// ExitRequested 可 prevent),且该回调跑在 applicationWillTerminate 内——任何同步
+/// `.status()/.output()` 都让主事件循环停摆、系统标记 not responding。
+/// 正确性:stop 脚本自含界(pid 文件+工作区路径守卫+端口兜底),app 死后脚本 reparent 给
+/// launchd 继续完成回收;下次启动另有 reclaim_stale_port/stop_runtime 预清理兜底。
+fn stop_runtime_detached(paths: &RuntimePaths, ports: Option<(u16, u16, u16)>) {
+    if !paths.stop_script.exists() {
+        return;
+    }
+    let mut command = Command::new("/bin/bash");
+    command
+        .arg(&paths.stop_script)
+        .current_dir(paths.runtime_dir.join("Horosa-Web"))
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    // 把本会话真实动态端口交给脚本:端口兜底扫描打到真端口,而非默认 8899/9999/8000
+    // (修旧盲点:动态选口后兜底扫描一直只看默认口)。
+    if let Some((backend_port, chart_port, web_port)) = ports {
+        command
+            .env("HOROSA_SERVER_PORT", backend_port.to_string())
+            .env("HOROSA_CHART_PORT", chart_port.to_string())
+            .env("HOROSA_WEB_PORT", web_port.to_string());
+    }
+    let _ = command.spawn();
+}
+
+/// 退出清理(非阻塞版):置静态服务器关闭位 + detached 停后端,毫秒级返回。
+/// mid-life 的同步停服(runtime 更新前,必须停干净才能解压覆盖)仍走 cleanup_state,不经此函数。
+fn spawn_exit_cleanup(app: &AppHandle) {
+    if !claim_exit_cleanup() {
+        return;
+    }
+    if let Some(state) = app.try_state::<AppState>() {
+        if let Ok(mut shutdown) = state.web_shutdown.lock() {
+            if let Some(flag) = shutdown.take() {
+                flag.store(true, Ordering::Relaxed);
+            }
+        }
+        if let Ok(session_slot) = state.session.lock() {
+            if let Some(session) = session_slot.as_ref() {
+                stop_runtime_detached(
+                    &session.paths,
+                    Some((session.backend_port, session.chart_port, session.web_port)),
+                );
+            }
+        }
+    }
+}
+
 fn runtime_bootstrap(
     app: AppHandle,
     window: WebviewWindow,
@@ -5485,6 +5638,12 @@ fn runtime_bootstrap(
     );
     emit_status(&window, "正在检查安装配置…");
     let paths = ensure_runtime_installed(&app, &window, force_runtime_install)?;
+    // panic 路径清理登记(只第一次生效):app panic 不触发 RunEvent::Exit,
+    // 这里把 stop 脚本交给 panic hook,后端子进程不孤儿化。
+    let _ = PANIC_STOP_SCRIPT.set((
+        paths.stop_script.clone(),
+        paths.runtime_dir.join("Horosa-Web"),
+    ));
     let web_port = choose_port_with_preference(DEFAULT_FRONTEND_PORT)?;
     let mut backend_port = choose_free_port()?;
     let mut chart_port = choose_free_port()?;
@@ -5555,7 +5714,9 @@ fn runtime_bootstrap(
         clear_runtime_fast_path_marker(&paths.runtime_dir);
         if first_launch_after_update {
             emit_status(&window, "更新后的第一次启动正在自动复检服务，请稍候…");
-            emit_progress(&window, 84, "更新后首次启动自动重试");
+            // indeterminate + 与 start_runtime 入口同档(82):重试会再次进入 start_runtime,
+            // 入口发 82,这里若发 84 会出现进度倒退。
+            emit_indeterminate_progress(&window, 82, "更新后首次启动自动重试");
             stop_runtime(&paths);
             thread::sleep(Duration::from_secs(3));
             backend_port = choose_free_port()?;
@@ -5579,7 +5740,8 @@ fn runtime_bootstrap(
             })?;
         } else if fast_path_enabled {
             emit_status(&window, "快速启动校验失败，正在自动回退到完整校验启动…");
-            emit_progress(&window, 84, "快速启动回退到完整校验");
+            // 同上:与 start_runtime 入口同档防倒退。
+            emit_indeterminate_progress(&window, 82, "快速启动回退到完整校验");
             stop_runtime(&paths);
             thread::sleep(Duration::from_secs(1));
             backend_port = choose_free_port()?;
@@ -5609,6 +5771,16 @@ fn runtime_bootstrap(
         write_runtime_fast_path_marker(&paths.runtime_dir, &manifest);
     }
     emit_progress(&window, 100, "星阙 已准备完成");
+    // junk 后台 mop-up:trusted 快路径已不在启动期做全树元数据清理(start_runtime),
+    // 这里在服务就绪后延迟 10s(避开 warmup IO 高峰)补扫一遍,保持「runtime 树最终无
+    // .DS_Store/._* junk」的不变量;best-effort,失败静默(共享目录可能无权限)。
+    {
+        let mop_dir = paths.runtime_dir.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_secs(10));
+            let _ = cleanup_runtime_metadata(&mop_dir);
+        });
+    }
     Ok(RuntimeSession {
         paths,
         backend_port,
@@ -5617,8 +5789,60 @@ fn runtime_bootstrap(
     })
 }
 
+/// panic 路径的后端清理:正常退出走 RunEvent::Exit→stop_runtime,但 panic 不触发 Exit 事件,
+/// java/python 子进程会孤儿化(start 脚本 reaper 只覆盖下次启动时回收)。bootstrap 成功后把
+/// stop 脚本路径塞进这里,panic hook best-effort 执行。
+static PANIC_STOP_SCRIPT: std::sync::OnceLock<(PathBuf, PathBuf)> = std::sync::OnceLock::new();
+
+fn register_panic_runtime_cleanup() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if let Some((script, cwd)) = PANIC_STOP_SCRIPT.get() {
+            if script.exists() {
+                let _ = Command::new("/bin/bash")
+                    .arg(script)
+                    .current_dir(cwd)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            }
+        }
+        previous(info);
+    }));
+}
+
+/// 启动期 best-effort 清扫:更新下载的临时文件带时间戳后缀(每次新名),进程中途被杀时遗留
+/// 在系统临时目录累积。删 24h 前的本应用模式文件;失败静默(清扫绝不影响启动)。
+fn sweep_stale_tmp_downloads() {
+    thread::spawn(|| {
+        let tmp = std::env::temp_dir();
+        let prefix = format!("{}-", APP_NAME);
+        let cutoff = SystemTime::now() - Duration::from_secs(24 * 3600);
+        if let Ok(entries) = fs::read_dir(&tmp) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.starts_with(&prefix) {
+                    continue;
+                }
+                let Ok(meta) = entry.metadata() else { continue };
+                let Ok(modified) = meta.modified() else { continue };
+                if modified < cutoff {
+                    let path = entry.path();
+                    let _ = if meta.is_dir() {
+                        fs::remove_dir_all(&path)
+                    } else {
+                        fs::remove_file(&path)
+                    };
+                }
+            }
+        }
+    });
+}
+
 fn main() {
     configure_macos_native_window_restoration();
+    register_panic_runtime_cleanup();
+    sweep_stale_tmp_downloads();
     tauri::Builder::default()
         .manage(AppState::default())
         .menu(build_menu)
@@ -5809,17 +6033,20 @@ fn main() {
                     }
                 }
             }
+            // 🔴 退出两臂禁同步子进程(cleanup_state → stop 脚本 .status() 会阻塞主事件循环,
+            // macOS 标记 not responding 数秒)。Cmd+Q 走 native terminate: 只回调 Exit、不可
+            // prevent,所以两臂都用 detached + 去重的 spawn_exit_cleanup。
             RunEvent::ExitRequested { .. } => {
                 if is_window_state_persistence_ready(app) {
                     persist_all_known_window_states(app);
                 }
-                cleanup_state(app);
+                spawn_exit_cleanup(app);
             }
             RunEvent::Exit => {
                 if is_window_state_persistence_ready(app) {
                     persist_all_known_window_states(app);
                 }
-                cleanup_state(app);
+                spawn_exit_cleanup(app);
             }
             _ => {}
         });
@@ -6538,5 +6765,97 @@ mod tests {
             AssetReviewMode::Install,
             DetectedAssetState::Outdated
         ));
+    }
+
+    #[test]
+    fn exit_cleanup_claim_is_single_shot() {
+        // 退出双回调(ExitRequested+Exit)/app.exit(0) 双发场景下,stop 脚本只许 spawn 一次。
+        assert!(claim_exit_cleanup(), "first claim must win");
+        assert!(!claim_exit_cleanup(), "second claim must lose");
+        assert!(!claim_exit_cleanup(), "subsequent claims must lose");
+    }
+
+    fn repo_stop_script_path() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Horosa-Web/stop_horosa_local.sh")
+    }
+
+    #[test]
+    fn stop_script_keeps_workspace_guard_and_fast_primitives() {
+        // 行为护栏的文本面:① ROOT 工作区守卫(防误杀第二份 checkout 的服务)不许丢;
+        // ② 端口检查必须用 netstat(lsof 全进程 FD 扫描遇卡死进程可 stall 数十秒);
+        // ③ 不许回归整秒 sleep(0.1s 轮询是退出提速的根)。
+        let script = fs::read_to_string(repo_stop_script_path()).expect("read stop script");
+        assert!(
+            script.contains(r#"grep -Fq "${ROOT}""#),
+            "workspace guard missing"
+        );
+        assert!(
+            script.contains("netstat -anv -p tcp"),
+            "port scan must use netstat (kernel table), not lsof"
+        );
+        assert!(script.contains("sleep 0.1"), "0.1s poll loop missing");
+        for line in script.lines() {
+            let code = line.trim_start();
+            if code.starts_with('#') {
+                continue; // 注释里允许提及 lsof(说明为什么禁用)
+            }
+            assert!(
+                !code.contains("lsof"),
+                "lsof is banned in stop script (full-FD scan can stall 30-100s): {line}"
+            );
+            assert!(
+                !code.starts_with("sleep 1"),
+                "fixed whole-second sleep regressed: {line}"
+            );
+        }
+    }
+
+    #[test]
+    fn stop_script_kills_within_time_budget() {
+        // 行为护栏:起两个假服务进程写入 pid 文件,脚本必须在 3s 内全停(旧实现 ≥2s 串行
+        // sleep + lsof stall 可到 30s+)。tempdir 隔离,不碰真实工作区。
+        let work = std::env::temp_dir().join(format!("horosa-stop-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&work);
+        fs::create_dir_all(&work).expect("mk tempdir");
+        fs::copy(repo_stop_script_path(), work.join("stop_horosa_local.sh"))
+            .expect("copy script");
+        let spawn_sleeper = || {
+            Command::new("/bin/sleep")
+                .arg("100")
+                .spawn()
+                .expect("spawn sleeper")
+        };
+        let mut py = spawn_sleeper();
+        let mut java = spawn_sleeper();
+        fs::write(work.join(".horosa_py.pid"), py.id().to_string()).expect("write py pid");
+        fs::write(work.join(".horosa_java.pid"), java.id().to_string()).expect("write java pid");
+        let started = Instant::now();
+        let status = Command::new("/bin/bash")
+            .arg(work.join("stop_horosa_local.sh"))
+            .current_dir(&work)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("run stop script");
+        let elapsed = started.elapsed();
+        assert!(status.success(), "stop script must exit 0");
+        assert!(
+            elapsed < Duration::from_secs(3),
+            "stop script too slow: {elapsed:?}"
+        );
+        // 两个假进程必须已死。它们是本测试进程的子进程,被杀后先成僵尸(kill -0 对僵尸
+        // 仍成功),必须用 try_wait 收尸判定;轮询 ≤2s 防 wait 永久阻塞。
+        fn assert_reaped(label: &str, child: &mut std::process::Child) {
+            for _ in 0..40 {
+                if child.try_wait().expect("try_wait").is_some() {
+                    return;
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            panic!("{label} sleeper must be stopped by script");
+        }
+        assert_reaped("py", &mut py);
+        assert_reaped("java", &mut java);
+        let _ = fs::remove_dir_all(&work);
     }
 }

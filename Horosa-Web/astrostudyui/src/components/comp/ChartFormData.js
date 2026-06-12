@@ -450,7 +450,7 @@ export default class ChartFormData extends Component{
 					<Row gutter={12} style={{marginTop: margintop}}>
 						<Col span={8}>
 							<Row>
-								<Col span={24}>主/界限法显示界限法：</Col>
+								<Col span={24}>主限法显示界限法：</Col>
 								<Col span={24}>
 									<XQSelect value={(flds.showPdBounds && flds.showPdBounds.value !== undefined) ? flds.showPdBounds.value : 1} onChange={this.changeShowPdBounds} style={{width: '100%'}}>
 										<Option value={1}>是</Option>

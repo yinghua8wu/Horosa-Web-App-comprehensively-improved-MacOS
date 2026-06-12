@@ -4,7 +4,7 @@ import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import XQIcon from '../xq-icons';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
@@ -211,7 +211,8 @@ class ShenYiShuMain extends Component{
 			seasonSource: options.seasonSource || this.state.seasonSource,
 			manualSeason: options.manualSeason || this.state.manualSeason,
 		}, ()=>{
-			saveModuleAISnapshot('shenyishu', buildSnapshotText(this.state.pan));
+			const pan = this.state.pan;
+			saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
 		});
 		return true;
 	}
@@ -297,7 +298,7 @@ class ShenYiShuMain extends Component{
 				return;
 			}
 			this.setState({ pan, loading: false }, ()=>{
-				saveModuleAISnapshot('shenyishu', buildSnapshotText(pan));
+				saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
 			});
 		}catch(e){
 			console.warn('shenyishu backend failed', e);

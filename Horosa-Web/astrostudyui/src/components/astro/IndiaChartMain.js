@@ -883,6 +883,7 @@ class IndiaChartMain extends Component{
 		});
 		try{
 			const dashaChartObj = await requestIndiaChartData(params);
+			if(!this._mounted) return;
 			if(this.state.dashaFieldsKey === dashaFieldsKey){
 				this.setState({
 					dashaChartObj,
@@ -893,6 +894,7 @@ class IndiaChartMain extends Component{
 				});
 			}
 		}catch(e){
+			if(!this._mounted) return;
 			if(this.state.dashaFieldsKey === dashaFieldsKey){
 				this.setState({
 					dashaChartObj: null,
@@ -904,6 +906,7 @@ class IndiaChartMain extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		let hook = this.state.hook;
 		if(hook[this.state.currentTab].fun){
 			hook[this.state.currentTab].fun()
@@ -911,6 +914,10 @@ class IndiaChartMain extends Component{
 		const fields = this.withIndiaOptionFields(this.props.fields);
 		this.lastObservedFieldsKey = buildDashaFieldsKey(fields);
 		this.requestDashaChart(fields);
+	}
+
+	componentWillUnmount(){
+		this._mounted = false;
 	}
 
 	componentDidUpdate(prevProps, prevState){

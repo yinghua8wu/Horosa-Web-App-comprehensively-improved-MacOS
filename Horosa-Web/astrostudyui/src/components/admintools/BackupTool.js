@@ -50,14 +50,20 @@ export default class BackupTool extends Component{
     async search(){
 		const params = {
 		};
-		const data = await request(`${ServerRoot}/bak/list`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[ResultKey];
+		try{
+			const data = await request(`${ServerRoot}/bak/list`, {
+				body: JSON.stringify(params),
+			});
+			if(!this._mounted) return;
+			const result = data[ResultKey];
 
-        this.setState({
-            dataSource: result.List,
-        });
+			this.setState({
+				dataSource: result.List,
+			});
+		}catch(e){
+			// 备份列表拉取失败仅告警，保留现有列表不崩
+			console.warn(e);
+		}
     }
 
 	renderActionCol(text, record, index){
@@ -69,7 +75,12 @@ export default class BackupTool extends Component{
 	}
 
     componentDidMount(){
+        this._mounted = true;
         this.search();
+    }
+
+    componentWillUnmount(){
+        this._mounted = false;
     }
 
     render(){

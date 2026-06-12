@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- 防御性 entitlements:app 以 hardened runtime 签名,内嵌 Java(JIT)/Python 子进程
+     在严格环境(企业管控/SIP 变体)下可能被硬化策略拦截。当前同 team Developer ID 签名
+     使 library validation 默认放行自家库,但 JIT/可写可执行内存无豁免时是潜在脆弱点。
+     仅声明子进程运行所需的最小集合,不含任何降低代码签名校验之外的能力。 -->
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

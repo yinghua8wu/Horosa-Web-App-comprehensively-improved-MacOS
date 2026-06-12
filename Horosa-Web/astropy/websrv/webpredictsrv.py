@@ -7,6 +7,7 @@ from flatlib.geopos import GeoPos
 from astrostudy.perchart import PerChart
 from astrostudy.helper import getChartObj
 from websrv.helper import enable_crossdomain
+from websrv._guards import validate_geo
 
 
 class PredictSrv:
@@ -22,6 +23,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             data['tradition'] = False
             perchart = PerChart(data)
             predict = perchart.getPredict()
@@ -77,6 +81,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             data['tradition'] = False
             perchart = PerChart(data)
             predict = perchart.getPredict()
@@ -121,6 +128,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             data['tradition'] = False
             perchart = PerChart(data)
             predict = perchart.getPredict()
@@ -164,6 +174,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             data['tradition'] = False
             perchart = PerChart(data)
             predict = perchart.getPredict()
@@ -202,6 +215,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             data['tradition'] = False
             perchart = PerChart(data)
             predict = perchart.getPredict()
@@ -236,6 +252,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             data['tradition'] = False
             perchart = PerChart(data)
             predict = perchart.getPredict()
@@ -258,6 +277,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             data['tradition'] = False
             perchart = PerChart(data)
             predict = perchart.getPredict()
@@ -279,6 +301,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             perchart = PerChart(data)
             predict = perchart.getPredict()
             pdlist = predict.getPrimaryDirection()
@@ -300,6 +325,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             perchart = PerChart(data)
             predict = perchart.getPredict()
             zone = data['dirZone'] if 'dirZone' in data.keys() and data['dirZone'] else perchart.zone
@@ -321,6 +349,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             perchart = PerChart(data)
             predict = perchart.getPredict()
             clockwise = True
@@ -345,6 +376,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             perchart = PerChart(data)
             predict = perchart.getPredict()
             obj = {
@@ -365,6 +399,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             perchart = PerChart(data)
             predict = perchart.getPredict()
             obj = {
@@ -385,6 +422,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             data['predictive'] = False
 
             startSign = None
@@ -419,6 +459,9 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             perchart = PerChart(data)
 
             planet = data['planet']

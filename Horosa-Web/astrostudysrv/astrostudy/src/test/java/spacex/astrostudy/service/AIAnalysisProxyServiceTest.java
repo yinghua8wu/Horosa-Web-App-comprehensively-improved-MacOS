@@ -336,6 +336,48 @@ public class AIAnalysisProxyServiceTest {
 		assertFalse(body.containsKey("thinking"));
 	}
 
+	@Test
+	public void kimiK2ModelsStripSamplingParams() {
+		// Kimi k2 系仅允许 temperature=1(其它值 400),按推理模型口径不发采样参数(LIVE 实测钉死)。
+		assertTrue(AIAnalysisProxyService.isReasoningModel("kimi-k2.6"));
+		assertTrue(AIAnalysisProxyService.isReasoningModel("kimi-k2.5"));
+		assertTrue(AIAnalysisProxyService.isReasoningModel("kimi-k2.7-code"));
+		assertFalse(AIAnalysisProxyService.isReasoningModel("moonshot-v1-8k"));
+		List<Map<String, Object>> messages = new java.util.ArrayList<Map<String, Object>>();
+		Map<String, Object> body = AIAnalysisProxyService.buildOpenAIChatBody(
+			"kimi-k2.6", buildMap("temperature", 0.7), messages, false);
+		assertFalse(body.containsKey("temperature"));
+	}
+
+	@Test
+	public void extractUpstreamErrorMessageSupportsCommonShapes() {
+		// OpenAI 兼容(含 Kimi/Moonshot): {"error":{"message":...}}
+		assertEquals("Invalid Authentication",
+			AIAnalysisProxyService.extractUpstreamErrorMessage(
+				"{\"error\":{\"message\":\"Invalid Authentication\",\"type\":\"invalid_authentication_error\"}}"));
+		// error 直接是字符串
+		assertEquals("url.not_found",
+			AIAnalysisProxyService.extractUpstreamErrorMessage("{\"code\":5,\"error\":\"url.not_found\"}"));
+		// 顶层 message
+		assertEquals("model not found",
+			AIAnalysisProxyService.extractUpstreamErrorMessage("{\"message\":\"model not found\"}"));
+		// 非 JSON → 空串(调用方带原始截断)
+		assertEquals("", AIAnalysisProxyService.extractUpstreamErrorMessage("<html>Bad Gateway</html>"));
+		assertEquals("", AIAnalysisProxyService.extractUpstreamErrorMessage(""));
+	}
+
+	@Test
+	public void formatUpstreamHttpErrorPutsFriendlyMessageFirst() {
+		// 人话必须在最前(前端 message 只显示前 200 字符)。
+		String msg = AIAnalysisProxyService.formatUpstreamHttpError(400,
+			"{\"error\":{\"message\":\"Invalid model: kimi-k2-turbo-preview\"}}");
+		assertTrue(msg.startsWith("上游服务返回 HTTP 400：Invalid model: kimi-k2-turbo-preview"));
+		// 非 JSON 体:仍可读,带原始截断
+		String raw = AIAnalysisProxyService.formatUpstreamHttpError(502, "Bad Gateway");
+		assertTrue(raw.startsWith("上游服务返回 HTTP 502"));
+		assertTrue(raw.contains("Bad Gateway"));
+	}
+
 	private static Map<String, Object> buildMap(Object... args){
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		for(int i=0; i<args.length; i += 2) {

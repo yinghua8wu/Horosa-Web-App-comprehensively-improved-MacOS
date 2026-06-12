@@ -48,7 +48,8 @@ export const PROVIDER_PRESETS = {
 		protocolFamily: 'gemini',
 		baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
 		defaultChatModels: ['gemini-2.5-flash', 'gemini-2.5-pro'],
-		defaultEmbeddingModels: ['text-embedding-004'],
+		// text-embedding-004 已于 2026-01-14 关停,官方迁移目标 gemini-embedding-001。
+		defaultEmbeddingModels: ['gemini-embedding-001'],
 		requestTimeoutMs: 120000,
 	},
 	openrouter: {
@@ -77,7 +78,9 @@ export const PROVIDER_PRESETS = {
 		label: 'Moonshot / Kimi',
 		protocolFamily: 'openai-compatible',
 		baseUrl: 'https://api.moonshot.cn/v1',
-		defaultChatModels: ['kimi-k2.5', 'kimi-k2-turbo-preview'],
+		// 2026-06 官方现行模型(platform.kimi.com/docs/models):kimi-k2.6/k2.5/k2.7-code + moonshot-v1-*;
+		// kimi-k2-* preview 系列已于 2026-05-25 停服(旧默认 kimi-k2-turbo-preview 是「测试连接」400 的来源)。
+		defaultChatModels: ['kimi-k2.6', 'kimi-k2.5'],
 		defaultEmbeddingModels: [],
 		requestTimeoutMs: 120000,
 	},

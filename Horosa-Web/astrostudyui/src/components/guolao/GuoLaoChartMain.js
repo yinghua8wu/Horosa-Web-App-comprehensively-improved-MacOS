@@ -18,7 +18,7 @@ import GuoLaoMoiraPickWheel from './GuoLaoMoiraPickWheel';
 import GuoLaoQizhengWheel from './GuoLaoQizhengWheel';
 import { GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoChartStyle, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, getStoredGuolaoSu28Mode, getStoredGuolaoDisplay, getStoredMoiraTransitGodsVisible, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, setStoredGuolaoChartStyle, setStoredGuolaoLifeMode, setStoredGuolaoNodeMode, setStoredGuolaoSu28Mode, setStoredMoiraTransitGodsVisible, setStoredGuolaoDisplay, } from './GuoLaoChartStyle';
 import { fetchKinastroQizheng, fetchMoiraQizhengRules, } from '../../services/qizheng';
-import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
 import * as AstroText from '../../constants/AstroText';
 import * as SZConst from '../suzhan/SZConst';
 import * as Su28Helper from '../su28/Su28Helper';
@@ -2277,7 +2277,9 @@ class GuoLaoChartMain extends Component{
 		if(!p || !r){
 			return;
 		}
-		saveModuleAISnapshot('guolao', buildGuolaoSnapshotTextV2(p, r, this.props.planetDisplay, this.props.fields), {
+		const planetDisplay = this.props.planetDisplay;
+		const fields = this.props.fields;
+		saveModuleAISnapshotLazy('guolao', ()=>buildGuolaoSnapshotTextV2(p, r, planetDisplay, fields), {
 			date: p.date,
 			time: p.time,
 			zone: p.zone,

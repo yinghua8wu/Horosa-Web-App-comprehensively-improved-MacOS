@@ -9,7 +9,7 @@ import * as SZConst from './SZConst';
 import * as Su28Helper from '../su28/Su28Helper';
 import SuZhanInput from './SuZhanInput';
 import SuZhanChart from './SuZhanChart';
-import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { XQTabs as Tabs } from '../xq-ui';
 import XQIcon from '../xq-icons';
@@ -537,9 +537,12 @@ class SuZhanMain extends Component{
 			return;
 		}
 		if(this.props.fields){
-			saveModuleAISnapshot('suzhan', buildSuzhanSnapshotText(this.props.value, this.props.fields, this.props.planetDisplay));
-			if(this.props.fields.szchart && this.props.fields.szchart.value === SZConst.SZChart_DunJiaChart){
-				saveModuleAISnapshot('qimen', buildQimenSnapshotText(this.props.value, this.props.fields));
+			const value = this.props.value;
+			const fields = this.props.fields;
+			const planetDisplay = this.props.planetDisplay;
+			saveModuleAISnapshotLazy('suzhan', ()=>buildSuzhanSnapshotText(value, fields, planetDisplay));
+			if(fields.szchart && fields.szchart.value === SZConst.SZChart_DunJiaChart){
+				saveModuleAISnapshotLazy('qimen', ()=>buildQimenSnapshotText(value, fields));
 			}
 		}
 	}
@@ -549,9 +552,12 @@ class SuZhanMain extends Component{
 			return;
 		}
 		if(prevProps.value !== this.props.value || prevProps.fields !== this.props.fields || prevProps.planetDisplay !== this.props.planetDisplay){
-			saveModuleAISnapshot('suzhan', buildSuzhanSnapshotText(this.props.value, this.props.fields, this.props.planetDisplay));
-			if(this.props.fields && this.props.fields.szchart && this.props.fields.szchart.value === SZConst.SZChart_DunJiaChart){
-				saveModuleAISnapshot('qimen', buildQimenSnapshotText(this.props.value, this.props.fields));
+			const value = this.props.value;
+			const fields = this.props.fields;
+			const planetDisplay = this.props.planetDisplay;
+			saveModuleAISnapshotLazy('suzhan', ()=>buildSuzhanSnapshotText(value, fields, planetDisplay));
+			if(fields && fields.szchart && fields.szchart.value === SZConst.SZChart_DunJiaChart){
+				saveModuleAISnapshotLazy('qimen', ()=>buildQimenSnapshotText(value, fields));
 			}
 		}
 	}

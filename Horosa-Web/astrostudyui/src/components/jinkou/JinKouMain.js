@@ -944,7 +944,7 @@ class JinKouMain extends Component{
 		});
 		const jinkouData = normalizeKinjinkouData(jinkouPan || this.state.jinkouPan, localJinKouData);
 		const appliedBirth = getAppliedBirth(this.state);
-		saveModuleAISnapshot('jinkou', buildJinKouSnapshotText(
+		saveModuleAISnapshotLazy('jinkou', ()=>buildJinKouSnapshotText(
 			saveParams,
 			liureng,
 			runyear,

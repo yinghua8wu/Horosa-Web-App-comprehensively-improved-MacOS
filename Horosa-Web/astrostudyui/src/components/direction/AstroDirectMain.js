@@ -258,7 +258,7 @@ function buildPrimaryDirectSnapshotText(chartObj){
 		pdDirText = '逆向 Converse';
 	}
 	lines.push('');
-	lines.push('[主/界限法设置]');
+	lines.push('[主限法设置]');
 	lines.push(`推运方法：${primaryDirectionMethodText(pdMethod)}`);
 	lines.push(`度数换算：${primaryDirectionTimeKeyText(pdTimeKey)}`);
 	lines.push(`方向类型：${pdTypeText}`);
@@ -268,7 +268,7 @@ function buildPrimaryDirectSnapshotText(chartObj){
 	lines.push(`显示界限法：${showPdBounds ? '是' : '否'}`);
 
 	lines.push('');
-	lines.push('[主/界限法表格]');
+	lines.push('[主限法表格]');
 	lines.push(`| ${degreeLabel} | 迫星 | 应星 | 日期 |`);
 	lines.push('| --- | --- | --- | --- |');
 	if(pds.length === 0){

@@ -384,7 +384,7 @@ const INDIA_CHART_FIELDS = [
 const PRIMARY_DIRECT_TABLE_FIELDS = [
 	{ name: 'pdMethod', label: '方位法', type: 'select', options: PD_METHOD_OPTIONS, default: DEFAULT_PD_METHOD, group: '方位法' },
 	{ name: 'pdTimeKey', label: '度数换算', type: 'select', options: PD_TIME_KEY_OPTIONS, default: DEFAULT_PD_TIME_KEY, group: '方位法' },
-	{ name: 'pdtype', label: '主限/界限法', type: 'select', default: 0, group: '方位法', options: [
+	{ name: 'pdtype', label: '主限法', type: 'select', default: 0, group: '方位法', options: [
 		{ value: 0, label: '主限法（默认）' },
 		{ value: 1, label: '界限法' },
 	] },

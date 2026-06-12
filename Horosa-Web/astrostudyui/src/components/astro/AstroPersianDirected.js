@@ -159,6 +159,7 @@ class AstroPersianDirected extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.requestData();
 		this.saveSnapshot();
 		if(typeof window !== 'undefined'){
@@ -184,6 +185,7 @@ class AstroPersianDirected extends Component{
 	}
 
 	componentWillUnmount(){
+		this._mounted = false;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -243,6 +245,7 @@ class AstroPersianDirected extends Component{
 			const tm = new DateTime();
 			const dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');
 			if(params.dirZone){ dt.setZone(params.dirZone); }
+			if(!this._mounted) return;
 			this.setState({ dirChart: result, params: { ...params, datetime: dt } });
 		}catch(e){ /* ignore */ }
 	}

@@ -252,6 +252,7 @@ class AstroRelative extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		if(typeof window !== 'undefined' && window.addEventListener){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -274,6 +275,7 @@ class AstroRelative extends Component{
 	}
 
 	componentWillUnmount(){
+		this._mounted = false;
 		if(this.chartRowObserver){
 			try{ this.chartRowObserver.disconnect(); }catch(e){}
 			this.chartRowObserver = null;
@@ -446,6 +448,7 @@ class AstroRelative extends Component{
 			hook: hook
 		};
 
+		if(!this._mounted) return;
 		this.setState(st, ()=>{
 			let hook = this.state.hook[this.state.currentTab];
 			if(hook && hook.fun){

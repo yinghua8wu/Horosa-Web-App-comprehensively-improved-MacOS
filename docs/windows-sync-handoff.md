@@ -8,6 +8,44 @@
 
 ---
 
+## 待发布 · 运行提速大批 + 六项界面/AI 修复（流畅度 + 退出/启动 + AI 预设连接）
+
+> **Windows 必做两件：①拉前端源码并跑 jest；②重编 Java jar（AI 代理外呼层重写）。**
+> 另有「壳层原则性移植」一节——Windows 壳层代码独立实现，按原则逐条对照落地。
+
+### A. 纯前端（拉源码即同步，重点回归面已配 jest）
+- **技法 chunk 懒加载 + 空闲预取**：`.umirc.js` 开 `dynamicImport`；`src/pages/index.js` 首帧后 2s 起空闲队列逐个预载全部技法模块。效果：首包大幅瘦身、启动显著加快、预载完成后切任何技法零等待。Windows 构建链同为 umi，照拉即生效；注意打包产物 chunk 相对路径在桌面壳内可加载（Mac 侧已实测，Windows 请在壳内实测一次）。
+- **localStorage 大快照延迟落盘**：新文件 `src/utils/deferredStorage.js`（requestIdleCallback 合并写,beforeunload 强刷）。
+- **AI 快照文本构建惰性化**：`moduleAiSnapshot.js`/`astroAiSnapshot.js` 新增 Lazy 入口（构建挪到空闲或首次读取时,读取强制物化保内容逐字一致）,约 40 个技法调用点已切换。新增 jest：`moduleAiSnapshotLazy/astroAiSnapshotLazy` 等价性测试。
+- **紫微 rules 会话缓存 + 并行**：`services/rules.js` `ziweirulesCached`；`ZiWeiMain.requestZiWei` birth/rules 并行。
+- **图面重绘签名守卫**：`AstroChart.js`/`ZiWeiChart.js` 同输入跳过整树 d3 重建（开关 drawer/点 tooltip 不再触发重绘）。
+- **doHook rAF 化**：`models/astro.js` 排盘后技法面板下一帧刷新,主盘先上屏。
+- 以上四类优化各有独立 kill-switch（`src/utils/perfFlags.js`,localStorage `horosa.perf.*` 设 '0' 即回旧行为）。
+- **六壬方盘下端溢出修复**：`lrzhan/RengChart.js`（按中间栏最下端钳高+盘面/课传按可用高收纳,低于 360px 才回落滚动）、`lrzhan/LiuRengChart.js`（resize 读 host 真实高+ResizeObserver+隐藏页 rAF 挂起降级）。圆盘路径零改动。
+- **太乙缩放顶部遮挡修复**：`taiyi/TaiYiMain.js` 页高改 `'100%'`+`minHeight:0`（对齐遁甲同款）+ 盘面可视盒实测兜底（ResizeObserver+观察目标重绑+window resize 直连）。
+- **主限法四项**：分页「X 条/页」受控+持久化（此前选完被重置）;表底空白预留收准;「主/界限法」文案统一为「主限法」（**AI 导出分节匹配表已做新旧名兼容**,`aiExport.js` 同步拉取即可）;表格列筛选弹窗补主题变量覆盖（`app.less` `.ant-table-filter-dropdown` 段,暗色白边修复）。
+- 启停脚本：`stop_horosa_local.sh`/`start_horosa_local.sh` 是 Mac 专用（Windows 不消费）,但其中的修法原则见 C 节。
+
+### B. Java 必重编 jar（即 Windows repo「Kimi 测试连接失败 400」issue 的修法）
+`AIAnalysisProxyService.java`（+Test,25 测）三层修复：
+1. **根因一（主因）**：kimi-k2 系模型仅允许 temperature=1,代理无条件发 0.7 → 上游 400。修=kimi-k2* 纳入推理模型口径（`isReasoningModel`）,剥离 temperature/top_p 等采样参数,用模型默认值。`moonshot-v1-*` 不受影响。
+2. **根因二**：预设默认模型停服——`kimi-k2-turbo-preview` 已于 2026-05-25 停服 → 前端预设改 `kimi-k2.6`/`kimi-k2.5`（`aiAnalysisProviders.js`）；gemini 嵌入默认 `text-embedding-004` 已关停 → `gemini-embedding-001`。
+3. **错误可读化**：AI 代理全部非流式外呼（模型列表 GET/对话/嵌入）从框架 HTTP 工具迁到 JDK HttpClient——请求头完全自控（GET 不再发 Content-Type、无框架内部头注入）,非 2xx 时提取上游 `error.message` 前置展示（流式路径同口径）。用户看到「上游服务返回 HTTP 400：invalid temperature: …」而非不可读 dump。
+   ⚠️ Windows 同步此文件后务必 `mvn clean install`（astrostudy 模块）再 package boot,否则 boot 会从本地仓库取旧 artifact（Mac 侧踩过）。
+
+### C. 壳层原则性移植（Windows 壳层自行实现,对照逐条）
+Mac 壳层本批修了「退出 not responding」与「非首次启动偶发卡进度」两类问题,根因与原则对 Windows 同样适用：
+1. **退出回调禁同步子进程**：关闭/退出事件处理器里同步等待子进程清理 = 主事件循环停摆 = 系统标记无响应。清理一律 detached 启动+原子去重（多次退出回调只跑一次）,可靠性由清理脚本自含界+下次启动残留回收兜底。
+2. **端口检查禁全进程扫描类工具**：按端口查监听进程时,凡需遍历全系统进程句柄的工具（Mac 的 lsof 同类）遇到卡死进程会 stall 数十秒——尤其禁止用在就绪轮询循环里。Windows 用 `Get-NetTCPConnection`/`netstat -ano`（读内核连接表,毫秒级）。
+3. **启动关键路径禁无条件 O(全树) IO**：对 runtime 树的递归遍历/清理只许在安装/解压/健康缓存失效时跑,可信快路径必须跳过;就绪后后台补扫保持不变量。
+4. **进度条永不静止**：任何 >0.5s 的同步段之前先切不确定态进度+说明文案;长等待期每秒刷新「已等待 N 秒」。进度静止会被用户当卡死强退,造成残留进程连锁。
+5. **停止脚本提速**：进程终止等待用 0.1s 轮询（提前退出立即返回）替代固定整秒 sleep;多服务并行收割。
+
+### 行为变化提示（同步后请验）
+退出应即时（窗口立即消失,后台 1~2s 内进程清零）;首启后的后续启动明显加快且进度不冻结;技法内改设置/拖时间明显更顺;Kimi/Gemini 预设「测试连接」正常（Mac 侧已用真实 key 实测「测试成功」）;暗色 UI 主限法筛选弹窗无白边。jest 全量须绿（Mac 侧 713）。
+
+---
+
 ## 待发布 · 算法/设置/渲染三类扫雷批次（排盘计算修正 + 设置生效链 + 图面渲染）
 
 > **Windows 必做一件：同步 Python 排盘引擎 8 个文件 + 重启本地 Python 服务并清 ParamHashCache**（本批 Java 未动、无需重编 jar）。其余全部纯前端，拉前端即同步。

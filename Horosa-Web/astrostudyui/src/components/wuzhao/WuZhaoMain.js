@@ -4,7 +4,7 @@ import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import XQIcon from '../xq-icons';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
@@ -247,7 +247,8 @@ class WuZhaoMain extends Component{
 			manual: options.manual !== undefined ? !!options.manual : this.state.manual,
 			manualSplits: options.manualSplits instanceof Array ? options.manualSplits : this.state.manualSplits,
 		}, ()=>{
-			saveModuleAISnapshot('wuzhao', buildSnapshotText(this.state.pan));
+			const pan = this.state.pan;
+			saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
 		});
 		return true;
 	}
@@ -333,7 +334,7 @@ class WuZhaoMain extends Component{
 				return;
 			}
 			this.setState({ pan, loading: false }, ()=>{
-				saveModuleAISnapshot('wuzhao', buildSnapshotText(pan));
+				saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
 			});
 		}catch(e){
 			console.warn('kinwuzhao backend failed', e);

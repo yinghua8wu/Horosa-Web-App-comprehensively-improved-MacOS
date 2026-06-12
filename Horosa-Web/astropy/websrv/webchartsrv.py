@@ -35,6 +35,7 @@ from astrostudy.guostarsect.guostarsect import GuoStarSect
 from astrostudy.thirteenthchart import ThirteenthChart
 from astrostudy.helper import getPredictivesObj
 from websrv.helper import enable_crossdomain
+from websrv._guards import validate_geo
 from websrv.webpredictsrv import PredictSrv
 from websrv.webindiasrv import IndiaAstroSrv
 from websrv.webmodernsrv import ModernAstroSrv
@@ -104,6 +105,9 @@ class WebChartSrv:
             _tprobe = '{0}'.format(data.get('time', ''))
             if 'NaN' in _dprobe or 'NaN' in _tprobe or _dprobe.strip() == '':
                 return jsonpickle.encode({'err': 'invalid_date'}, unpicklable=False)
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
             print(data)
 
             perchart = PerChart(data)
@@ -288,7 +292,8 @@ def _pids_listening_on(port):
                     if pid.isdigit():
                         pids.add(int(pid))
         else:
-            out = subprocess.run(['lsof', '-tiTCP:%d' % port, '-sTCP:LISTEN'],
+            # -nP 必带:不带时 lsof 做 DNS/服务名反查,离线/DNS 慢时可拖数十秒(超出 timeout=6 假阴性)。
+            out = subprocess.run(['lsof', '-nP', '-tiTCP:%d' % port, '-sTCP:LISTEN'],
                                  capture_output=True, text=True, timeout=6).stdout or ''
             for line in out.splitlines():
                 line = line.strip()

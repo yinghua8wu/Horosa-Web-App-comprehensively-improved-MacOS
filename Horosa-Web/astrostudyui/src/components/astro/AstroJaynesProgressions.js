@@ -65,6 +65,7 @@ class AstroJaynesProgressions extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.load();
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -72,6 +73,7 @@ class AstroJaynesProgressions extends Component{
 	}
 
 	componentWillUnmount(){
+		this._mounted = false;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -101,8 +103,10 @@ class AstroJaynesProgressions extends Component{
 				body: JSON.stringify({ ...chartParams(this.props.value), targetDate: this.state.targetDate, targetTime: this.state.targetTime, orb: 1.0 }),
 				timeoutMs: 45000,
 			});
+			if(!this._mounted) return;
 			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: key });
 		}catch(e){
+			if(!this._mounted) return;
 			this.setState({ loading: false, requestKey: key });
 		}
 	}

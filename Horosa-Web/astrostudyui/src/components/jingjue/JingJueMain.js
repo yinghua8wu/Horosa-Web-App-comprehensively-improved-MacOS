@@ -4,7 +4,7 @@ import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import XQIcon from '../xq-icons';
 import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
@@ -185,7 +185,8 @@ class JingJueMain extends Component{
 			pan: payload.pan || null,
 			seed: options.seed !== undefined ? options.seed : this.state.seed,
 		}, ()=>{
-			saveModuleAISnapshot('jingjue', buildSnapshotText(this.state.pan));
+			const pan = this.state.pan;
+			saveModuleAISnapshotLazy('jingjue', ()=>buildSnapshotText(pan));
 		});
 		return true;
 	}
@@ -272,7 +273,7 @@ class JingJueMain extends Component{
 				return;
 			}
 			this.setState({ pan, loading: false }, ()=>{
-				saveModuleAISnapshot('jingjue', buildSnapshotText(pan));
+				saveModuleAISnapshotLazy('jingjue', ()=>buildSnapshotText(pan));
 			});
 		}catch(e){
 			console.warn('jingjue backend failed', e);

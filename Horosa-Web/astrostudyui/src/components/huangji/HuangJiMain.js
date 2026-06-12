@@ -4,7 +4,7 @@ import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import XQIcon from '../xq-icons';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
@@ -226,7 +226,9 @@ class HuangJiMain extends Component{
 			classicView: options.classicView || this.state.classicView,
 			xinyiOptions,
 		}, ()=>{
-			saveModuleAISnapshot('huangji', buildSnapshotText(this.state.pan, this.state.xinyi));
+			const pan = this.state.pan;
+			const xinyi = this.state.xinyi;
+			saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi));
 		});
 		return true;
 	}
@@ -311,7 +313,7 @@ class HuangJiMain extends Component{
 				return;
 			}
 			this.setState({ pan, xinyi, loading: false }, ()=>{
-				saveModuleAISnapshot('huangji', buildSnapshotText(pan, xinyi));
+				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi));
 			});
 		}catch(e){
 			console.warn('kinwangji backend failed', e);
@@ -337,7 +339,8 @@ class HuangJiMain extends Component{
 		const xinyi = await postWangJi('xinyi', payload);
 		if(updateState && !this.unmounted){
 			this.setState({ xinyi }, ()=>{
-				saveModuleAISnapshot('huangji', buildSnapshotText(this.state.pan, xinyi));
+				const pan = this.state.pan;
+				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi));
 			});
 		}
 		return xinyi;

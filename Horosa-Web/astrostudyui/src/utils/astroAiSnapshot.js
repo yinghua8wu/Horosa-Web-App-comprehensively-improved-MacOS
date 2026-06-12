@@ -1,3 +1,5 @@
+import { scheduleStorageWrite } from './deferredStorage';
+import { lazySnapshotBuildEnabled } from './perfFlags';
 import * as AstroConst from '../constants/AstroConst';
 import * as AstroText from '../constants/AstroText';
 import { appendPlanetHouseInfoById, } from './planetHouseInfo';
@@ -948,6 +950,8 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 
 export function saveAstroAISnapshot(chartObj, fields, options = {}){
 	try{
+		// 同步 save 即最新真值:丢弃 pending,防旧 factory 物化盖过本次内容。
+		ASTRO_PENDING = null;
 		const content = buildAstroSnapshotContent(chartObj, fields, options);
 		if(!content){
 			return null;
@@ -962,7 +966,7 @@ export function saveAstroAISnapshot(chartObj, fields, options = {}){
 		ASTRO_AI_SNAPSHOT_MEMORY = payload;
 		saveAstroSnapshotToGlobal(payload);
 		if(typeof window !== 'undefined' && window.localStorage){
-			window.localStorage.setItem(ASTRO_AI_SNAPSHOT_KEY, JSON.stringify(payload));
+			scheduleStorageWrite(ASTRO_AI_SNAPSHOT_KEY, ()=>JSON.stringify(payload)); // 流畅度:大快照延迟落盘
 		}
 		return payload;
 	}catch(e){
@@ -988,8 +992,90 @@ export function saveAstroAISnapshot(chartObj, fields, options = {}){
 	}
 }
 
+// 惰性构建槽(astro 快照是单例,单槽即可)。语义见 saveAstroAISnapshotLazy。
+let ASTRO_PENDING = null;
+
+// 惰性版 save:整盘多 section 文本构建(相位/行星/希腊点/12分度/主宰星链/寿命格局/可能性)
+// 挪出排盘完成的关键路径,到空闲时段或首次读取时执行;内容与同步版逐字节一致,只是构建变晚。
+export function saveAstroAISnapshotLazy(chartObj, fields, options = {}){
+	if(!lazySnapshotBuildEnabled()){
+		// kill-switch:退化为同步构建,行为==现状。
+		return saveAstroAISnapshot(chartObj, fields, options);
+	}
+	// dev 漂移哨兵:开发态注册时同步预构建一份,物化时比对——捕捉「chartObj 在登记后被
+	// 某 hook 面板就地突变」导致的字节漂移(生产态零成本)。
+	let devExpected = null;
+	try{
+		if(typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development'){
+			devExpected = buildAstroSnapshotContent(chartObj, fields, options);
+		}
+	}catch(e){
+		devExpected = null;
+	}
+	const token = {
+		// createdAt/signature/chartId 注册时打点(signature 纯字符串拼接,廉价),
+		// 元数据语义与同步版「save 时刻」一致。
+		createdAt: new Date().toISOString(),
+		signature: createAstroSnapshotSignature(chartObj, fields, options),
+		chartId: chartObj && chartObj.chartId ? chartObj.chartId : null,
+		done: false,
+		payload: null,
+		materialize(){
+			if(token.done){
+				return token.payload;
+			}
+			token.done = true;
+			try{
+				const content = buildAstroSnapshotContent(chartObj, fields, options);
+				if(content){
+					if(devExpected !== null && content !== devExpected){
+						try{
+							console.warn('[horosa.perf] astro 快照惰性构建内容漂移(chartObj 注册后被突变?),请排查 hook 面板对入参的就地写');
+						}catch(warnErr){
+							// ignore
+						}
+					}
+					token.payload = {
+						version: 1,
+						createdAt: token.createdAt,
+						signature: token.signature,
+						chartId: token.chartId,
+						content: normalizeAiExportText(content),
+					};
+					ASTRO_AI_SNAPSHOT_MEMORY = token.payload;
+					saveAstroSnapshotToGlobal(token.payload);
+				}
+				// 空内容与同步版语义一致:不覆盖旧快照、不落盘。
+			}catch(e){
+				// factory 异常:保留旧快照。
+			}
+			if(ASTRO_PENDING === token){
+				ASTRO_PENDING = null;
+			}
+			return token.payload;
+		},
+	};
+	ASTRO_PENDING = token; // 后写覆盖(latest-wins):连续重排只构建最后一次
+	if(typeof window !== 'undefined' && window.localStorage){
+		scheduleStorageWrite(ASTRO_AI_SNAPSHOT_KEY, ()=>{
+			const payload = token.materialize();
+			return payload ? JSON.stringify(payload) : undefined;
+		});
+	}
+	return token;
+}
+
 export function loadAstroAISnapshot(){
 	try{
+		// read-time 强制物化(铁律):pending 即最新快照,必须先于 localStorage 直返——
+		// localStorage 此刻还是上一次的旧值(延迟落盘窗口),走旧分支会读到过期内容。
+		if(ASTRO_PENDING){
+			const fresh = ASTRO_PENDING.materialize();
+			if(fresh){
+				return fresh;
+			}
+			// 物化为空(本次快照为空)→ 按同步版语义回落旧快照。
+		}
 		if(typeof window !== 'undefined' && window.localStorage){
 			const raw = window.localStorage.getItem(ASTRO_AI_SNAPSHOT_KEY);
 			if(raw){

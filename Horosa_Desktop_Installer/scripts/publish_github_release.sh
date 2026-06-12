@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# 发布硬闸(制度,2026-06-12):任何 release 发布前必须完成人工安装验收。
+# 流程 = 打包 → 用户亲手安装 .pkg 实测 → 确认后 HOROSA_USER_TESTED=1 重跑本脚本。
+if [ "${HOROSA_USER_TESTED:-0}" != "1" ]; then
+  echo "⛔ 发布中止:本 release 尚未经人工安装验收。" >&2
+  echo "   请先安装 dist/ 下的 .pkg 完整手测;确认无误后:HOROSA_USER_TESTED=1 bash $0" >&2
+  exit 1
+fi
+
 INSTALLER_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_ROOT="${INSTALLER_ROOT}/dist"
 read -r REPO_OWNER REPO_NAME TAG_PREFIX VERSION TAG_NAME RUNTIME_TAG_NAME RUNTIME_ASSET DESKTOP_ASSET DESKTOP_PKG DESKTOP_PKG_ZIP DESKTOP_OFFLINE_PKG DESKTOP_OFFLINE_PKG_ZIP UPDATE_MANIFEST_NAME RUNTIME_VERSION PRIMARY_DOWNLOAD SUPPORTED_ARCH RELEASE_CHANNEL RELEASE_PRERELEASE_CONFIG RELEASE_MAKE_LATEST_CONFIG <<EOF
@@ -520,9 +528,14 @@ for _ in $(seq 1 20); do
   LATEST_MANIFEST="$(curl -fsSL -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "${LATEST_MANIFEST_URL}" 2>/dev/null || true)"
   if [ -z "${LATEST_MANIFEST}" ]; then
     # 匿名 download URL 可能 404(CDN 未就绪或仓库可见性受限) —— 回退走带凭证的 API 资产端点。
-    MANIFEST_ASSET_API_URL="$(api_json "${API_ROOT}/releases/tags/${TAG_NAME}" 2>/dev/null | UPDATE_MANIFEST_NAME_ENV="${UPDATE_MANIFEST_NAME}" python3 - <<'PYURL' || true
-import json, os, sys
-data = json.load(sys.stdin)
+    # 注意:python3 - 的脚本经 heredoc 走 stdin,release JSON 必须经 env 传入(管道会被 heredoc 抢占)。
+    MANIFEST_RELEASE_JSON="$(api_json "${API_ROOT}/releases/tags/${TAG_NAME}" 2>/dev/null || true)"
+    MANIFEST_ASSET_API_URL="$(RELEASE_JSON_ENV="${MANIFEST_RELEASE_JSON}" UPDATE_MANIFEST_NAME_ENV="${UPDATE_MANIFEST_NAME}" python3 - <<'PYURL' || true
+import json, os
+try:
+    data = json.loads(os.environ.get('RELEASE_JSON_ENV') or '{}')
+except Exception:
+    data = {}
 name = os.environ['UPDATE_MANIFEST_NAME_ENV']
 for asset in data.get('assets', []):
     if asset.get('name') == name:

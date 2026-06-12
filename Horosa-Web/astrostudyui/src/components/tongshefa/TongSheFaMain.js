@@ -971,8 +971,8 @@ class TongSheFaMain extends Component{
 	}
 
 	saveSnapshot(){
-		const model = buildTongSheFaModel(this.state.selected);
-		saveModuleAISnapshot('tongshefa', buildTongSheFaSnapshot(model));
+		const selected = this.state.selected;
+		saveModuleAISnapshotLazy('tongshefa', ()=>buildTongSheFaSnapshot(buildTongSheFaModel(selected)));
 	}
 
 	onBorderToggle(val){

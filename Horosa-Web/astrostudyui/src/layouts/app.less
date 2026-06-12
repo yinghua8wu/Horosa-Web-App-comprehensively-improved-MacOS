@@ -750,6 +750,33 @@
         box-shadow: var(--horosa-shadow);
     }
 
+    // antd Table 列筛选弹窗(portal 到 body;如主限法「筛选应星/迫星」「筛选年份」):antd 默认白底,
+    // 暗色下容器与底部按钮栏(重置/确定)成刺眼白边——补 surface/border/text 全套(变量驱动,亮暗两态都对)。
+    .ant-table-filter-dropdown {
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background: var(--horosa-surface-raised);
+        color: var(--horosa-text);
+        box-shadow: var(--horosa-shadow);
+        overflow: hidden;
+    }
+    .ant-table-filter-dropdown .ant-dropdown-menu {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+    }
+    .ant-table-filter-dropdown-btns {
+        background: transparent;
+        border-top: 1px solid var(--horosa-border);
+    }
+    .ant-table-filter-dropdown .ant-dropdown-menu-item,
+    .ant-table-filter-dropdown .ant-checkbox-wrapper {
+        color: var(--horosa-text);
+    }
+    .ant-table-filter-dropdown .ant-dropdown-menu-item:hover {
+        background: var(--horosa-accent-soft);
+    }
+
     .ant-modal-header,
     .ant-modal-footer,
     .ant-drawer-header,
@@ -1189,7 +1216,7 @@
     }
 
     /* ── Drawer/Modal 内（portal 到 body，不在 .horosa-workspace-shell 内）的 Tabs / Tag / 多选chips / Collapse 暗色补齐 ──
-       报告卡片用到这些组件;它们不在 workspace-shell 覆盖范围内,
+       报告与各设置抽屉用到这些组件;它们不在 workspace-shell 覆盖范围内,
        不单独补 dark 规则就会在暗色下看不清(灰字暗底)。 */
     :root[data-horosa-appearance='dark'] .ant-drawer .ant-tabs-tab,
     :root[data-horosa-appearance='dark'] .ant-modal-root .ant-tabs-tab {
@@ -9054,6 +9081,8 @@
 
     .horosa-workspace-shell .horosa-liureng-redesign .horosa-liureng-redesign-grid {
         display: grid !important;
+        /* 显式锁死隐式行:不声明时靠各 panel min-height:0 间接收敛,一旦失败中间栏 host 比可视区高 → 图面越底 */
+        grid-template-rows: minmax(0, 1fr);
         grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
         gap: 4px;
         min-height: 0;
@@ -9842,6 +9871,8 @@
 
     .horosa-workspace-shell .horosa-taiyi-redesign .horosa-taiyi-redesign-grid {
         display: grid !important;
+        /* 显式锁死隐式行:不声明时靠各 panel min-height:0 间接收敛,一旦失败中间栏 host 比可视区高 → 图面越底 */
+        grid-template-rows: minmax(0, 1fr);
         grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
         gap: 4px;
         min-height: 0;

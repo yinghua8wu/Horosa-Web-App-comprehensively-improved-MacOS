@@ -1051,7 +1051,7 @@ class AstroPrimaryDirectionChart extends Component{
 								<div>当前盘面方法：{pdMethodLabel}</div>
 								<div>当前盘面度数换算：{selectedPdTimeKey}</div>
 								<div>当前向运方向：{this.state.pdDirectionValue === 'converse' ? '逆向 Converse' : '顺向 Direct'}</div>
-								{dirty ? <div>主/界限法表格已应用方法：{appliedMethodLabel} / {applied.pdTimeKey}</div> : null}
+								{dirty ? <div>主限法表格已应用方法：{appliedMethodLabel} / {applied.pdTimeKey}</div> : null}
 								<div>当前主限法年龄：{splitDegreeText(derived.currentArc)}</div>
 								<div>外圈时间：{derived.currentDt ? derived.currentDt.format('YYYY-MM-DD HH:mm:ss') : '无'}</div>
 								{ascTermHighlight ? (
@@ -1070,8 +1070,8 @@ class AstroPrimaryDirectionChart extends Component{
 								</div>
 								<div>
 									{dirty
-										? '左侧主限法盘会立即按右侧所选方法与时间换算重绘；点击“计算/重新计算”后，主/界限法表格也会同步到同一套设置。'
-										: '当前页面已与“主/界限法”同步，切换时间后会继续按当前设置推演任意时刻的外圈位置。'}
+										? '左侧主限法盘会立即按右侧所选方法与时间换算重绘；点击“计算/重新计算”后，主限法表格也会同步到同一套设置。'
+										: '当前页面已与“主限法”同步，切换时间后会继续按当前设置推演任意时刻的外圈位置。'}
 								</div>
 							</div>
 						</div>

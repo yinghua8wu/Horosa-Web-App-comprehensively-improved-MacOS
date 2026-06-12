@@ -19,7 +19,12 @@ class AstroHarmonicLab extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.load();
+	}
+
+	componentWillUnmount(){
+		this._mounted = false;
 	}
 
 	componentDidUpdate(prevProps){
@@ -51,8 +56,10 @@ class AstroHarmonicLab extends Component{
 				}),
 				timeoutMs: 30000,
 			});
+			if(!this._mounted) return;
 			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
 		}catch(e){
+			if(!this._mounted) return;
 			this.setState({loading: false, requestKey: key});
 		}
 	}

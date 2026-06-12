@@ -20,8 +20,9 @@ export default {
 	effects: {
 		*ziwei({ payload: values }, { call, put }){
             let params = { };
-			
-			const { Result } = yield call(service.ziweirules, params);
+
+			// 走会话缓存:app 启动时本 effect 即 prime 缓存,之后紫微排盘路径零 RTT 命中。
+			const { Result } = yield call(service.ziweirulesCached, params);
 
 			yield put({
                 type: 'save',

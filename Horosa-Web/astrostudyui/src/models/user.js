@@ -8,6 +8,19 @@ import { getPagedLocalCharts, upsertLocalChart, removeLocalChart } from '../util
 import { getPagedLocalCases, upsertLocalCase, removeLocalCase, getCaseTypeMeta } from '../utils/localcases';
 
 
+// 书架 catalog 字段为服务端存的 JSON 串;单本损坏不能拖垮整个书架列表(map 内裸 parse
+// 抛错会让 effect 在 save 前中断)。坏数据回退空目录,消费端 BookReader 同此口径。
+function parseBookCatalogs(books){
+	(books || []).forEach((book)=>{
+		try{
+			book.catalog = JSON.parse(book.catalog);
+		}catch(e){
+			book.catalog = [];
+		}
+	});
+	return books;
+}
+
 function newEmptyChartFields(){
 	let now = new DateTime();
 	const fields = {
@@ -1180,9 +1193,7 @@ export default {
 			};
 
 			const { Result } = yield call(service.listBooks, param);
-			Result.Books.map((book, idx)=>{
-				book.catalog = JSON.parse(book.catalog);
-			});
+			parseBookCatalogs(Result.Books);
 			yield put({
                 type: 'save',
                 payload: {  
@@ -1197,9 +1208,7 @@ export default {
 			};
 
 			const { Result } = yield call(service.deleteBook, param);
-			Result.Books.map((book, idx)=>{
-				book.catalog = JSON.parse(book.catalog);
-			});
+			parseBookCatalogs(Result.Books);
 			yield put({
                 type: 'save',
                 payload: {  
@@ -1214,9 +1223,7 @@ export default {
 			};
 
 			const { Result } = yield call(service.removeBook, param);
-			Result.Books.map((book, idx)=>{
-				book.catalog = JSON.parse(book.catalog);
-			});
+			parseBookCatalogs(Result.Books);
 			yield put({
                 type: 'save',
                 payload: {  
@@ -1236,9 +1243,7 @@ export default {
 			};
 			
 			const { Result } = yield call(service.updateBook, params);
-			Result.Books.map((book, idx)=>{
-				book.catalog = JSON.parse(book.catalog);
-			});
+			parseBookCatalogs(Result.Books);
 			yield put({
                 type: 'save',
                 payload: {  

@@ -52,6 +52,7 @@ class AstroExtraReturns extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.load();
 		this.saveAISnapshot();
 		if(typeof window !== 'undefined'){ window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest); }
@@ -62,6 +63,7 @@ class AstroExtraReturns extends Component{
 	}
 
 	componentWillUnmount(){
+		this._mounted = false;
 		if(typeof window !== 'undefined'){ window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest); }
 	}
 
@@ -83,6 +85,7 @@ class AstroExtraReturns extends Component{
 		if(key === this.state.requestKey && this.state.data){ return; }
 		this.setState({ loading: true });
 		const r = await fetchReturns(this.props.value, this.state.body, this.state.count);
+		if(!this._mounted) return;
 		this.setState({ data: r, loading: false, requestKey: key });
 	}
 

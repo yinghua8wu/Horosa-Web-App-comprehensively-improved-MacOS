@@ -23,18 +23,24 @@ export default class CuanGong12Desc extends Component{
 	async requestData(){
 		let params = {}
 
-		const data = await request(`${Constants.ServerRoot}/common/gong12gods`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey]
+		try{
+			const data = await request(`${Constants.ServerRoot}/common/gong12gods`, {
+				body: JSON.stringify(params),
+			});
+			if(!this._mounted) return;
+			const result = data[Constants.ResultKey]
 
-		const st = {
-			stars: result.stars,
-            starSu: result.starSu,
-            typeSu: result.starTypeSu,
-		};
+			const st = {
+				stars: result.stars,
+				starSu: result.starSu,
+				typeSu: result.starTypeSu,
+			};
 
-		this.setState(st);
+			this.setState(st);
+		}catch(e){
+			// 串宫描述拉取失败仅告警，保持空列表不崩
+			console.warn(e);
+		}
 	}
 
     genSuDom(){
@@ -100,7 +106,12 @@ export default class CuanGong12Desc extends Component{
     }
 
     componentDidMount(){
+        this._mounted = true;
         this.requestData();
+    }
+
+    componentWillUnmount(){
+        this._mounted = false;
     }
 
     render(){

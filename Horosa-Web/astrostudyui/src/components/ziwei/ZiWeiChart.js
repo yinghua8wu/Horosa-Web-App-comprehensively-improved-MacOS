@@ -2,6 +2,7 @@ import * as d3 from 'd3';
 import { Component } from 'react';
 import {randomStr, setupFloatingTooltip} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
+import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import ZWChart from './ZWChart';
 import DateTime from '../comp/DateTime';
 
@@ -133,6 +134,42 @@ class ZiWeiChart extends Component{
 		this.zwchart.luckMingIndex = (this.props.luckMingIndex !== undefined && this.props.luckMingIndex !== null)
 			? this.props.luckMingIndex : null;
 
+		// 重绘签名守卫(流畅度):cDU 无条件 scheduleDrawChart,父组件无关 setState(tips/输入区)
+		// 也会穿透到这里整树重建(ZWChart.draw 内 svg.html('') 全清空)。签名取「draw 实际消费的
+		// 全部输入」(含解析后的 dirHouseIndex,而非可能为 undefined 的 props.dirIndex);引用相等
+		// 比较;仅成功 draw 后记录(draw 抛错不记录,传播行为不变);ensureChartSurfaceSize 已保证
+		// 此处尺寸非零,隐藏期 retry 机制不受影响。ZWChart 内部交互(飞星点击等)直调 this.draw()
+		// 不经本函数,零影响。
+		if(chartDrawGuardEnabled()){
+			const svgdom = document.getElementById(this.state.chartid);
+			const sig = {
+				value: chartobj,
+				fields: this.props.fields,
+				rules: this.props.rules,
+				dirHouseIndex: this.zwchart.dirHouseIndex,
+				luckMingIndex: this.zwchart.luckMingIndex,
+				kinastroBorrowed: this.zwchart.kinastroBorrowed,
+				onCenterInfoClick: this.props.onCenterInfoClick,
+				w: svgdom ? svgdom.clientWidth : 0,
+				h: svgdom ? svgdom.clientHeight : 0,
+			};
+			const last = this._lastDrawnSig;
+			if(last
+				&& last.value === sig.value
+				&& last.fields === sig.fields
+				&& last.rules === sig.rules
+				&& last.dirHouseIndex === sig.dirHouseIndex
+				&& last.luckMingIndex === sig.luckMingIndex
+				&& last.kinastroBorrowed === sig.kinastroBorrowed
+				&& last.onCenterInfoClick === sig.onCenterInfoClick
+				&& last.w === sig.w
+				&& last.h === sig.h){
+				return; // 输入未变,跳过整树重建
+			}
+			this.zwchart.draw();
+			this._lastDrawnSig = sig;
+			return;
+		}
 		this.zwchart.draw();
 	}
 

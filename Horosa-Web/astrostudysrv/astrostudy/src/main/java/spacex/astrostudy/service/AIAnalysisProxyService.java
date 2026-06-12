@@ -37,7 +37,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import boundless.exception.ErrorCodeException;
 import boundless.log.AppLoggers;
 import boundless.log.QueueLog;
-import boundless.net.http.HttpClientUtility;
 import boundless.spring.help.interceptor.SseHelper;
 import boundless.utility.JsonUtility;
 import boundless.utility.StringUtility;
@@ -77,6 +76,27 @@ public class AIAnalysisProxyService {
 		t.setDaemon(true);
 		return t;
 	});
+
+	// 流式请求的工作线程池(有界):替代 controller 每请求 new Thread 的无界直建,
+	// burst(脚本/重试风暴)下线程数被钳制;CallerRunsPolicy 超载时退化为同步执行而非丢任务。
+	private static final java.util.concurrent.ThreadPoolExecutor STREAM_WORKER_POOL =
+		new java.util.concurrent.ThreadPoolExecutor(
+			2, 8, 60L, java.util.concurrent.TimeUnit.SECONDS,
+			new java.util.concurrent.LinkedBlockingQueue<>(16),
+			r -> { Thread t = new Thread(r, "ai-analysis-stream-worker"); t.setDaemon(true); return t; },
+			new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
+
+	public static java.util.concurrent.Executor streamWorkerPool(){
+		return STREAM_WORKER_POOL;
+	}
+
+	// 优雅停机:Spring 上下文关闭时收掉心跳池与流工作池(daemon 线程不阻塞 JVM,
+	// 但显式 shutdown 让停机路径可观测、避免半截任务悬挂)。
+	@javax.annotation.PreDestroy
+	void shutdownExecutors(){
+		SSE_HEARTBEAT_EXECUTOR.shutdownNow();
+		STREAM_WORKER_POOL.shutdownNow();
+	}
 
 	@FunctionalInterface
 	private interface StreamBody {
@@ -179,17 +199,15 @@ public class AIAnalysisProxyService {
 		if(isOpenAICompatible(providerType)) {
 			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/models");
 			Map<String, String> headers = buildAuthHeaders(providerType, stringVal(params, "apiKey"), params);
-			responseText = HttpClientUtility.getString(url, null, headers);
+			responseText = sendUpstreamForText("GET", url, headers, null, params);
 		}else if("anthropic".equals(providerType)) {
 			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/v1/models");
 			Map<String, String> headers = buildAuthHeaders(providerType, stringVal(params, "apiKey"), params);
-			responseText = HttpClientUtility.getString(url, null, headers);
+			responseText = sendUpstreamForText("GET", url, headers, null, params);
 		}else if("gemini".equals(providerType)) {
 			String apiKey = stringVal(params, "apiKey");
-			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/models");
-			Map<String, String> query = new HashMap<String, String>();
-			query.put("key", apiKey);
-			responseText = HttpClientUtility.getString(url, query, null);
+			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/models") + "?key=" + urlEncode(apiKey);
+			responseText = sendUpstreamForText("GET", url, null, null, params);
 		}else {
 			throw new ErrorCodeException(580002, "暂不支持该 providerType");
 		}
@@ -216,16 +234,16 @@ public class AIAnalysisProxyService {
 		if(isOpenAICompatible(providerType)) {
 			Map<String, Object> requestBody = buildOpenAIChatBody(model, params, messages, false);
 			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/chat/completions");
-			responseText = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", JsonUtility.encode(requestBody));
+			responseText = sendUpstreamForText("POST", url, headers, JsonUtility.encode(requestBody), params);
 		}else if("anthropic".equals(providerType)) {
 			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/v1/messages");
 			Map<String, Object> body = buildAnthropicBody(model, params, messages, false);
-			responseText = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", JsonUtility.encode(body));
+			responseText = sendUpstreamForText("POST", url, headers, JsonUtility.encode(body), params);
 		}else if("gemini".equals(providerType)) {
 			String apiKey = stringVal(params, "apiKey");
 			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), String.format("/models/%s:generateContent?key=%s", urlEncode(model), urlEncode(apiKey)));
 			Map<String, Object> body = buildGeminiBody(params, messages);
-			responseText = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", JsonUtility.encode(body));
+			responseText = sendUpstreamForText("POST", url, headers, JsonUtility.encode(body), params);
 		}else {
 			throw new ErrorCodeException(580013, "暂不支持该 providerType");
 		}
@@ -355,12 +373,7 @@ public class AIAnalysisProxyService {
 			body.put("model", model);
 			body.put("input", inputs);
 			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/embeddings");
-			String rsp = HttpClientUtility.uploadString(
-				url,
-				buildAuthHeaders(providerType, stringVal(params, "apiKey"), params),
-				"application/json; charset=UTF-8",
-				JsonUtility.encode(body)
-			);
+			String rsp = sendUpstreamForText("POST", url, buildAuthHeaders(providerType, stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
 			Map<String, Object> payload = JsonUtility.toDictionary(rsp);
 			result.put("vectors", extractEmbeddingVectors(payload));
 			return result;
@@ -373,12 +386,7 @@ public class AIAnalysisProxyService {
 				String url = joinUrl(baseUrl, String.format("/models/%s:embedContent?key=%s", urlEncode(model), urlEncode(apiKey)));
 				Map<String, Object> body = new LinkedHashMap<String, Object>();
 				body.put("content", buildMap("parts", Arrays.asList(buildTextPart(input))));
-				String rsp = HttpClientUtility.uploadString(
-					url,
-					buildAuthHeaders(providerType, apiKey, params),
-					"application/json; charset=UTF-8",
-					JsonUtility.encode(body)
-				);
+				String rsp = sendUpstreamForText("POST", url, buildAuthHeaders(providerType, apiKey, params), JsonUtility.encode(body), params);
 				Map<String, Object> payload = JsonUtility.toDictionary(rsp);
 				vectors.add(extractGeminiEmbedding(payload));
 			}
@@ -524,12 +532,7 @@ public class AIAnalysisProxyService {
 		}
 		if(!opts.isEmpty()) { body.put("options", opts); }
 		String url = joinUrl(ollamaNativeBase(params), "/api/embed");
-		String rsp = HttpClientUtility.uploadString(
-			url,
-			buildAuthHeaders("ollama", stringVal(params, "apiKey"), params),
-			"application/json; charset=UTF-8",
-			JsonUtility.encode(body)
-		);
+		String rsp = sendUpstreamForText("POST", url, buildAuthHeaders("ollama", stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
 		Map<String, Object> payload = JsonUtility.toDictionary(rsp);
 		return extractOllamaEmbedVectors(payload);
 	}
@@ -546,12 +549,15 @@ public class AIAnalysisProxyService {
 	}
 
 	// NDJSON 流：每行一个 JSON 对象（Ollama 原生流式），逐行回调。
+	// try-with-resources:客户端中途断开时 handler 上抛 IOException,底层 socket 流必须随之关闭,
+	// 否则每次「停止生成/断网」泄漏一个 fd,长跑后 too many open files。
 	private void readNdjsonStream(InputStream stream, NdjsonLineHandler handler) throws IOException{
-		BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-		String line;
-		while((line = reader.readLine()) != null) {
-			String t = line.trim();
-			if(!t.isEmpty()) { handler.onLine(t); }
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+			String line;
+			while((line = reader.readLine()) != null) {
+				String t = line.trim();
+				if(!t.isEmpty()) { handler.onLine(t); }
+			}
 		}
 	}
 
@@ -1142,6 +1148,12 @@ public class AIAnalysisProxyService {
 		if(m.contains("reasoner") || m.contains("reasoning") || m.contains("thinking")) {
 			return true;
 		}
+		// Kimi k2 系(kimi-k2.5/k2.6/k2.7-code 等):官方仅允许 temperature=1,发其它值直接
+		// 400「invalid temperature: only 1 is allowed for this model」(LIVE 实测,即「测试连接失败 400」
+		// 的最终真因)。按推理模型口径剥离采样参数,用模型默认值。moonshot-v1-* 不受影响。
+		if(m.startsWith("kimi-k2")) {
+			return true;
+		}
 		return REASONING_R1_PATTERN.matcher(m).find();
 	}
 
@@ -1510,6 +1522,100 @@ public class AIAnalysisProxyService {
 		return builder.build();
 	}
 
+	// 非流式外呼统一走 JDK HttpClient(与流式同一 streamHttpClient,代理行为一致):
+	// ① 请求头完全自控——老路径(框架 HTTP 工具)会向上游 AI 服务注入内部头(LocalIp)并对 GET 也发
+	//    Content-Type,头面不干净;② 非 2xx 时直接拿到上游错误体,提取 error.message 拼成人话,
+	//    不再抛「Failed : HTTP error code …request-header:{…}」这类用户不可读 dump(Kimi 测试连接 400 的
+	//    报错体验即此问题)。GET 不发 Content-Type(无 body,语义正确)。
+	private String sendUpstreamForText(String method, String url, Map<String, String> headers, String json, Map<String, Object> params) {
+		int timeoutMs = intVal(providerOptionsMap(params).get("requestTimeoutMs"), 0);
+		HttpRequest.Builder builder = HttpRequest.newBuilder()
+			.uri(URI.create(url))
+			.timeout(Duration.ofMillis(timeoutMs > 0 ? timeoutMs : 60000));
+		boolean isPost = "POST".equalsIgnoreCase(method);
+		if(isPost) {
+			builder.POST(HttpRequest.BodyPublishers.ofString(json == null ? "" : json, StandardCharsets.UTF_8));
+		}else {
+			builder.GET();
+		}
+		if(headers != null) {
+			for(Map.Entry<String, String> entry : headers.entrySet()) {
+				if(!isPost && "Content-Type".equalsIgnoreCase(entry.getKey())) {
+					continue;
+				}
+				builder.header(entry.getKey(), entry.getValue());
+			}
+		}
+		try{
+			HttpResponse<String> response = streamHttpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+			int status = response.statusCode();
+			String bodyText = response.body() == null ? "" : response.body();
+			if(status < 200 || status >= 300) {
+				throw new ErrorCodeException(580021, formatUpstreamHttpError(status, bodyText));
+			}
+			return bodyText;
+		}catch(ErrorCodeException e){
+			throw e;
+		}catch(Exception e){
+			throw new ErrorCodeException(580022, "上游 provider 请求异常：" + safeErrorMessage(e));
+		}
+	}
+
+	// 非 2xx 错误的人话格式：先放提取出的上游 error.message(各家 OpenAI 兼容口/Anthropic/Gemini 通用形态),
+	// 原始体截断后置(诊断用)。前端 message 只显示前 200 字符 → 人话必须在最前。
+	static String formatUpstreamHttpError(int status, String bodyText){
+		String friendly = extractUpstreamErrorMessage(bodyText);
+		String raw = bodyText == null ? "" : bodyText.trim();
+		if(raw.length() > 600) {
+			raw = raw.substring(0, 600) + "…";
+		}
+		StringBuilder sb = new StringBuilder();
+		sb.append("上游服务返回 HTTP ").append(status);
+		if(!StringUtility.isNullOrEmpty(friendly)) {
+			sb.append("：").append(friendly);
+		}
+		if(!StringUtility.isNullOrEmpty(raw) && !raw.equals(friendly)) {
+			sb.append("（原始响应：").append(raw).append("）");
+		}
+		return sb.toString();
+	}
+
+	// 从上游错误体提取人话:OpenAI 兼容 {"error":{"message":…}} / Anthropic/Gemini 同形 /
+	// 部分国产口 {"message":…} 或 {"error":"…"} 或 {"msg":…}。解析失败返回空串。
+	@SuppressWarnings("rawtypes")
+	static String extractUpstreamErrorMessage(String bodyText){
+		if(StringUtility.isNullOrEmpty(bodyText)) {
+			return "";
+		}
+		try{
+			Map<String, Object> payload = JsonUtility.toDictionary(bodyText.trim());
+			if(payload == null) {
+				return "";
+			}
+			Object error = payload.get("error");
+			if(error instanceof Map) {
+				Object message = ((Map)error).get("message");
+				if(message instanceof String && !StringUtility.isNullOrEmpty((String)message)) {
+					return (String)message;
+				}
+			}
+			if(error instanceof String && !StringUtility.isNullOrEmpty((String)error)) {
+				return (String)error;
+			}
+			Object message = payload.get("message");
+			if(message instanceof String && !StringUtility.isNullOrEmpty((String)message)) {
+				return (String)message;
+			}
+			Object msg = payload.get("msg");
+			if(msg instanceof String && !StringUtility.isNullOrEmpty((String)msg)) {
+				return (String)msg;
+			}
+		}catch(Exception e){
+			// 非 JSON 错误体:返回空串,由调用方带原始截断
+		}
+		return "";
+	}
+
 	private static Map<String, Object> providerOptionsMap(Map<String, Object> params){
 		Object providerOptions = params == null ? null : params.get("providerOptions");
 		if(providerOptions instanceof Map) {
@@ -1624,11 +1730,8 @@ public class AIAnalysisProxyService {
 			return;
 		}
 		String detail = readErrorBody(response.body());
-		String msg = "上游 provider 请求失败，状态码：" + status;
-		if(!StringUtility.isNullOrEmpty(detail)) {
-			msg = msg + "；" + detail;
-		}
-		throw new ErrorCodeException(580021, msg);
+		// 与非流式路径同口径:先人话(上游 error.message)后原始截断,用户可读。
+		throw new ErrorCodeException(580021, formatUpstreamHttpError(status, detail));
 	}
 
 	// 仅在非 2xx 分支消费流式响应体，截断后并入错误信息，让上游真因(如 temperature/参数不支持)透传到 error 事件。
@@ -1648,33 +1751,35 @@ public class AIAnalysisProxyService {
 		}
 	}
 
+	// try-with-resources:同 readNdjsonStream —— 中途断流(用户停止/网络抖动)时关闭底层 socket,防 fd 泄漏。
 	private void readSseStream(InputStream stream, SseLineHandler handler) throws IOException{
-		BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-		String line;
-		String eventName = "";
-		StringBuilder dataBuilder = new StringBuilder();
-		while((line = reader.readLine()) != null) {
-			if(line.isEmpty()) {
-				if(dataBuilder.length() > 0) {
-					handler.onEvent(eventName, dataBuilder.toString().trim());
-					dataBuilder.setLength(0);
-					eventName = "";
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+			String line;
+			String eventName = "";
+			StringBuilder dataBuilder = new StringBuilder();
+			while((line = reader.readLine()) != null) {
+				if(line.isEmpty()) {
+					if(dataBuilder.length() > 0) {
+						handler.onEvent(eventName, dataBuilder.toString().trim());
+						dataBuilder.setLength(0);
+						eventName = "";
+					}
+					continue;
 				}
-				continue;
-			}
-			if(line.startsWith("event:")) {
-				eventName = line.substring(6).trim();
-				continue;
-			}
-			if(line.startsWith("data:")) {
-				if(dataBuilder.length() > 0) {
-					dataBuilder.append('\n');
+				if(line.startsWith("event:")) {
+					eventName = line.substring(6).trim();
+					continue;
 				}
-				dataBuilder.append(line.substring(5).trim());
+				if(line.startsWith("data:")) {
+					if(dataBuilder.length() > 0) {
+						dataBuilder.append('\n');
+					}
+					dataBuilder.append(line.substring(5).trim());
+				}
 			}
-		}
-		if(dataBuilder.length() > 0) {
-			handler.onEvent(eventName, dataBuilder.toString().trim());
+			if(dataBuilder.length() > 0) {
+				handler.onEvent(eventName, dataBuilder.toString().trim());
+			}
 		}
 	}
 

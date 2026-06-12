@@ -17,7 +17,12 @@ class AstroRelativeScore extends Component{
 	}
 
 	componentDidMount(){
+		this._mounted = true;
 		this.load();
+	}
+
+	componentWillUnmount(){
+		this._mounted = false;
 	}
 
 	componentDidUpdate(prevProps){
@@ -45,8 +50,10 @@ class AstroRelativeScore extends Component{
 				body: JSON.stringify(this.props.params),
 				timeoutMs: 45000,
 			});
+			if(!this._mounted) return;
 			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
 		}catch(e){
+			if(!this._mounted) return;
 			this.setState({loading: false, requestKey: key});
 		}
 	}

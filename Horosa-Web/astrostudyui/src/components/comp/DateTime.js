@@ -48,8 +48,11 @@ class DateTime {
 			h = h.substr(1);
 			sym = -1;
 		}
-		h = parseInt(h);
-		let minu = parseInt(parts[1]);
+		h = parseInt(h, 10);
+		let minu = parseInt(parts[1] || '0', 10);
+		// 畸形 zone(如 "+8" 无冒号、空串)兜底为 0 偏移,防 NaN 污染 jdn 链。
+		if(!Number.isFinite(h)) h = 0;
+		if(!Number.isFinite(minu)) minu = 0;
 		let res = sym*(h + minu/60.0)/24.0;
 		return res;
 	}
@@ -158,7 +161,7 @@ class DateTime {
 			return;
 		}
 
-		let jdn = this.jd;
+		let jdn = this.jdn;
 		let zonejdn = this.getZoneJdn();
 		let locjdn = this.jdn + zonejdn + 0.5;
 		let tm = Math.abs(locjdn) - Math.floor(Math.abs(locjdn));

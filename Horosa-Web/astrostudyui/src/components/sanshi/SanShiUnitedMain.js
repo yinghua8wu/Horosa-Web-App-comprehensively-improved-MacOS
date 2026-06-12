@@ -2794,6 +2794,8 @@ class SanShiUnitedMain extends Component{
 		}).finally(()=>{
 			delete this.jieqiSeedPromises[year];
 		});
+		// 预加载失败静默：旁路 catch 防 unhandledrejection，不改变调用方拿到的 promise 语义
+		this.jieqiSeedPromises[year].catch(()=>{});
 		return this.jieqiSeedPromises[year];
 	}
 

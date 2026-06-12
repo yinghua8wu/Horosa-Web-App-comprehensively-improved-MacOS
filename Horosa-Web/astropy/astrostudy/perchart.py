@@ -118,7 +118,12 @@ MOIRA_AYAN_BASE_DEG = 4.0
 
 
 def _moira_ayanamsha(jd):
-    """指定 jd 的 ayanamsha(SE_SIDM_USER, 基准 1300/4.0)。用于回归古制/恒星制基值→tropical 投射。"""
+    """指定 jd 的 ayanamsha(SE_SIDM_USER, 基准 1300/4.0)。用于回归古制/恒星制基值→tropical 投射。
+
+    ⚠️ 并发约定:set_sid_mode 是 swisseph 进程级全局态;下面 set→get 两行必须保持
+    相邻直线代码(中间不得插入任何 Python 语句),否则多线程下会被其他制式抢改。
+    钉子: tests/test_swe_concurrency.py。
+    """
     y, m, d, h = MOIRA_AYAN_BASE_YMD
     swisseph.set_sid_mode(swisseph.SIDM_USER, swisseph.julday(y, m, d, h), MOIRA_AYAN_BASE_DEG)
     return swisseph.get_ayanamsa_ut(jd)
