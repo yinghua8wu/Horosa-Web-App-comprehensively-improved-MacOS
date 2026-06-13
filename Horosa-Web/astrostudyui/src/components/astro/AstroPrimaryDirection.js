@@ -695,11 +695,14 @@ class AstroPrimaryDirection extends Component{
 		// 顶部工具栏强制单行(无第二行,否则会遮挡表格),空间不够时下拉收窄 + 横向滚动兜底。
 		const controlHeight = 56;
 		const controlBottom = 10;
-		// 修表底大块空白:旧预留 56+10+60+18=144px 偏大(分页行实际 ~40px、安全边 8px 足够),
-		// scroll.y 偏小导致表格底边与窗底之间留白。预留收准为 56+10+40+8=114。
-		const paginationReserve = 40;
+		// 预留账目(用户两度实告,两个方向都踩过——多了表底大块空白、少了分页整行被裁不可见):
+		// scroll.y 只管表体;容器(overflow hidden)内实际还有 表头(size=small bordered ~39px) 与
+		// 分页行(24px 控件 + antd 上下 margin 16×2 = ~56px)。此前 114 漏算表头 → 总高超出 ~39px →
+		// 分页被推到裁切线外「看不见」。预留 = 56(控制行)+10(间距)+39(表头)+56(分页含margin)+8(安全) = 169。
+		const tableHeaderReserve = 39;
+		const paginationReserve = 56;
 		const bottomSafeReserve = 8;
-		const tableReserve = controlHeight + controlBottom + paginationReserve + bottomSafeReserve;
+		const tableReserve = controlHeight + controlBottom + tableHeaderReserve + paginationReserve + bottomSafeReserve;
 		let tblY = height - tableReserve;
 		if(tblY < 200){
 			tblY = 200;

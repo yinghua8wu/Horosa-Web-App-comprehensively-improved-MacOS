@@ -10086,8 +10086,10 @@
         display: block;
         width: 100%;
         height: 100%;
-        max-width: none;
-        max-height: none;
+        /* 钳制为 100%:JS 侧给 svg 的显式像素若因测量过期偏大,flex 居中会把溢出均分到上下 →
+           顶部(农历行)被裁。max 100% 让 svg 永不大于 wrap,meet 模式下视觉等价、裁切不可能发生。 */
+        max-width: 100%;
+        max-height: 100%;
     }
 
     .horosa-workspace-shell .horosa-taiyi-redesign .horosa-taiyi-info-panel {
