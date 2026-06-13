@@ -112,8 +112,11 @@ port_listening() {
   local port="$1"
   # 弃用 lsof:此函数在就绪轮询循环里高频调用,lsof 遍历全系统进程 FD,遇到卡死进程
   # 单次可 stall 30~100s(实测,带 -n -P 也偶发)→ 启动假性卡死。netstat 只读内核表 ~0.006s。
+  # ⚠️ awk 绝不提前 exit:本脚本 set -o pipefail,awk 早退会让 netstat 吃 SIGPIPE(141) →
+  # 管道整体判失败 → 「端口在听也报未监听」。全新安装首启(untrusted)就绪门靠本函数,曾因此
+  # 永卡「正在启动本地服务」(2026-06-12 实捕)。netstat 输出仅百余行,全量消费零成本。
   netstat -anv -p tcp 2>/dev/null \
-    | awk -v port="${port}" '$6 == "LISTEN" && $4 ~ ("[.:]" port "$") { exit_found=1; exit }
+    | awk -v port="${port}" '$6 == "LISTEN" && $4 ~ ("[.:]" port "$") { exit_found=1 }
                              END { exit exit_found ? 0 : 1 }'
 }
 
