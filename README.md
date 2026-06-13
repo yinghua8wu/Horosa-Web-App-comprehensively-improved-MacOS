@@ -6,8 +6,8 @@
 
 # 星阙 Horosa
 
-**把占星与中国术数，收进一个原生 macOS 工作站**<br />
-*Western astrology and Chinese metaphysics, in one native macOS workstation*
+**把所有玄学放进一个原生 macOS 软件中**<br />
+*Every kind of metaphysics, in one native macOS app*
 
 [![Version](https://img.shields.io/badge/version-2.6.6-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
@@ -23,9 +23,9 @@
 
 ---
 
-星阙 Horosa 是一套桌面端的玄学工作站。西方占星的本命、推运、关系盘，连同八字、紫微、奇门、六壬、太乙这些中国传统术数，被放进同一个原生 macOS 应用里——不必在十几个网页排盘器之间来回切换，也不必自己拼装 Python、Java 与历表运行时。它以 Developer ID 签名、Apple 公证、离线 `.pkg` 的形式交付，下载即用。
+星阙 Horosa 是一套桌面端的玄学工作站。几乎所有玄学术数——西洋占星的本命、推运、关系盘，连同八字、紫微、奇门、六壬、太乙等中国传统术数——被放进同一个原生 macOS 应用里。你下载一个签名、公证、离线的安装包，打开的就是一个成品：不必在十几个网页排盘器之间来回切，也不必自己拼装底层的 Python、Java 与历表运行时。
 
-> Horosa is a desktop workstation for traditional cosmology. Western natal, timing, and relationship astrology sit beside Chinese systems—Bazi, Ziwei, Qimen, Liuren, Taiyi—inside one native macOS app, so you stop juggling a dozen web tools and never hand-assemble a Python/Java/ephemeris runtime yourself. It ships as a Developer-ID-signed, Apple-notarized, offline `.pkg`.
+> Horosa is a desktop workstation for traditional cosmology. Nearly every metaphysical art—Western natal, timing, and relationship astrology alongside Chinese systems like Bazi, Ziwei, Qimen, Liuren, and Taiyi—lives inside one native macOS app. You download a signed, notarized, offline installer and open a finished product: no juggling a dozen web tools, no hand-assembling a Python / Java / ephemeris runtime.
 
 ## 下载 · Download
 
@@ -35,7 +35,7 @@
 
 **[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.6/Horosa-Installer-macos-arm64-offline.pkg)**
 
-适合：Apple Silicon · 弱网 / 离线环境 · 首次安装 · 转发给他人。
+适合：Apple Silicon · macOS 12+ · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
 ## 截图 · Screenshots
 
@@ -52,11 +52,13 @@
 
 ## 功能总览 · What's Inside
 
-导航把所有模块归为三组：**命**（命盘与推运）、**卜**（易与三式）、**工具**。下面是各组里实际可用的内容。
+导航把所有模块归为三组：**命**（命盘与推运）、**卜**（易与三式）、**工具**。下面是各组里实际可用的内容——模块名与应用里的页签一一对应。
 
-> Everything lives under three groups: **命** charts & timing, **卜** divination, and **工具** tools. Here is what each one actually ships.
+> Everything lives under three groups: **命** charts & timing, **卜** divination, and **工具** tools. Module names map one-to-one to the in-app tabs.
 
 ### 命 · Charts & Timing
+
+这一层的强项是连贯：读本命、沿时间把它推开、再带进第二个人，全程不离开同一个工作面。
 
 | 模块 | 说明 |
 | --- | --- |
@@ -71,6 +73,8 @@
 
 ### 卜 · Divination
 
+易与三式不止是几个独立页签，三式合一已做成一个真正能工作的整合面。
+
 | 模块 | 说明 |
 | --- | --- |
 | **三式 Sanshi United** | 奇门、太乙、六壬整合面：概览、太乙、神煞、六壬、大格、小局、参考、八宫 |
@@ -82,7 +86,7 @@
 
 | 模块 | 说明 |
 | --- | --- |
-| **AI 分析 AI Analysis** | 接入 OpenAI / Anthropic / Gemini / Ollama / OpenRouter / 自定义端点；支持流式对话、历史记录、资料库（向量检索）、按技法 / 页签结构化导出 |
+| **AI 分析 AI Analysis** | 接入 OpenAI / Anthropic / Gemini / Ollama / OpenRouter / 自定义端点；流式对话、历史记录、资料库（向量检索）、把任一技法的盘面挂载进上下文、按技法 / 页签结构化导出，并可生成八字 / 紫微分节命理报告 |
 | **天文馆 Planetarium** | Babylon.js 实时三维天象 |
 | **黄历 Almanac** | 农历 / 节气 / 择日 |
 | **辅助 References** | 八卦类象、十二宫、规则速查 |
@@ -97,23 +101,20 @@
 
 - **主限法 · 显示窗精确化 + 世俗行集修复** —— 行星对显示窗改为单一判据（弧归一化前原值）；In-Mundo 此前缺失的行星对方向行现全数列出。/ Exact display-window semantics; previously-missing In-Mundo planet-pair rows now all listed.
 - **主限法 · 宿命点（Vertex）应星** —— 黄道向运新增宿命点应星行（闭式直算）。/ Vertex significator rows (closed-form) in zodiacal directions.
-- **主限法 · 时间钥匙修真 + 新钥匙** —— Simmonite / Kepler / Brahe 逐盘真算；新增 Kündig 与 太阳弧（黄经）。/ True per-chart time keys; new Kündig & Symbolic Solar Arc keys.
+- **主限法 · 时间钥匙修真 + 新钥匙** —— Simmonite / Kepler / Brahe 逐盘真算太阳日速；新增 Kündig 与 太阳弧（黄经）。/ True per-chart time keys; new Kündig & Symbolic Solar Arc keys.
 - **主限法 · 年数上限 3000** —— 360 → 3000，跨圈方向按整圈复发自动延展；默认 100 年行为不变。/ Year range to 3000 with per-revolution recurrences; default unchanged.
-- **AI 报告打磨** —— Gemini 采样参数封装修复、思考档新增 极高/最大、界面缩放持久化。/ Gemini param-wrapping fix, Extra-High/Max thinking tiers, zoom persistence.
+- **AI 报告打磨** —— Gemini 采样参数封装修复、思考档新增 极高 / 最大、界面缩放持久化。/ Gemini param-wrapping fix, Extra-High/Max thinking tiers, zoom persistence.
+- **首启稳定性加固** —— 本地服务就绪探测对系统代理免疫、改以 HTTP 探活为准、共享组件可写性与超时预算放宽，全新安装首次启动更稳。/ Hardened first-launch: loopback readiness probes are proxy-immune, HTTP-first, with looser writability and timeout budgets.
 
 ### 旧版 · What's New in v2.6.5 beta
 
-这一版主线是**合盘交互链全面重建 + AI「起课时间」挂载 8→13 技法**，把上版残留的合盘失能与卜卦/数算时间起盘缺失一并补齐；默认行为与 v2.6.4 逐位一致：
+这一版主线是**合盘交互链全面重建 + AI「起课时间」挂载 8→13 技法**，把上版残留的合盘失能与卜卦 / 数算时间起盘缺失一并补齐；默认行为与 v2.6.4 逐位一致。/ This release rebuilt the **Synastry interaction chain end-to-end** and expanded the **AI "Set-Time" mount from 8 to 13 techniques**, with default behavior bit-for-bit identical to v2.6.4:
 
-- **合盘 5 子盘端到端可用** —— v2.6.1 误把 `/modern/relative` 端点切到了 chart 服务（加密 body 不解密 → 全部「用不了」），本版恢复到 Java :9999；同时 `AstroRelative` 用 ResizeObserver 实测容器高度，根治影响盘/马克斯盘下端大片空白；左栏交互链 `chartStyle/dispatch/onChange` 全链路透传 + `handleRelativeOnChange` 直写 fields 绕开本命盘 fetch（修「点了没反应」），componentDidUpdate watch fields 自动重算；「宫位制与黄道」popover 空白根治（删 hide 标志 + paramsToFields 不再覆盖 hsys/zodiacal）；长 ayanāṃśa 名（如 Lahiri ICRC（官定2022））触发框 50/50 局部 CSS 防撑大。
-- **AI 分析「起课时间」挂载补全** —— 此前下拉只有 8 项（六壬/金口诀/奇门/太乙/三式合一/卜卦盘/择日盘/六爻），本版 + 5 项：**皇极经世 / 太玄筮法 / 荆诀 / 五兆 / 神易数**。4 个数算/起例法各导出 `buildXxxSnapshotForFields(fields, opts)`，挂载设置真接入：太玄/荆诀 起筮种子可改、五兆 起例模式/报数/手动分爻可改、神易数 时辰/季令 auto/manual 可改；用户在挂载齿轮改的每一项都会**真重算**（不是只显「已自定义」徽章），AI 四同步（导出/导出设置/挂载/储存）全到位。
-- **Python 真太阳时辅助接受数值经纬度** —— 地图选点存的浮点 `lon:116.4074 lat:39.9042` 此前直崩 `'float' object has no attribute lower`；`convertLonStrToDegree/convertLatStrToDegree` + `getBaseLonByZone` 加 isinstance 数值分支，字符串路径原样（向后兼容字节级一致）。
-- **AI 起课时间「合成 record」时间 NaN-undefined 修复** —— 起课时间源 record 用 `divTime` 字段（不是事盘的 `birth`），`buildFieldObject` 此前只读 `record.birth` 走 fallback `new DateTime({zone})` 用当前系统时间 → 后端格式化时显示 `NaN-undefined-undefined`；改为 `record.birth || record.divTime`。
-- **导航搜索 + 关于框图标** —— 全 22 模块加 keywords 索引（搜「卜卦盘」出辅盘、「皇极经世」出其他卜）；关于星阙换软件真 icon（不再是占位）。
-- **波斯向运「应期年数」表格联动** —— 改年数后右侧表格按新年数重算（v2.6.4 漏改）；事盘字符串快照在 AI 分析里被认（之前只认对象式）。
-- **工程** —— 后端 Python 排盘组件更新（runtime `2.6.5-runtime1`，自动下载）；jest 657→658、preflight 36→39 个 sentinel 块（[37] timepoint 13 技法 + builder opts + divTime 兜底 / [38] 合盘端点+交互链全检 / [39] Python helper 数值 geo）。
+- **合盘 5 子盘端到端可用** —— 比较 / 组合 / 影响 / 时空中点 / 马克斯盘全部恢复，左栏交互链全链路透传、容器高度实测、宫位制与黄道弹层根治。/ All five relationship sub-charts working again, with the left-panel chain wired through, measured container heights, and a fixed Houses & Zodiac popover.
+- **AI「起课时间」挂载 +5 技法** —— 新增 皇极经世 / 太玄 / 荆诀 / 五兆 / 神易数；挂载齿轮里改的每一项都真重算，AI 四同步（导出 / 导出设置 / 挂载 / 储存）全到位。/ Adds HuangJi / TaiXuan / JingJue / WuZhao / ShenYiShu; mount settings truly recompute, all four AI mirrors in sync.
+- **合并 · AI 报告生成** —— 八字 / 紫微分节流式生成，章节可嵌命盘截图，4 种导出（Markdown / Word / PDF / HTML）。/ AI report generation for Bazi/Ziwei: streamed by section, embeddable chart screenshots, four export formats.
+- **修复与工程** —— Python 真太阳时辅助接受数值经纬度、起课时间合成 record 时间修复；后端 Python 排盘组件更新（运行时自动下载）。/ Numeric lon/lat in the true-solar-time helper, Set-Time record fixes, updated Python runtime.
 
-> This release's headline is **Synastry chain rebuilt end-to-end + AI "Set-Time" mount expanded from 8 → 13 techniques**, fixing the carry-over Synastry breakage and the missing time-cast paths for divinatory/numerical methods. Default behavior is bit-for-bit identical to v2.6.4. Synastry — v2.6.1 had silently moved `/modern/relative` to the chart service (encrypted body never decrypted → "doesn't work" across every sub-chart); restored to the Java service. `AstroRelative` now uses a ResizeObserver to measure the real container height, fixing the large blank below Synastry/Marks; the left-panel interaction chain (chartStyle / dispatch / onChange) is forwarded end-to-end, and `handleRelativeOnChange` writes the fields directly (bypassing the natal-chart fetch that silently swallowed the change), with componentDidUpdate watching the fields to re-cast automatically; the "Houses & Zodiac" popover is no longer empty (removed the hide flags + paramsToFields no longer overrides hsys/zodiacal); long ayanāṃśa names (e.g. "Lahiri ICRC（官定2022）") now wrap with ellipsis at a fixed 50/50 grid via Synastry-scoped CSS that does not touch the natal pages. AI Analysis "Set-Time" mount — the source dropdown previously showed only 8 techniques (Liureng / Jinkou / Qimen / Taiyi / Sanshi / Horary / Election / Sixyao); this release adds **HuangJi / TaiXuan / JingJue / WuZhao / ShenYiShu**. Each of the four numerological/casting modules now exports `buildXxxSnapshotForFields(fields, opts)`; mount settings actually feed through — change the divination seed for TaiXuan/JingJue, the casting mode/seed-number/manual split for WuZhao, the hour/season auto-or-manual for ShenYiShu, and the snapshot is **truly recomputed** (not just badged "customized"). All four AI mirrors (export / export settings / mount / case storage) stay in sync. Python true-solar-time helpers accept numeric lon/lat/zone — chart records saved via map picker stored decimal-degree floats and used to crash with `'float' object has no attribute lower`; the converters now detect numeric input while leaving the DMS string path bit-for-bit unchanged. Set-Time `divTime` time NaN — the synthetic Set-Time source `record` keeps the time in `divTime` (not the case-store `birth`); `buildFieldObject` now falls back through `record.birth || record.divTime`. Engineering — Python runtime updated (`2.6.5-runtime1`, auto-downloaded on upgrade); jest 657→658; preflight 36→39 sentinel blocks ([37] Set-Time 13 techniques + builder opts + divTime fallback / [38] Synastry endpoint + interaction chain + zodiac select width / [39] Python helper numeric geo).
 ## 技术构成 · Under the Hood
 
 - **前端 Frontend** — React 17 + Umi 3 + TypeScript，Ant Design；D3 绘盘，Babylon.js / Three.js 三维，Plotly 星体地图，Monaco 编辑 AI 导出模板。
@@ -126,14 +127,13 @@
 - [README_ZH.md](README_ZH.md) — 中文完整说明
 - [README_EN.md](README_EN.md) — Full English guide
 - [Horosa_Desktop_Installer/README.md](Horosa_Desktop_Installer/README.md) — 安装器与发布链路 / installer internals
-- [docs/windows-porting-and-release-checklist.md](docs/windows-porting-and-release-checklist.md) — Windows 复刻与发布自检 / Windows porting checklist
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) · [SECURITY.md](SECURITY.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CITATION.cff](CITATION.cff)
 - 源码 / source: `Horosa-Web/`（前端 `astrostudyui`，后端 `astrostudysrv` / `astropy`，引擎 `vendor`）
 
 ## 致谢 · Acknowledgements
 
-星阙的源流不能忘。最早的星阙 Horosa 由**郑大哥**一手创建，**荀爽（Herakleios，爽哥）**参与辅助设计，并把相关 App 与 Web 公开出来，后来者才有得研究、学习与延展。本项目正是在他们搭好的星阙体系、术数工作流与公开分享精神之上，继续做 macOS 交付、运行时打包、功能整合与体验改良。也感谢每一位持续测试、反馈、修复，推动 Horosa 变得更完整的人。
+星阙的源流不能忘。最早的星阙 Horosa 由**郑大哥**一手创建，**荀爽-Herakleios**参与辅助设计，并把相关 App 与 Web 公开出来，后来者才有得研究、学习与延展。本项目正是在他们搭好的星阙体系、术数工作流与公开分享精神之上，继续做 macOS 交付、运行时打包、功能整合与体验改良。也感谢每一位持续测试、反馈、修复，推动星阙变得更完整的人。
 
-特别感谢 [kentang2017](https://github.com/kentang2017) 长期公开的传统术数 Python 项目。Horosa 接入或适配了其中多项计算引擎——已声明 MIT 的上游在 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 与对应 vendored 目录保留许可证；未找到明确开源声明的项目则单独标注，避免混同。
+特别感谢 [kentang2017](https://github.com/kentang2017) 长期公开的传统术数 Python 项目。星阙接入或适配了其中多项计算引擎——已声明 MIT 的上游在 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 与对应 vendored 目录保留许可证；未找到明确开源声明的项目则单独标注，避免混同。
 
-> The lineage matters. Horosa was originally created by **郑大哥**, with auxiliary design by **荀爽 (Herakleios)**, who released the App and Web that made later study and extension possible. This edition builds on that groundwork—adding macOS delivery, runtime packaging, integration, and polish—with gratitude to them and to everyone who keeps testing and fixing along the way. Special thanks to [kentang2017](https://github.com/kentang2017), whose openly shared Python projects power several of Horosa's calculation engines; licensing for each is recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+> The lineage matters. Horosa was originally created by **郑大哥**, with auxiliary design by **荀爽-Herakleios**, who released the App and Web that made later study and extension possible. This edition builds on that groundwork—adding macOS delivery, runtime packaging, integration, and polish—with gratitude to them and to everyone who keeps testing and fixing along the way. Special thanks to [kentang2017](https://github.com/kentang2017), whose openly shared Python projects power several of Horosa's calculation engines; licensing for each is recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

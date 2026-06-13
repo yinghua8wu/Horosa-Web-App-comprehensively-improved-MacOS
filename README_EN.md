@@ -6,7 +6,7 @@
 
 # Horosa
 
-**Western astrology and Chinese metaphysics, in one native macOS workstation**
+**Every kind of metaphysics, in one native macOS app**
 
 [![Version](https://img.shields.io/badge/version-2.6.6-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
@@ -24,7 +24,7 @@
 
 ## What Horosa Is
 
-Horosa is a desktop workstation for traditional cosmology. Western astrology—natal reading, the full timing chain, and relationship work—sits beside Chinese systems like Bazi, Ziwei, Qimen, Liuren, and Taiyi, all inside one native macOS application. The point is that you stop juggling a dozen single-purpose web tools, and you never hand-assemble the Python, Java, and ephemeris pieces underneath. You download a signed, notarized, offline installer and open a finished app.
+Horosa is a desktop workstation for traditional cosmology. Nearly every metaphysical art lives inside one native macOS application — Western astrology (natal reading, the full timing chain, and relationship work) right beside Chinese systems like Bazi, Ziwei, Qimen, Liuren, and Taiyi. The point is that you stop juggling a dozen single-purpose web tools, and you never hand-assemble the Python, Java, and ephemeris pieces underneath. You download a signed, notarized, offline installer and open a finished app.
 
 This repository is the macOS delivery of that app: the application source, the shared runtime, the Tauri desktop shell, and the publishing flow that turns all of it into a single `.pkg`.
 
@@ -84,7 +84,7 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 ### Tools (工具)
 
-- **AI Analysis (AI 分析)** — connects to OpenAI, Anthropic, Gemini, Ollama, OpenRouter, or a custom endpoint; supports streaming chat, conversation history, a materials library with vector retrieval, and structured export grouped by technique and tab
+- **AI Analysis (AI 分析)** — connects to OpenAI, Anthropic, Gemini, Ollama, OpenRouter, or a custom endpoint; supports streaming chat, conversation history, a materials library with vector retrieval, mounting any technique's chart into context, structured export grouped by technique and tab, and section-by-section Bazi/Ziwei reading reports (embeddable chart screenshots, multi-format export)
 - **Planetarium (天文馆)** — a real-time 3D sky view built on Babylon.js
 - **Almanac (黄历)** — lunar calendar, solar terms, and date selection
 - **References (辅助)** — gua-symbol classes, the twelve palaces, and quick rule lookups
@@ -100,18 +100,17 @@ This release headlines a **comprehensive Primary Directions upgrade** plus **AI-
 - **Primary Directions: true per-chart time keys** — Simmonite / Kepler / Brahe now compute the natal Sun's true daily motion per chart; new **Kündig** and **Symbolic Solar Arc (longitude)** keys (per-arc ephemeris solve, table/dial round-trip).
 - **Primary Directions: year range up to 3000** — the year selector extends from 360 to 3000; directions beyond one revolution (360°) recur automatically per revolution. Default 100-year behaviour is unchanged.
 - **AI report polish** — fixes an occasional Gemini 400 caused by sampling-parameter wrapping; the "thinking effort" selector gains Extra-High / Max tiers; interface zoom persists across restarts.
+- **First-launch hardening** — loopback readiness probes are now proxy-immune and HTTP-first, with looser writability and timeout budgets, so a fresh install starts cleanly the first time.
 
 ### Previous · What's New in v2.6.5 beta
 
-This release's headline is the **sidereal zodiac, fully built out**, with AI Analysis export/mount/storage kept in sync, plus two previously-finished feature sets folded in. Default behavior is bit-for-bit identical to v2.6.3:
+This release rebuilt the **Synastry interaction chain end-to-end** and expanded the **AI "Set-Time" mount from 8 to 13 techniques**, with default behavior bit-for-bit identical to v2.6.4:
 
-- **Sidereal — all 47 ayanāṃśas** — every Western chart's zodiac selector goes from binary tropical/sidereal to **tropical + 47 ayanāṃśas** (Lahiri/Raman/Fagan-Bradley/KP…), each computed through Swiss Ephemeris and shifting the chart; the ring labels the active ayanāṃśa. Backward compatible.
-- **Western Nakshatra** — under sidereal, each planet card gains the 27-mansion + lord + pada.
-- **Indian astrology** — clipped left-panel dropdowns fixed; ayanāṃśa 6→47, house systems 4→24 (all via pyswisseph).
-- **AI Analysis four-way sync** — dual-chart techniques (returns, solar arc, profection, given-year, planetary arc, primary-directions chart, Vedic/Jayne progressions) now mount/export a full natal + period config; Indian/Qizheng/Western mount settings expose all options; Persian Directed gains a 50–200 year switch; export sections sync (settings 23→24, auto-migrated).
-- **Fixes** — natal AI-snapshot signature distinguishes the specific ayanāṃśa; electional time-context sub-charts follow the main ayanāṃśa; primary-directions form fidelity.
-- **Folded in · AI report generation** — BaZi/ZiWei, 6 templates at 8/12/20 sections, streamed, optional embedded chart screenshots, Markdown/Word/PDF/HTML export.
-- **Folded in · Startup robustness (Mac #12)** — transparent 30s retry, rich error dialog, backend health dot, staged startup messaging.
+- **All five relationship sub-charts working again** — compare / composite / synastry / time-space midpoint / Marks restored; the left-panel chain is wired through end-to-end, container heights are measured, and the Houses & Zodiac popover is fixed.
+- **AI "Set-Time" mount +5 techniques** — adds HuangJi / TaiXuan / JingJue / WuZhao / ShenYiShu; every option in the mount gear truly recomputes, with all four AI mirrors (export / export settings / mount / case storage) in sync.
+- **Folded in · AI report generation** — Bazi/Ziwei reports streamed section by section, with embeddable chart screenshots and four export formats (Markdown / Word / PDF / HTML).
+- **Fixes & engineering** — numeric lon/lat in the true-solar-time helper, Set-Time record fixes, navigation search across all modules, and an updated Python runtime (auto-downloaded on upgrade).
+
 ## Under the Hood
 
 - **Frontend** — React 17 + Umi 3 + TypeScript with Ant Design; D3 for chart drawing, Babylon.js / Three.js for 3D, Plotly for astrocartography maps, and Monaco for editing AI-export templates
@@ -145,10 +144,9 @@ Start from the entry point that matches your goal:
 - a Windows port and release gate: [Windows porting checklist](docs/windows-porting-and-release-checklist.md)
 - third-party licensing: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - application source: `Horosa-Web/` — frontend in `astrostudyui`, backends in `astrostudysrv` and `astropy`, vendored engines in `vendor`
-- shared runtime and diagnostics: `runtime/` and `diagnostics/`
 
 ## Acknowledgements
 
-The lineage matters. Horosa was originally created by **郑大哥**, with auxiliary design work by **荀爽 (Herakleios, 爽哥)**, who released the App and Web versions that made later study, maintenance, and extension possible. This macOS edition builds on that groundwork—adding the delivery layer, runtime packaging, integration, and a great deal of polish—and it would not exist without them. Thanks, too, to everyone who keeps testing, reporting, and fixing things to make Horosa more complete.
+The lineage matters. Horosa was originally created by **郑大哥**, with auxiliary design work by **荀爽-Herakleios**, who released the App and Web versions that made later study, maintenance, and extension possible. This macOS edition builds on that groundwork—adding the delivery layer, runtime packaging, integration, and a great deal of polish—and it would not exist without them. Thanks, too, to everyone who keeps testing, reporting, and fixing things to make Horosa more complete.
 
 Special thanks to [kentang2017](https://github.com/kentang2017), whose long-running, openly shared Python projects power several of Horosa's calculation engines. Upstream projects identified as MIT-licensed are documented in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) alongside their vendored license texts; projects without an explicit open-source license are listed separately, so no license is assumed where none was declared.
