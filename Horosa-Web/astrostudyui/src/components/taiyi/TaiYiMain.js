@@ -512,21 +512,25 @@ class TaiYiMain extends Component {
 			`客算:${pan.awayCal}`,
 			`太乙数:${pan.taiyiNum}`,
 		];
-		// 顶部遮挡兜底:有实测可视盒时给 svg 显式像素(按 860×720 等比 fit),内联样式压过样式表的
-		// width/height:100% → svg 元素本身永不大于可视盒,meet 模式下视觉与 100% 完全等价;
-		// 首帧无测量时维持现状(CSS 100%)。
-		const boardFit = this.boardSize ? Math.min(this.boardSize.w / width, this.boardSize.h / height) : 0;
+		// 顶部「农历」行裁切·结构性根治(2026-06-12,用户三度实告):
+		// 历史上这里给 svg 加过「按实测可视盒算的显式像素 width/height」想兜底遮挡,但那恰恰是裁切之源——
+		// 测量在 flex 布局/窗口缩放下易过期偏大,svg 元素遂超出 wrap,而 wrap align-items:center 居中 +
+		// overflow:hidden → 顶部(农历行)被切。彻底删除内联像素覆盖:svg 只靠 viewBox + preserveAspectRatio
+		// 'xMidYMid meet' + CSS width/height:100%。meet 的定义即「整个 viewBox 等比缩放至完全装入视口」,
+		// svg 元素 == 容器尺寸(100%)永不溢出 → 数学上不可能裁切,宽高比不符时四周留白居中。无需任何 JS 测量。
 		const boardSvgStyle = { background: 'transparent', textRendering: 'geometricPrecision' };
-		if(boardFit > 0){
-			boardSvgStyle.width = Math.max(1, Math.floor(width * boardFit));
-			boardSvgStyle.height = Math.max(1, Math.floor(height * boardFit));
-		}
+		// 第二道硬保险:viewBox 顶部留 24 单位 padding(底部 8)。农历行画在 y=4,几乎贴 viewBox 顶 →
+		// meet 缩放后顶部 padding 被压成 ~1px,矮窗下随时可能被亚像素/字体上沿吃掉。把 viewBox 上沿
+		// 抬到 -24,农历行上方恒有 28 单位空白,任何缩放比下都映射成肉眼可见的安全余量,绝不贴顶。
+		const VB_PAD_TOP = 24;
+		const VB_PAD_BOTTOM = 8;
+		const boardViewBox = `0 ${-VB_PAD_TOP} ${width} ${height + VB_PAD_TOP + VB_PAD_BOTTOM}`;
 		return (
 			<div className="horosa-taiyi-board-canvas" ref={this.boardHostRef}>
 					<div className="horosa-taiyi-board-svg-wrap">
 						<svg
 							className="horosa-taiyi-board-svg"
-							viewBox={`0 0 ${width} ${height}`}
+							viewBox={boardViewBox}
 							preserveAspectRatio="xMidYMid meet"
 							style={boardSvgStyle}
 						>
