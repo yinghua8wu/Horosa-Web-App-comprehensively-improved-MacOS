@@ -42,7 +42,13 @@ stop_by_pid_file() {
   fi
 
   local pid
-  pid="$(cat "${pid_file}")"
+  pid="$(cat "${pid_file}" 2>/dev/null || true)"
+  # pid 空/非数字(写入中断/磁盘异常)直接清文件,不把空串喂给 kill。
+  case "${pid}" in (''|*[!0-9]*)
+    echo "${name}: pid file invalid, cleaning."
+    rm -f "${pid_file}"
+    return
+  ;; esac
   if ! kill_pid_gracefully "${pid}" "${name}"; then
     echo "${name}: process not found, cleaning pid file."
   fi

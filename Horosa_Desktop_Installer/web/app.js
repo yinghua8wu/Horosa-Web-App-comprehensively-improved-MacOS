@@ -1351,7 +1351,13 @@
     if (inferredMode) applyMode(inferredMode);
     const phase = resolvePhase(clamped);
     const failedStep = currentTone === 'error' ? 2 : null;
-    const completeAll = currentTone === 'ready' || Boolean(phase.complete);
+    // indeterminate=正在等本地服务就绪(心跳每秒刷新此态)。此刻服务尚未真就绪,绝不能把流水线全标完成
+    // 或亮 Ready —— 否则用户看到「全绿+✓Ready+进入主界面」却进不去(真就绪只经 __horosaReady 的
+    // 非 indeterminate setProgress(100) 路径)。故 indeterminate 时强制「进行中」展示。
+    const completeAll = !indeterminate && (currentTone === 'ready' || Boolean(phase.complete));
+    if (indeterminate && currentTone !== 'error') {
+      setStatusPill('live', '启动中');
+    }
     progressIsIndeterminate = indeterminate;
     if (progressTrack) {
       progressTrack.classList.toggle('is-indeterminate', indeterminate);

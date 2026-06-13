@@ -1325,7 +1325,15 @@ grep -v '^[[:space:]]*#' "${REPO_ROOT}/Horosa-Web/stop_horosa_local.sh" | grep -
 grep -A1 "if !trusted_runtime {" "${S51_MAIN}" | grep -q "prepare_runtime_dir" || { bad "[51] start_runtime 的 prepare_runtime_dir 失去 !trusted_runtime 守卫(冷缓存全树遍历会卡 36%)"; S51_BAD=1; }
 grep -q '正在准备启动环境' "${S51_MAIN}" || { bad "[51] start_runtime 入口缺 indeterminate 进度(重活前进度会冻在 36%)"; S51_BAD=1; }
 grep -q "'lsof', '-nP'" "${REPO_ROOT}/Horosa-Web/astropy/websrv/webchartsrv.py" || { bad "[51] webchartsrv.py 的 lsof 回退缺 -nP(DNS 反查会超 timeout 假阴性)"; S51_BAD=1; }
-[ "${S51_BAD}" = "0" ] && ok "[51] 退出 detached+去重 / 端口检查 netstat 化 / trusted 跳全树遍历 全在位"
+# 首启稳定性 (2026-06-12 安装包卡死根治后增):
+S51_PROBE_NOPROXY="$(grep -cE "curl -s --noproxy '\\*'" "${REPO_ROOT}/Horosa-Web/start_horosa_local.sh" || true)"
+[ "${S51_PROBE_NOPROXY}" -ge 2 ] || { bad "[51] start 脚本探测 curl 缺 --noproxy '*'(代理环境会卡首启)"; S51_BAD=1; }
+grep -q "ProxyHandler({})" "${REPO_ROOT}/Horosa-Web/start_horosa_local.sh" || { bad "[51] start 脚本 urllib 回退缺禁代理 opener"; S51_BAD=1; }
+grep -Eq 'port_listening "\$\{CHART_PORT\}" && port_listening "\$\{BACKEND_PORT\}" *; *then' "${REPO_ROOT}/Horosa-Web/start_horosa_local.sh" && { bad "[51] 等待循环回归 netstat 端口硬闸"; S51_BAD=1; }
+grep -q 'command.env_remove(proxy_var)' "${S51_MAIN}" || { bad "[51] main.rs 未在 spawn 脚本前 env_remove 代理变量"; S51_BAD=1; }
+grep -q 'chmod -R a+rwX "${SHARED_ROOT}"' "${REPO_ROOT}/Horosa_Desktop_Installer/installer-scripts/postinstall.template" || { bad "[51] postinstall 缺 a+rwX"; S51_BAD=1; }
+grep -q 'chmod -R a+rX "${SHARED_ROOT}"' "${REPO_ROOT}/Horosa_Desktop_Installer/installer-scripts/postinstall.template" && { bad "[51] postinstall 回归只读 a+rX"; S51_BAD=1; }
+[ "${S51_BAD}" = "0" ] && ok "[51] 退出 detached+去重 / 端口检查 netstat 化 / 探测防代理 / http 直判就绪 / 共享树可写 全在位"
 
 echo "== 结果 =="
 if [ "${fail}" -ne 0 ]; then echo "pre-flight 有 ❌,先修再发。" >&2; exit 1; fi

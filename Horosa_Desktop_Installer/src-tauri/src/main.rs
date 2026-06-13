@@ -4408,8 +4408,24 @@ fn start_runtime(
             "HOROSA_DIAG_DIR",
             paths.logs_dir.to_string_lossy().to_string(),
         );
+    // 本地回环探测防代理劫持(双保险,脚本侧 curl --noproxy / urllib 禁代理是第一道):
+    // 用户 shell/launchctl 注入的代理变量会把脚本内 127.0.0.1 探测与热身请求劫持进代理 →
+    // 服务在听也探不到 → 首启永不就绪。spawn 前显式剥掉六个代理变量。
+    for proxy_var in [
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+    ] {
+        command.env_remove(proxy_var);
+    }
     if let Some(timeout_secs) = startup_timeout_secs {
         command.env("HOROSA_STARTUP_TIMEOUT", timeout_secs.to_string());
+    } else if !trusted_runtime {
+        // 全新安装首启(untrusted)预算放宽:含 jar 首次拷贝 + JVM 冷启 + 杀软扫描,慢盘机器 180s 临界。
+        command.env("HOROSA_STARTUP_TIMEOUT", "300");
     }
     // 心跳:output() 阻塞等脚本(就绪轮询通常 5~20s,冷启更久),每秒刷一次 indeterminate
     // 文案让进度条保持活动,避免长等待被当成卡死。错误路径同样先置停+join 再返回。

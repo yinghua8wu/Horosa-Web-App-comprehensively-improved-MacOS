@@ -15,7 +15,12 @@ PYTHON_BIN="${HOROSA_PYTHON:-python3}"
 JAVA_BIN="${HOROSA_JAVA_BIN:-java}"
 PYTHONPATH_ASTRO="${ROOT}/flatlib-ctrad2:${ROOT}/astropy:${ROOT}/vendor"
 EXTRA_PY_SITE=""
-STARTUP_TIMEOUT="${HOROSA_STARTUP_TIMEOUT:-180}"
+# 首启(untrusted)预算更宽:含 324MB jar 首次拷贝 + JVM 冷启 + 杀软扫描,慢盘机器 180s 临界。
+if [ "${HOROSA_TRUSTED_RUNTIME:-0}" = "1" ]; then
+  STARTUP_TIMEOUT="${HOROSA_STARTUP_TIMEOUT:-180}"
+else
+  STARTUP_TIMEOUT="${HOROSA_STARTUP_TIMEOUT:-300}"
+fi
 SKIP_UI_BUILD="${HOROSA_SKIP_UI_BUILD:-0}"
 SKIP_RUNTIME_WARMUP="${HOROSA_SKIP_RUNTIME_WARMUP:-0}"
 CHART_PORT="${HOROSA_CHART_PORT:-8899}"
@@ -124,7 +129,9 @@ http_responding() {
   local url="$1"
   if command -v curl >/dev/null 2>&1; then
     local code
-    code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' "${url}" || true)"
+    # --noproxy '*':用户环境的 http_proxy/HTTPS_PROXY/all_proxy 会把 127.0.0.1 探测劫持进代理 →
+    # 服务在听也探不到 → 首启永不就绪(与 SIGPIPE 坑同症状,代理环境机器必中)。本地回环探测恒直连。
+    code="$(curl -s --noproxy '*' -o /dev/null -m 3 --connect-timeout 1 -w '%{http_code}' "${url}" || true)"
     if [ -z "${code}" ] || [ "${code}" = "000" ]; then
       return 1
     fi
@@ -134,8 +141,10 @@ http_responding() {
   # 坍缩成「仅端口监听」,热身/就绪判定形同空转)。任何 HTTP 响应(含 4xx)即视为在监听。
   "${PYTHON_BIN}" - "${url}" <<'PY' >/dev/null 2>&1
 import sys, urllib.request, urllib.error
+# 显式禁代理:urllib 默认读 http_proxy 等 env,本地回环探测会被劫持(与 curl --noproxy 同理)。
+opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 try:
-    urllib.request.urlopen(sys.argv[1], timeout=2)
+    opener.open(sys.argv[1], timeout=2)
 except urllib.error.HTTPError:
     pass
 except Exception:
@@ -150,7 +159,7 @@ signed_backend_http_responding() {
   if command -v curl >/dev/null 2>&1; then
     local code
     code="$(
-      curl -s -o /dev/null -m 2 -w '%{http_code}' \
+      curl -s --noproxy '*' -o /dev/null -m 3 --connect-timeout 1 -w '%{http_code}' \
         -H "ClientChannel: 1" \
         -H "ClientApp: 1" \
         -H "ClientVer: 1.0" \
@@ -167,8 +176,9 @@ signed_backend_http_responding() {
 import sys, urllib.request, urllib.error
 url, sig = sys.argv[1], sys.argv[2]
 req = urllib.request.Request(url, headers={'ClientChannel': '1', 'ClientApp': '1', 'ClientVer': '1.0', 'Signature': sig})
+opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 禁代理,同上
 try:
-    resp = urllib.request.urlopen(req, timeout=2)
+    resp = opener.open(req, timeout=2)
     code = getattr(resp, 'status', 200) or 200
 except urllib.error.HTTPError as e:
     code = e.code
@@ -637,11 +647,24 @@ if [ -f "${BUNDLE_JAR}" ]; then
   if [ ! -f "${JAR}" ]; then
     diag_log "target jar missing, fallback to bundled jar: ${BUNDLE_JAR}"
     echo "backend target jar missing, using bundled jar fallback."
-    mkdir -p "$(dirname "${JAR}")"
-    cp -f "${BUNDLE_JAR}" "${JAR}"
+    if ! mkdir -p "$(dirname "${JAR}")"; then
+      diag_log "jar dir create FAILED (权限/磁盘?): $(dirname "${JAR}") — 多用户场景需 postinstall a+rwX"
+      echo "cannot create jar dir (permission/disk?): $(dirname "${JAR}")"
+      exit 1
+    fi
+    if ! cp -f "${BUNDLE_JAR}" "${JAR}"; then
+      diag_log "jar copy FAILED (磁盘满/权限?): ${BUNDLE_JAR} -> ${JAR} (df: $(df -h "$(dirname "${JAR}")" 2>/dev/null | tail -1 || true))"
+      echo "cannot copy backend jar (disk full / permission denied?)"
+      rm -f "${JAR}" 2>/dev/null || true
+      exit 1
+    fi
   elif [ "${BUNDLE_JAR}" -nt "${JAR}" ] && ! cmp -s "${BUNDLE_JAR}" "${JAR}"; then
     diag_log "bundled jar newer than target jar, refreshing target from bundle"
-    cp -f "${BUNDLE_JAR}" "${JAR}"
+    if ! cp -f "${BUNDLE_JAR}" "${JAR}"; then
+      diag_log "jar refresh FAILED (磁盘满/权限?): ${BUNDLE_JAR} -> ${JAR}"
+      echo "cannot refresh backend jar (disk full / permission denied?)"
+      exit 1
+    fi
   fi
 fi
 if [ ! -f "${JAR}" ]; then
@@ -699,14 +722,17 @@ fi
 cleanup_on_fail() {
   local code=$?
   if [ "${code}" -ne 0 ]; then
-    if [ -f "${JAVA_PID_FILE}" ]; then
-      kill "$(cat "${JAVA_PID_FILE}")" >/dev/null 2>&1 || true
-      rm -f "${JAVA_PID_FILE}"
+    local _pid
+    if [ -s "${JAVA_PID_FILE}" ]; then
+      _pid="$(cat "${JAVA_PID_FILE}" 2>/dev/null || true)"
+      case "${_pid}" in (''|*[!0-9]*) : ;; (*) kill "${_pid}" >/dev/null 2>&1 || true ;; esac
     fi
-    if [ -f "${PY_PID_FILE}" ]; then
-      kill "$(cat "${PY_PID_FILE}")" >/dev/null 2>&1 || true
-      rm -f "${PY_PID_FILE}"
+    rm -f "${JAVA_PID_FILE}" 2>/dev/null || true
+    if [ -s "${PY_PID_FILE}" ]; then
+      _pid="$(cat "${PY_PID_FILE}" 2>/dev/null || true)"
+      case "${_pid}" in (''|*[!0-9]*) : ;; (*) kill "${_pid}" >/dev/null 2>&1 || true ;; esac
     fi
+    rm -f "${PY_PID_FILE}" 2>/dev/null || true
   fi
   return "${code}"
 }
@@ -742,7 +768,20 @@ if [ "${PYTHON_LAUNCH_NOUSERSITE}" = "1" ]; then
   PYTHON_LAUNCH_CMD+=(PYTHONNOUSERSITE=1)
 fi
 PYTHON_LAUNCH_CMD+=("${PYTHON_BIN}" "${ROOT}/astropy/websrv/webchartsrv.py")
+# pid 文件读取防御:文件缺失/为空/非数字时不得把空串喂给 kill -0(会报 usage 错→被误读成「进程已退出」)。
+pid_alive() {
+  local f="$1" pid
+  [ -s "${f}" ] || return 1
+  pid="$(cat "${f}" 2>/dev/null || true)"
+  case "${pid}" in (''|*[!0-9]*) return 1 ;; esac
+  kill -0 "${pid}" >/dev/null 2>&1
+}
 launch_detached "${PY_LOG}" "${PYTHON_LAUNCH_CMD[@]}" >"${PY_PID_FILE}"
+if ! pid_alive "${PY_PID_FILE}"; then
+  diag_log "python launch FAILED: pid 文件为空/进程未存活 (pidfile='$(cat "${PY_PID_FILE}" 2>/dev/null || echo "<unreadable>")', 日志目录可写? 磁盘?)"
+  echo "python service failed to launch (see ${PY_LOG})"
+  exit 1
+fi
 
 JAVA_LAUNCH_CMD=(env \
   HOROSA_DESKTOP_MONGO_OPTIONAL="${DESKTOP_MONGO_OPTIONAL}" \
@@ -781,6 +820,11 @@ JAVA_LAUNCH_CMD+=(
 
 launch_detached "${JAVA_LOG}" env \
   "${JAVA_LAUNCH_CMD[@]}" >"${JAVA_PID_FILE}"
+if ! pid_alive "${JAVA_PID_FILE}"; then
+  diag_log "java launch FAILED: pid 文件为空/进程未存活 (pidfile='$(cat "${JAVA_PID_FILE}" 2>/dev/null || echo "<unreadable>")')"
+  echo "java service failed to launch (see ${JAVA_LOG})"
+  exit 1
+fi
 
 ready=0
 # 提速(更新后卡顿)B:轮询间隔与 trusted 解耦——更新后首启(trusted=0)同样用 0.2s 快轮询,
@@ -795,28 +839,26 @@ elapsed_checks=0
 deadline_epoch=$(( $(date +%s) + STARTUP_TIMEOUT ))
 while true; do
   elapsed_checks=$((elapsed_checks + 1))
-  if ! kill -0 "$(cat "${PY_PID_FILE}")" >/dev/null 2>&1; then
+  if ! pid_alive "${PY_PID_FILE}"; then
     echo "astropy process exited during startup."
+    diag_log "wait loop: python pid not alive (pidfile=$(cat "${PY_PID_FILE}" 2>/dev/null || echo '<unreadable>'))"
     break
   fi
-  if ! kill -0 "$(cat "${JAVA_PID_FILE}")" >/dev/null 2>&1; then
+  if ! pid_alive "${JAVA_PID_FILE}"; then
     echo "astrostudyboot process exited during startup."
+    diag_log "wait loop: java pid not alive (pidfile=$(cat "${JAVA_PID_FILE}" 2>/dev/null || echo '<unreadable>'))"
     break
   fi
 
-  if [ "${TRUSTED_RUNTIME}" = "1" ]; then
-    if http_responding "http://127.0.0.1:${CHART_PORT}/" && signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time"; then
-      ready=1
-      break
-    fi
-  elif port_listening "${CHART_PORT}" && port_listening "${BACKEND_PORT}"; then
-    if http_responding "http://127.0.0.1:${CHART_PORT}/" && signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time"; then
-      ready=1
-      break
-    fi
+  # 就绪判定以 http 探测为准(trusted/untrusted 同口径)。曾把 netstat 端口解析当 http 探测的前置硬闸,
+  # 解析在某环境失败(如 pipefail×SIGPIPE 坑)会把已就绪的服务挡死 → 首启永卡。本地 curl 0.2s 轮询开销可忽略;
+  # port_listening 仅保留给下方进度展示行(展示失败不影响就绪判定)。
+  if http_responding "http://127.0.0.1:${CHART_PORT}/" && signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time"; then
+    ready=1
+    break
   fi
   if [ $((elapsed_checks % progress_interval)) -eq 0 ]; then
-    echo "waiting services... ${elapsed_checks} checks (${CHART_PORT}:$(port_listening "${CHART_PORT}" && echo up || echo down), ${BACKEND_PORT}:$(port_listening "${BACKEND_PORT}" && echo up || echo down))"
+    echo "waiting services... ${elapsed_checks} checks (${CHART_PORT}:$( (port_listening "${CHART_PORT}" && echo up) || echo down), ${BACKEND_PORT}:$( (port_listening "${BACKEND_PORT}" && echo up) || echo down))"
   fi
   if [ "$(date +%s)" -ge "${deadline_epoch}" ]; then
     break

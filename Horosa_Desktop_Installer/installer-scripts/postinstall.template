@@ -146,7 +146,7 @@ defer_runtime_install() {
   mark_pending "${reason}"
   cleanup_install_state
   /usr/bin/xattr -dr com.apple.quarantine "${APP_PATH}" >/dev/null 2>&1 || true
-  /bin/chmod -R a+rX "${SHARED_ROOT}" >/dev/null 2>&1 || true
+  /bin/chmod -R a+rwX "${SHARED_ROOT}" >/dev/null 2>&1 || true
   exit 0
 }
 
@@ -165,7 +165,7 @@ degrade_to_first_launch() {
   write_install_source "pkg_offline" "${EXPECTED_VERSION}"
   cleanup_work_dir
   /usr/bin/xattr -dr com.apple.quarantine "${APP_PATH}" >/dev/null 2>&1 || true
-  /bin/chmod -R a+rX "${SHARED_ROOT}" >/dev/null 2>&1 || true
+  /bin/chmod -R a+rwX "${SHARED_ROOT}" >/dev/null 2>&1 || true
   exit 0
 }
 
@@ -199,7 +199,7 @@ if [ "${INSTALL_MODE}" = "defer-runtime-bootstrap" ]; then
   write_install_source "pkg_online" "${EXPECTED_VERSION}"
   cleanup_install_state
   /usr/bin/xattr -dr com.apple.quarantine "${APP_PATH}" >/dev/null 2>&1 || true
-  /bin/chmod -R a+rX "${SHARED_ROOT}" >/dev/null 2>&1 || true
+  /bin/chmod -R a+rwX "${SHARED_ROOT}" >/dev/null 2>&1 || true
   exit 0
 fi
 
@@ -255,7 +255,7 @@ if [ -d "${CURRENT_DIR}" ]; then
     cleanup_install_state
     write_install_source "pkg_offline" "${EXPECTED_VERSION}"
     /usr/bin/xattr -dr com.apple.quarantine "${APP_PATH}" >/dev/null 2>&1 || true
-    /bin/chmod -R a+rX "${SHARED_ROOT}" >/dev/null 2>&1 || true
+    /bin/chmod -R a+rwX "${SHARED_ROOT}" >/dev/null 2>&1 || true
     exit 0
   fi
   mv "${CURRENT_DIR}" "${PREVIOUS_DIR}"
@@ -285,6 +285,6 @@ log_line "runtime bootstrap installed successfully"
 write_install_source "pkg_offline" "${EXPECTED_VERSION}"
 /usr/bin/xattr -dr com.apple.quarantine "${APP_PATH}" >/dev/null 2>&1 || true
 /usr/bin/xattr -dr com.apple.quarantine "${CURRENT_DIR}" >/dev/null 2>&1 || true
-/bin/chmod -R a+rX "${SHARED_ROOT}" >/dev/null 2>&1 || true
+/bin/chmod -R a+rwX "${SHARED_ROOT}" >/dev/null 2>&1 || true
 cleanup_install_state
 exit 0
