@@ -184,7 +184,11 @@ fi
 
 find "${TARGET_ROOT}/release/bundle" -type f -name '*.dmg' -delete 2>/dev/null || true
 TAURI_BUILD_OK=1
-if ! (cd "${INSTALLER_ROOT}" && CARGO_TARGET_DIR="${TARGET_ROOT}" npm run tauri:build -- --bundles app); then
+# 隐去构建机器路径:Cargo 默认把构建机 $HOME 与 cargo registry 绝对路径嵌入二进制 panic-string
+# 常量,strip 不能去。RUSTFLAGS --remap-path-prefix 在编译时把这些路径替换为占位符(user/cargo/rust/src),
+# 二进制 strings 输出零开发机 PII。$HOME 在构建机 shell 现场展开,不写入任何 tracked 文件。
+HOROSA_RUSTFLAGS_REMAP="--remap-path-prefix=${HOME}/.cargo/registry=cargo --remap-path-prefix=${HOME}/.rustup/toolchains=rust --remap-path-prefix=${INSTALLER_ROOT}/src-tauri=src --remap-path-prefix=${HOME}=user"
+if ! (cd "${INSTALLER_ROOT}" && CARGO_TARGET_DIR="${TARGET_ROOT}" RUSTFLAGS="${HOROSA_RUSTFLAGS_REMAP} ${RUSTFLAGS:-}" npm run tauri:build -- --bundles app); then
   TAURI_BUILD_OK=0
   echo "tauri app bundling failed; checking for reusable app bundle..." >&2
 fi
