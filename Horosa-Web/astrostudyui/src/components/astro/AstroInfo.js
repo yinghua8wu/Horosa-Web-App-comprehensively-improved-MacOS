@@ -727,6 +727,36 @@ class AstroInfo extends Component{
 		return dom;
 	}
 
+	// 围绕:某星 C 被「紧邻两侧」两星体 A、B 夹持——A、B 分处 C 两侧、过 C 的黄道弧 < 90°、
+	// 且 A-C、B-C 间无他星体(取紧邻即自然满足「之间无他星」)。星体取古典七政(日月水金火木土),
+	// 与夹星(旧引擎 surround.planets,亦七政)同源,不含外行星/交点/虚点/四角。纯本盘黄经判定。
+	genSurroundEncircleDom(perchart){
+		let objs = (perchart && perchart.objects) || [];
+		const BODY = [AstroConst.SUN, AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS,
+			AstroConst.JUPITER, AstroConst.SATURN];
+		let bodies = objs.filter((o)=> o && BODY.indexOf(o.id) >= 0 && typeof o.lon === 'number' && this.canDisplayPlanet(o.id));
+		if(bodies.length < 3){ return null; }
+		let sorted = bodies.slice().sort((a, b)=> a.lon - b.lon);
+		let n = sorted.length;
+		let norm = (x)=> ((x % 360) + 360) % 360;
+		let rows = [];
+		for(let i=0; i<n; i++){
+			let mid = sorted[i];
+			let left = sorted[(i - 1 + n) % n];   // 紧邻·低黄经侧(环形回绕)
+			let right = sorted[(i + 1) % n];        // 紧邻·高黄经侧
+			let span = norm(mid.lon - left.lon) + norm(right.lon - mid.lon);   // 过 C 总弧 = A、B 黄道距离
+			if(span < 90){
+				rows.push(
+					<div key={randomStr(8)} className="horosa-classical-line">
+						{this.planetLabel(left.id, this.props.value)}&nbsp;与&nbsp;{this.planetLabel(right.id, this.props.value)}&nbsp;围绕&nbsp;{this.planetLabel(mid.id, this.props.value)}
+						<span style={{color: 'var(--horosa-muted, #999)', marginLeft: 6}}>（跨 {span.toFixed(1)}°）</span>
+					</div>
+				);
+			}
+		}
+		return rows.length ? rows : null;
+	}
+
 	// WI-02 偕日相:列星-日关系(核心/焦伤/日光束下/自由光)+ 偕日升没事件。
 	genPhasisDom(perchart){
 		if(!perchart || !Array.isArray(perchart.objects)){ return null; }
@@ -980,6 +1010,7 @@ class AstroInfo extends Component{
 		let besiegeDom = this.genBesiegementDom(chart.surround ? chart.surround.besiegement : []);
 		let surhouses = this.genSurroundHousesDom(chart.surround ? chart.surround.houses : {});
 		let surplanets = this.genSurroundPlanetsDom(chart.surround ? chart.surround.planets : {});
+		let surencircle = this.genSurroundEncircleDom(perchart);
 
 		let height = this.props.height ? this.props.height : '100%';
 		let astyle = {
@@ -1117,6 +1148,7 @@ class AstroInfo extends Component{
 					{card('围攻详断', 'Besiegement Analysis · 三围 / 势 / 极 / 救', besiegeDom, !!besiegeDom, '无围攻/围荣/围耀')}
 					{card('夹宫', 'Enclosure by Houses', surhouses, has.houses, '暂无夹宫信息')}
 					{card('夹星', 'Enclosure by Planets', surplanets, has.planets, '暂无夹星信息')}
+					{card('围绕', 'Encircled by Bodies', surencircle, !!surencircle, '无围绕（紧邻两侧星体跨度 ≥ 90°）')}
 					{/* 主宰星链 与 宫神星 归入格局补充 */}
 					<AstroDispositor value={this.props.value} />
 					{section('相位动态', 'Aspect Dynamics')}
