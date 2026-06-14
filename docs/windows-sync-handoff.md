@@ -11,12 +11,12 @@
 ## v2.6.7（本地批次,未发版）· 古典占星补全 + 围攻详断 + AI 四同步全面接入 + 多项 GAP/crash 修
 
 > **Windows 必做两件：①拉前端源码并跑 jest；②重启本地 Python（新增 analyze_chart 古典键 + perchart 古典属性,旧进程静默吞新键 → 格局/古典卡空白伪「未检出」）。Java 未改无需重编。**
-> 古典属于**分阶段实现**;runtime 2.6.7-runtime1。
+> runtime 2.6.7-runtime1。
 
 ### 必须同步（Python 排盘引擎）
 - `Horosa-Web/astropy/astrostudy/astroextra.py` — `analyze_chart` 14 键齐全（古典格局/相位动态/逐题主星/偶然尊贵/恒星/行星时/埃及历/巴比伦/交食食分/吉化凶化 等）+ siriusYear 高纬度修正 + distribution 半球按地平轴
 - `Horosa-Web/astropy/astrostudy/classical_tables.py` — **新增**（度数性质 DEGREE_QUALITY/月站/特殊度数/单度·九分·Darijan 表）
-- `Horosa-Web/astropy/astrostudy/perchart.py` — **新增模块，新增实现**：classical 段 ~306 行纯增（setupOutOfBounds/Phasis/Joy/Sect/Feral + setupPlanets 古典属性 + besiegementDetail/_besiege_defense/_is_strong_house）；通过 `git diff` patch 移植后实现
+- `Horosa-Web/astropy/astrostudy/perchart.py` — classical 段 ~306 行新增（setupOutOfBounds/Phasis/Joy/Sect/Feral + setupPlanets 古典属性 + besiegementDetail/_besiege_defense/_is_strong_house）
 - `Horosa-Web/astropy/websrv/webchartsrv.py` — surround 块加 `besiegement` 键
 
 ### 自动受益（共享前端,Windows 拉前端即同步）
