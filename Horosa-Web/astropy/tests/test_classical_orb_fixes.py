@@ -41,3 +41,21 @@ def test_planetary_hours_polar_returns_none():
     # 非极区正常返回时段表(回归守卫:别把所有盘都判成极区)。
     ph2 = _analyze('1990/05/15', '12:00:00')['planetaryHours']
     assert ph2 is not None and ph2.get('sunrise') != ph2.get('sunset')
+
+
+def test_distribution_hemispheres_by_horizon_not_longitude():
+    # 半球须按地平/子午轴(ASC-DSC/MC-IC),非黄经绝对值。回归:ASC 远离 0°白羊(本盘天秤)时旧黄经口径全错。
+    from astrostudy.perchart import PerChart
+    p = astroextra.base_params({'date': '1990/05/15', 'time': '14:30:00', 'zone': '+08:00', 'lat': '31N14', 'lon': '121E29', 'ad': 1, 'hsys': 1})
+    pc = PerChart(p)
+    asc = pc.chart.get('Asc').lon
+    mc = pc.chart.get('MC').lon
+    bodies = [q for q in astroextra.chart_points(pc, include_angles=False) if q['id'] in astroextra.DEFAULT_EVENT_PLANETS]
+    exp_below = sum(1 for q in bodies if ((q['lon'] - asc) % 360.0) < 180.0)
+    exp_east = sum(1 for q in bodies if ((q['lon'] - mc) % 360.0) < 180.0)
+    d = astroextra.analyze_chart({'date': '1990/05/15', 'time': '14:30:00', 'zone': '+08:00', 'lat': '31N14', 'lon': '121E29', 'ad': 1, 'hsys': 1})['distribution']['hemispheres']
+    assert d['below'] == exp_below and d['above'] == len(bodies) - exp_below, (d, exp_below)
+    assert d['east'] == exp_east and d['west'] == len(bodies) - exp_east, (d, exp_east)
+    # 证明确实改了:本盘按黄经口径 below 计数与按地平不同。
+    lon_below = sum(1 for q in bodies if 0 <= q['lon'] < 180)
+    assert exp_below != lon_below, '本盘地平口径应与旧黄经口径不同(否则测不出回归)'

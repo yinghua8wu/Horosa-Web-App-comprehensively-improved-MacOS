@@ -1063,6 +1063,11 @@ function buildClassicalSection(chartObj){
 }
 
 const CLS_OVR_ASP = { sextile: '六分', square: '四分', trine: '三分', conjunction: '合', opposition: '冲' };
+const CLS_ELEM = { Fire: '火', Earth: '土', Air: '风', Water: '水' };
+const CLS_MODE = { Cardinal: '始', Fixed: '固', Mutable: '变' };
+const CLS_HEMI = { east: '东', west: '西', above: '地平上', below: '地平下' };
+const CLS_TEMPER = { Choleric: '胆汁(热干)', Melancholic: '忧郁(冷干)', Sanguine: '多血(热湿)', Phlegmatic: '黏液(冷湿)' };
+const CLS_QUAL = { Hot: '热', Cold: '冷', Dry: '干', Humid: '湿' };
 
 // 古典格局派生分析(astroextra.analyze_chart):护卫/优势相位/度数围攻 + 传光/聚光/不合意/交点弯曲 +
 // 逐题主星 + 偶然尊贵 + 恒星触发 + 行星时值日 + 埃及历 + 巴比伦参照星。与「古典」(逐曜本盘状态)互补,
@@ -1103,9 +1108,41 @@ export function buildClassicalAnalysisSection(analysis){
 	const ph = analysis.planetaryHours;
 	if(ph && ph.dayRuler){ lines.push(`行星时：值日星 ${msg(ph.dayRuler)}（日出 ${ph.sunrise} / 日落 ${ph.sunset}）`); }
 	const eg = analysis.egyptianCalendar;
-	if(eg && eg.siriusRising){ lines.push(`埃及历：天狼偕日升 ${eg.siriusRising}；上升第${eg.decanIndex}旬（${msg(eg.decanSign)}）面主${msg(eg.decanRuler)}`); }
+	if(eg && (eg.siriusRising || eg.decanIndex)){
+		// 极区 siriusRising 可能为 null,但上升十分宫仍有 → 各自独立呈现,勿因天狼缺失整块丢失(对齐 UI renderEgyptian)。
+		const parts = [];
+		if(eg.siriusRising){ parts.push(`天狼偕日升 ${eg.siriusRising}`); }
+		if(eg.decanIndex){ parts.push(`上升第${eg.decanIndex}旬（${msg(eg.decanSign)}）面主${msg(eg.decanRuler)}`); }
+		if(parts.length){ lines.push(`埃及历：${parts.join('；')}`); }
+	}
 	const bab = (analysis.babylonianStars || []).filter((b)=> b && b.conj).map((b)=> `${msg(b.planet)} 合参照星 ${b.cn || b.star}`);
 	if(bab.length){ lines.push('巴比伦参照星'); lines.push(bab.join('；')); }
+	// 相位格局(Grand Trine/T-Square/Yod/Stellium…)、分布权重(元素/模态/半球)、气质(四液)、Almuten 总主 —
+	// 格局tab 同源,补入 AI 避免遗漏(与逐曜古典/古典格局互补)。标签对齐 AstroAnalysisLab。
+	const pats = (analysis.patterns || []).map((p)=> `${p.label || p.type}（${(p.points || []).map((x)=> msg(x)).join('·')}${p.apex ? `,顶点${msg(p.apex)}` : ''}）`);
+	if(pats.length){ lines.push('相位格局'); lines.push(pats.join('；')); }
+	const dist = analysis.distribution;
+	if(dist && (dist.elements || dist.modes || dist.hemispheres)){
+		const kv = (obj, map)=> Object.keys(obj || {}).map((k)=> `${(map && map[k]) || k}${obj[k]}`).join(' ');
+		const dl = [];
+		if(dist.elements){ dl.push(`元素 ${kv(dist.elements, CLS_ELEM)}`); }
+		if(dist.modes){ dl.push(`模态 ${kv(dist.modes, CLS_MODE)}`); }
+		if(dist.hemispheres){ dl.push(`半球 ${kv(dist.hemispheres, CLS_HEMI)}`); }
+		if(dl.length){ lines.push('分布权重'); lines.push(dl.join('；')); }
+	}
+	const temp = analysis.temperament;
+	if(temp && (temp.temperaments || temp.qualities)){
+		const kv = (obj, map)=> Object.keys(obj || {}).map((k)=> `${(map && map[k]) || k}${obj[k]}`).join(' ');
+		const tl = [];
+		if(temp.temperaments){ tl.push(`气质 ${kv(temp.temperaments, CLS_TEMPER)}`); }
+		if(temp.qualities){ tl.push(`性质 ${kv(temp.qualities, CLS_QUAL)}`); }
+		if(tl.length){ lines.push('气质评估'); lines.push(tl.join('；')); }
+	}
+	const am = analysis.almutem;
+	if(am && am.winner){
+		const totals = Object.keys(am.totals || {}).map((k)=> [k, am.totals[k]]).sort((a, b)=> b[1] - a[1]);
+		lines.push(`Almuten 总主：${msg(am.winner)}${totals.length ? `（得分 ${totals.map((t)=> `${msg(t[0])}${t[1]}`).join(' ')}）` : ''}`);
+	}
 	return buildSectionText('古典格局', lines);
 }
 

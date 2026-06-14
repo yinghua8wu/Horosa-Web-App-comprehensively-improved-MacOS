@@ -96,12 +96,24 @@ describe('古典格局派生分析段 buildClassicalAnalysisSection', ()=>{
 		planetaryHours: { dayRuler: 'Mercury', sunrise: '06:31', sunset: '17:44' },
 		egyptianCalendar: { siriusRising: '1991-08-06', decanIndex: 11, decanSign: 'Cancer', decanRuler: 'Mercury' },
 		babylonianStars: [{ planet: 'Mercury', star: 'Deneb Algedi', cn: '垒壁阵', conj: true }],
+		patterns: [{ type: 't_square', label: 'T-Square', points: ['Venus', 'Jupiter', 'Uranus'], apex: 'Venus' }],
+		distribution: { elements: { Fire: 1, Earth: 6, Air: 0, Water: 3 }, modes: { Cardinal: 6, Fixed: 3, Mutable: 1 }, hemispheres: { east: 2, west: 8, above: 4, below: 6 } },
+		temperament: { temperaments: { Choleric: 1, Melancholic: 6, Sanguine: 5, Phlegmatic: 2 }, qualities: { Hot: 6, Cold: 8, Dry: 7, Humid: 7 } },
+		almutem: { winner: 'Venus', totals: { Venus: 29, Saturn: 29, Moon: 23 } },
 	};
 
-	it('格式化 analyze_chart 全部新键(护卫/优势/传光/聚光/不合意/逐题/偶然/恒星/行星时/埃及/巴比伦)', ()=>{
+	it('格式化 analyze_chart 全部键(护卫/优势/传光/聚光/不合意/逐题/偶然/恒星/行星时/埃及/巴比伦/相位格局/分布/气质/Almuten 无遗漏)', ()=>{
 		const out = buildClassicalAnalysisSection(analysis);
 		expect(out).toContain('[古典格局]');
-		['护卫', '优势相位', '传光', '聚光', '不合意', '逐题主星', '偶然尊贵', '恒星触发', '比尼', '王者', '行星时', '埃及历', '巴比伦参照星'].forEach((t)=> expect(out).toContain(t));
+		['护卫', '优势相位', '传光', '聚光', '不合意', '逐题主星', '偶然尊贵', '恒星触发', '比尼', '王者', '行星时', '埃及历', '巴比伦参照星',
+			'相位格局', 'T-Square', '分布权重', '元素', '气质评估', '忧郁', 'Almuten 总主'].forEach((t)=> expect(out).toContain(t));
+	});
+
+	it('极区:siriusRising 缺失但有上升旬 → 埃及历仍呈现十分宫(不整块丢)', ()=>{
+		const polar = { egyptianCalendar: { siriusRising: null, decanIndex: 36, decanSign: 'Pisces', decanRuler: 'Mars' } };
+		const out = buildClassicalAnalysisSection(polar);
+		expect(out).toContain('埃及历');
+		expect(out).toContain('上升第36旬');
 	});
 
 	it('空/无 analysis → 空段(优雅降级,不抛)', ()=>{

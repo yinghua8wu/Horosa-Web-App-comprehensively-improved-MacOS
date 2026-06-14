@@ -342,7 +342,14 @@ def detect_patterns(points):
     return unique
 
 
-def distribution(points):
+def _angle_lon(perchart, angle_id):
+    try:
+        return perchart.chart.get(angle_id).lon
+    except Exception:
+        return None
+
+
+def distribution(points, asc_lon=None, mc_lon=None):
     res = {
         'elements': {'Fire': 0, 'Earth': 0, 'Air': 0, 'Water': 0},
         'modes': {'Cardinal': 0, 'Fixed': 0, 'Mutable': 0},
@@ -357,14 +364,16 @@ def distribution(points):
         if sign in SIGN_MODES:
             res['modes'][SIGN_MODES[sign]] += 1
         lon = p['lon']
-        if 0 <= lon < 180:
-            res['hemispheres']['below'] += 1
+        # 半球须按地平/子午轴(ASC-DSC / MC-IC),非黄经绝对值。地平下=自 ASC 增黄经 180°(经 IC 到 DSC,
+        # 即 1-6 宫);东半=自 MC 增 180°(经 ASC 到 IC,即 10/11/12/1/2/3 宫)。缺 ASC/MC 时退化旧黄经口径。
+        if asc_lon is not None and mc_lon is not None:
+            rel_h = (lon - asc_lon) % 360.0
+            res['hemispheres']['below' if rel_h < 180.0 else 'above'] += 1
+            rel_v = (lon - mc_lon) % 360.0
+            res['hemispheres']['east' if rel_v < 180.0 else 'west'] += 1
         else:
-            res['hemispheres']['above'] += 1
-        if 90 <= lon < 270:
-            res['hemispheres']['west'] += 1
-        else:
-            res['hemispheres']['east'] += 1
+            res['hemispheres']['below' if 0 <= lon < 180 else 'above'] += 1
+            res['hemispheres']['west' if 90 <= lon < 270 else 'east'] += 1
     return res
 
 
@@ -953,7 +962,7 @@ def analyze_chart(data):
         temperament = None
     return {
         'patterns': detect_patterns(points),
-        'distribution': distribution(points),
+        'distribution': distribution(points, _angle_lon(perchart, const.ASC), _angle_lon(perchart, const.MC)),
         'almutem': almuten_table(perchart),
         'temperament': temperament,
         'extraLots': extra_lots(perchart),
