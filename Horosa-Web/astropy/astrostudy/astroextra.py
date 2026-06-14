@@ -559,6 +559,15 @@ def compute_classical_patterns(perchart):
     return out
 
 
+def _wheel_orb(perchart, id_a, id_b, fallback=8.0):
+    """与星图所绘/相位tab 一致的相位容许度:取两星 orb 较大者(双向并集——任一方容许度够到即成相;
+    日15/月12/水7/金火8/木土9…)。修复 feral 同坑:固定 8° 会漏掉日月宽相(如月对日冲 10.5°)。"""
+    try:
+        return max(perchart.chart.getObject(id_a).orb(), perchart.chart.getObject(id_b).orb())
+    except Exception:
+        return fallback
+
+
 def compute_accidental_dignity(perchart):
     """WI-16 偶然尊贵评分:角续果宫 / 行速 / 东西向 / 日下相 / 月相增减 / 会吉凶 / 喜乐 / 度数围攻 加权汇总。
     标准权重(可入设置);与必然尊贵得分并列。返回每星 {planet, score, factors[]},降序。"""
@@ -618,7 +627,7 @@ def compute_accidental_dignity(perchart):
             else:
                 score -= 2; parts.append('减光-2')
         for bid, w, lbl in ((const.JUPITER, 5, '会木+5'), (const.VENUS, 4, '会金+4'), (const.SATURN, -5, '会土-5'), (const.MARS, -4, '会火-4')):
-            if bid != pid and bid in objs and abs(signed(o.lon, objs[bid].lon)) <= 8.0:
+            if bid != pid and bid in objs and abs(signed(o.lon, objs[bid].lon)) <= _wheel_orb(perchart, pid, bid):
                 score += w; parts.append(lbl)
         if getattr(o, 'joy', False):
             score += 5; parts.append('喜乐+5')
@@ -661,7 +670,7 @@ def compute_bonification(perchart):
             if src == tid or src not in pts:
                 continue
             rel = None
-            if abs(signed(t['lon'], pts[src]['lon'])) <= 8.0:
+            if abs(signed(t['lon'], pts[src]['lon'])) <= _wheel_orb(perchart, tid, src):
                 rel = '会合'
             else:
                 try:
@@ -704,7 +713,7 @@ def compute_aspect_dynamics(perchart):
         for b in ids[i + 1:]:
             for asp in _PTOL:
                 d = diff(objs[a].lon, objs[b].lon)
-                if abs(d - asp) <= 8.0:
+                if abs(d - asp) <= _wheel_orb(perchart, a, b):
                     # 左右相位:发出星(慢者发向快者)在黄道序「之前」为右旋(dexter),「之后」为左旋(sinister)。
                     off = (SIGNS.index(objs[a].sign) - SIGNS.index(objs[b].sign)) % 12
                     hand = 'dexter' if off in (9, 10, 11, 8) else 'sinister'
@@ -811,6 +820,8 @@ def compute_planetary_hours(params):
 
     def nxt(jd, flag):
         _ret, tret = swisseph.rise_trans(jd, PLANET_SWISS_IDS[const.SUN], flag, geopos, 0.0, 0.0, swisseph.FLG_SWIEPH)
+        if _ret < 0:   # -2 极区无升降 / -1 错误:不可静默取 tret[0]=0(否则昼夜弧塌缩成伪时段)→ 抛出由外层 except 兜成 None
+            raise ValueError('no rise/set (circumpolar or error)')
         return tret[0]
 
     try:

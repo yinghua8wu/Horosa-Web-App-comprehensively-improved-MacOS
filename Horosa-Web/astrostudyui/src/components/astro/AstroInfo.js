@@ -734,7 +734,8 @@ class AstroInfo extends Component{
 		let objs = (perchart && perchart.objects) || [];
 		const BODY = [AstroConst.SUN, AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS,
 			AstroConst.JUPITER, AstroConst.SATURN];
-		let bodies = objs.filter((o)=> o && BODY.indexOf(o.id) >= 0 && typeof o.lon === 'number' && this.canDisplayPlanet(o.id));
+		// 几何须用「全七政」,勿先按显示过滤——否则隐藏某传统行星会破坏「A-C/B-C 间无他星」,伪造围绕。
+		let bodies = objs.filter((o)=> o && BODY.indexOf(o.id) >= 0 && typeof o.lon === 'number');
 		if(bodies.length < 3){ return null; }
 		let sorted = bodies.slice().sort((a, b)=> a.lon - b.lon);
 		let n = sorted.length;
@@ -746,6 +747,7 @@ class AstroInfo extends Component{
 			let right = sorted[(i + 1) % n];        // 紧邻·高黄经侧
 			let span = norm(mid.lon - left.lon) + norm(right.lon - mid.lon);   // 过 C 总弧 = A、B 黄道距离
 			if(span < 90){
+				if(!this.canDisplayPlanet(left.id) || !this.canDisplayPlanet(right.id) || !this.canDisplayPlanet(mid.id)){ continue; }   // 仅渲染层隐藏,不改几何
 				rows.push(
 					<div key={randomStr(8)} className="horosa-classical-line">
 						{this.planetLabel(left.id, this.props.value)}&nbsp;与&nbsp;{this.planetLabel(right.id, this.props.value)}&nbsp;围绕&nbsp;{this.planetLabel(mid.id, this.props.value)}
