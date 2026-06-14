@@ -8,6 +8,33 @@
 
 ---
 
+## v2.6.7（本地批次,未发版）· 古典占星补全 + 围攻详断 + AI 四同步全面接入 + 多项 GAP/crash 修
+
+> **Windows 必做两件：①拉前端源码并跑 jest；②重启本地 Python（新增 analyze_chart 古典键 + perchart 古典属性,旧进程静默吞新键 → 格局/古典卡空白伪「未检出」）。Java 未改无需重编。**
+> 古典属于**分阶段实现**;runtime 2.6.7-runtime1。
+
+### 必须同步（Python 排盘引擎）
+- `Horosa-Web/astropy/astrostudy/astroextra.py` — `analyze_chart` 14 键齐全（古典格局/相位动态/逐题主星/偶然尊贵/恒星/行星时/埃及历/巴比伦/交食食分/吉化凶化 等）+ siriusYear 高纬度修正 + distribution 半球按地平轴
+- `Horosa-Web/astropy/astrostudy/classical_tables.py` — **新增**（度数性质 DEGREE_QUALITY/月站/特殊度数/单度·九分·Darijan 表）
+- `Horosa-Web/astropy/astrostudy/perchart.py` — **新增模块，新增实现**：classical 段 ~306 行纯增（setupOutOfBounds/Phasis/Joy/Sect/Feral + setupPlanets 古典属性 + besiegementDetail/_besiege_defense/_is_strong_house）；通过 `git diff` patch 移植后实现
+- `Horosa-Web/astropy/websrv/webchartsrv.py` — surround 块加 `besiegement` 键
+
+### 自动受益（共享前端,Windows 拉前端即同步）
+- `AstroInfo.js`（古典 tab 19 卡 + 围攻详断 + 围绕 + 信息tab格局速览 + 接纳「拒绝」）、`AstroAnalysisLab.js`（格局 16 卡）、`AstroLifespan.js`/`AstroEphemeris.js`/`AstroPlanet.js`/`AstroChartMain.js`/`AstroDispositor.js`/`divination/engine/chartFacts.js`、`layouts/app.less`
+- `utils/astroAiSnapshot.js`（AI 快照 [古典] 段 = 逐曜状态 + 围攻详断 + 围绕 + 身体部位 + 命主星 + 宫神星 + 寿命候选/Alcocoden 全字段/医疗/状态盘）
+- `utils/aiExport.js`（古典 + 古典格局 双 toggle, SETTINGS/MIGRATION_VERSION 24→26 迁移）+ `utils/aiAnalysisContext.js`（AI 挂载按需 fetch `/astroextra/analysis` 拼 [古典格局] 段）
+- `utils/request.js` 修：silent:true 在非超时分支也屏蔽顶栏红 badge（修 miss.date 类弹窗）
+- 六爻/金口/通摄法 saveModuleAISnapshotLazy 漏 import 补；`models/user.js` *updateBook store.user 修
+
+### 自检 / 测试更新
+- pytest：`test_classical_*.py` 9 文件 50+ 例（含 540 主限法 golden 不破）
+- jest：`utils/__tests__/astroClassicalSnapshot.test.js` 19 例 + `aiExport.test.js` 22 例（四同步一致性）+ `lifespanMethods.test.js`；总 959/88 suites 绿
+- `release_preflight.sh`：[54] 古典补全工单 WI-00..28 + 围攻详断16式 + 信息tab格局速览 在位
+
+### 运行时
+- 改 Python 后必须重启本地排盘服务；运行时版本 `2.6.7-runtime1`。
+- 回应社区 issue：本命行星出界 + 偕日升/没（Windows #27）随本批落地。
+
 ## 待发布 · 运行提速大批 + 六项界面/AI 修复（流畅度 + 退出/启动 + AI 预设连接）
 
 > **Windows 必做两件：①拉前端源码并跑 jest；②重编 Java jar（AI 代理外呼层重写）。**
