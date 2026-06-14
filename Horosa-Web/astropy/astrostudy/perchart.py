@@ -677,20 +677,49 @@ class PerChart:
             pass
         return None
 
+    _FERAL_PTOL = (0, 60, 90, 120, 180)
+
+    def _feralPtolTargets(self, obj):
+        """obj 向七政发出的托勒密相位(0/60/90/120/180)目标集,复用本盘 dynchart(moiety 容许度,
+        与星图所绘/相位tab 同源);本盘缓存,7 星共 7 次调用。异常返回 None。"""
+        cache = getattr(self, '_feralAspCache', None)
+        if cache is None:
+            cache = self._feralAspCache = {}
+        if obj in cache:
+            return cache[obj]
+        targets = set()
+        try:
+            asp = self.dynchart.aspectsByCat(obj, list(self._FERAL_PTOL), False)
+            for cat in ('Exact', 'Applicative', 'Separative'):
+                for a in (asp.get(cat) or []):
+                    if a.get('asp') in self._FERAL_PTOL and a.get('id') is not None:
+                        targets.add(a.get('id'))
+        except Exception:
+            targets = None
+        cache[obj] = targets
+        return targets
+
     def setupFeral(self, planet, obj):
-        """野逸 feral:该星与七政中任何他星皆不成托勒密相位(0/60/90/120/180,统一容许 7°)→ 野逸。"""
+        """野逸 feral:该星与七政中任何他星皆不成托勒密相位(0/60/90/120/180)→ 野逸(完全无相)。
+        相位判定复用本盘 dynchart(与星图所绘、相位tab 同一 moiety 容许度)——绝不另设固定容许度,
+        否则偏窄会漏真相位(如月对水冲 11.7°、月六合土 10.2°)误标野逸。相位是「画出一条线即成」,
+        故须**双向并集**:容许度随主星(月容许大、土容许小),只要任一方向成相即非野逸。仅计七政互相,不含外行星/虚点/四角。"""
         lons = getattr(self, '_sevenLons', None)
         if not lons or obj not in lons:
             return
-        PTOL = (0.0, 60.0, 90.0, 120.0, 180.0)
-        orb = 7.0
-        plon = planet.lon
+        others = set(lons.keys())
+        others.discard(obj)
+        mine = self._feralPtolTargets(obj)
+        if mine is None:
+            planet.feral = False   # 相位引擎异常时不武断标野逸(宁漏标不错标)
+            return
         feral = True
-        for qid, qlon in lons.items():
-            if qid == obj:
-                continue
-            sep = abs(((plon - qlon + 180.0) % 360.0) - 180.0)
-            if any(abs(sep - asp) <= orb for asp in PTOL):
+        for q in others:
+            if q in mine:                       # obj → q 成相
+                feral = False
+                break
+            qt = self._feralPtolTargets(q)       # q → obj 成相(另一方向,另一方容许度)
+            if qt and obj in qt:
                 feral = False
                 break
         planet.feral = bool(feral)

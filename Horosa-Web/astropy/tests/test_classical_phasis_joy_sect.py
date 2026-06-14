@@ -58,18 +58,23 @@ def test_sect_day():
     assert pc.chart.get('Mars').ofSect is False
 
 
+def _feral_chart(date, time, lat='26N04', lon='119E19', zone='+08:00'):
+    pc = perchart.PerChart({'date': date, 'time': time, 'zone': zone, 'lat': lat, 'lon': lon, 'ad': 1, 'hsys': 1})
+    pc.getChartObj()
+    return {o.id: o for o in pc.chart.objects}
+
+
 def test_feral_logic():
-    pc = _chart(); pc.getChartObj()
-    # 太阳 130°,与火星(0°,130° 非托勒密)、金星(30°,100° 非托勒密)皆无相 → 野逸。
-    pc._sevenLons = {'Sun': 130.0, 'Mars': 0.0, 'Venus': 30.0}
-    s = _Fake(); s.lon = 130.0
-    pc.setupFeral(s, 'Sun')
-    assert s.feral is True
-    # 太阳 60° 与火星 0° 成六分 → 非野逸。
-    pc._sevenLons = {'Sun': 60.0, 'Mars': 0.0, 'Venus': 200.0}
-    s2 = _Fake(); s2.lon = 60.0
-    pc.setupFeral(s2, 'Sun')
-    assert s2.feral is False
+    # 野逸 = 与七政皆不成托勒密相位(0/60/90/120/180)。相位判定复用本盘 dynchart(moiety 容许度,
+    # 与星图所绘/相位tab 同源),且**双向并集**(任一方向成相即非野逸)——不另设固定容许度。
+    # 真野逸:1987/03/15 水星与七政皆无相 → feral。
+    omap = _feral_chart('1987/03/15', '12:00:00')
+    assert omap['Mercury'].feral is True
+    # 回归守卫(用户实盘 2025/06/14 02:12:30):月对水冲 11.7°、月六合土 10.2°(>旧固定 7° 但在 moiety 容许内)
+    # → 月非野逸;土亦非(双向并集:月→土 成相,两者皆非野逸)。旧 7° 容许度曾误标月为野逸。
+    o2 = _feral_chart('2025/06/14', '02:12:30')
+    assert o2['Moon'].feral is False
+    assert o2['Saturn'].feral is False
 
 
 def test_sect_night():
