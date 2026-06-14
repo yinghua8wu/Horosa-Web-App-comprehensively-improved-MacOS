@@ -2,7 +2,7 @@ import { Component } from 'react';
 import { Row, Col, Divider, Tag, message } from 'antd';
 import { littleEndian } from '../../utils/helper';
 import { Gua8, Gua64, getGua64 } from '../gua/GuaConst';
-import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { getStore } from '../../utils/storageutil';
 import {
 	XQButton as Button,

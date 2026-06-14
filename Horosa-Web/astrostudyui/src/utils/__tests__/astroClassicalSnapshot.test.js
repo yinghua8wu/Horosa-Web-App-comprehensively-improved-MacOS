@@ -79,8 +79,9 @@ describe('西占 AI 快照[古典]段', ()=>{
 		expect(out).toContain('致贵·领袖魅力·载众载民'); // 围耀 断语
 	});
 
-	it('无古典数据时不产出[古典]空段', ()=>{
-		const bare = { chart: { isDiurnal: true, stars: [], houses: [], objects: [{ id: 'Sun', sign: 'Aries', signlon: 1, house: 'House1' }] }, params: {}, lots: [], aspects: {}, receptions: {}, mutuals: {}, declParallel: {}, surround: {} };
+	it('无任何七政对象时不产出[古典]空段', ()=>{
+		// 完全无七政对象(空 objects)→ 逐曜古典/围攻/围绕/melothesia 全空 → [古典] 段应当缺席。
+		const bare = { chart: { isDiurnal: true, stars: [], houses: [], objects: [] }, params: {}, lots: [], aspects: {}, receptions: {}, mutuals: {}, declParallel: {}, surround: {} };
 		const o2 = buildAstroSnapshotContent(bare, null);
 		expect(o2).not.toContain('[古典]');
 	});
@@ -119,5 +120,144 @@ describe('古典格局派生分析段 buildClassicalAnalysisSection', ()=>{
 	it('空/无 analysis → 空段(优雅降级,不抛)', ()=>{
 		expect(buildClassicalAnalysisSection(null)).toBe('');
 		expect(buildClassicalAnalysisSection({})).toBe('');
+	});
+});
+
+describe('AI 四同步补齐 16 项 GAP — 用户名条目逐一覆盖', ()=>{
+	// 单尽:在 mock chart 上塞全所有 GAP 触发字段,buildAstroSnapshotContent 须输出对应所有标签。
+	const fullChart = {
+		chart: {
+			isDiurnal: true,
+			stars: [],
+			houses: [
+				{ id: 'House1', sign: 'Aries', signlon: 0 },
+				{ id: 'House4', sign: 'Cancer', signlon: 0 },
+				{ id: 'House7', sign: 'Libra', signlon: 0 },
+				{ id: 'House10', sign: 'Capricorn', signlon: 0 },
+			],
+			objects: [
+				// Asc 用于 命主星 派生
+				{ id: 'Asc', sign: 'Aries', signlon: 5, lon: 5 },
+				// Sun: 29° → 歧度;有 face;落座 Aries → 头部 melothesia
+				{ id: 'Sun', sign: 'Aries', signlon: 29, house: 'House1', lon: 29, dignities: { face: 'Mars' } },
+				// Moon: viaCombust, nakshatra
+				{ id: 'Moon', sign: 'Scorpio', signlon: 28, house: 'House8', lon: 238, isViaCombust: true },
+				{ id: 'Mars', sign: 'Aries', signlon: 10, house: 'House1', lon: 10 },
+				{ id: 'Mercury', sign: 'Pisces', signlon: 1, house: 'House12', lon: 331, isViaRepression: true },
+				{ id: 'Venus', sign: 'Taurus', signlon: 5, house: 'House2', lon: 35 },
+				{ id: 'Jupiter', sign: 'Sagittarius', signlon: 5, house: 'House9', lon: 245 },
+				{ id: 'Saturn', sign: 'Capricorn', signlon: 5, house: 'House10', lon: 275 },
+			],
+			nakshatras: { Moon: { index: 18, name: 'Jyeshtha', label: '心宿', pada: 2, lord: 'Mercury' } },
+			antiscias: {}, surround: {},
+		},
+		params: { birth: '1991-02-20 14:00:00', zone: '+08:00' },
+		lots: [], aspects: {},
+		receptions: {
+			normal: [{ beneficiary: 'Sun', supplier: 'Moon', supplierRulerShip: ['exile'] }],
+			abnormal: [],
+		},
+		mutuals: {},
+		declParallel: {},
+		surround: {},
+	};
+
+	it('FIX-16 命主星 显式标签出现在起盘信息', ()=>{
+		const out = buildAstroSnapshotContent(fullChart, null);
+		expect(out).toContain('命主星：');
+	});
+
+	it('FIX-1 宫神星(houseRows) 出现在主宰星链', ()=>{
+		const out = buildAstroSnapshotContent(fullChart, null);
+		expect(out).toContain('宫神星(houseRows)');
+		expect(out).toMatch(/1宫\(.+\)：宫主/);
+	});
+
+	it('FIX-7 月宿 nakshatra 出现在行星段', ()=>{
+		const out = buildAstroSnapshotContent(fullChart, null);
+		expect(out).toContain('月宿：第18宿 Jyeshtha');
+	});
+
+	it('FIX-12 29°歧度 + 燃烧之路 + 压抑之路 在落座行', ()=>{
+		const out = buildAstroSnapshotContent(fullChart, null);
+		expect(out).toContain('位于歧度');
+		expect(out).toContain('位于燃烧之路');
+		expect(out).toContain('位于压抑之路');
+	});
+
+	it('FIX-15 接纳「拒绝」标识(supplier 在受纳星座为 exile)', ()=>{
+		const out = buildAstroSnapshotContent(fullChart, null);
+		expect(out).toContain('（拒绝）');
+	});
+
+	it('FIX-13 度数主星补 Face(面主)', ()=>{
+		const out = buildAstroSnapshotContent(fullChart, null);
+		expect(out).toContain('面主');
+	});
+
+	it('FIX-11 身体部位 Melothesia 在古典段', ()=>{
+		const out = buildAstroSnapshotContent(fullChart, null);
+		expect(out).toContain('身体部位(Melothesia)');
+	});
+});
+
+describe('AI 四同步补齐 — buildClassicalAnalysisSection 派生分析 5 项 GAP', ()=>{
+	const fullAnalysis = {
+		classicalPatterns: { doryphory: [], overcoming: [], besieging: [] },
+		aspectDynamics: { translation: [], collection: [], aversion: [], bending: [] },
+		topicAlmuten: [{ topic: '父亲', house: 4, significator: 'Saturn', almuten: 'Saturn' }],
+		accidentalDignity: [],
+		fixedStarHits: [],
+		planetaryHours: {
+			dayRuler: 'Mercury', sunrise: '06:31', sunset: '17:44',
+			hours: [
+				{ index: 1, ruler: 'Mercury', diurnal: true, current: false },
+				{ index: 12, ruler: 'Sun', diurnal: true, current: true },
+				{ index: 1, ruler: 'Mars', diurnal: false, current: false },
+				{ index: 12, ruler: 'Moon', diurnal: false, current: false },
+			],
+		},
+		egyptianCalendar: { siriusRising: '1991-08-06', siriusYear: 1991, decanIndex: 11, decanSign: 'Cancer', decanRuler: 'Mercury' },
+		babylonianStars: [],
+		almutem: { winner: 'Venus', totals: { Venus: 29, Saturn: 29, Sun: 6 } },
+		extraLots: [
+			{ label: '爱欲点', category: '七点', sign: 'Leo', signlon: 12.34 },
+			{ label: '必然点', category: '七点', sign: 'Virgo', signlon: 5.67 },
+		],
+	};
+
+	it('FIX-3 Topical Almuten 含自然象征', ()=>{
+		const out = buildClassicalAnalysisSection(fullAnalysis);
+		expect(out).toContain('自然象征');
+	});
+
+	it('FIX-4 行星时 24 时辰昼夜分列', ()=>{
+		const out = buildClassicalAnalysisSection(fullAnalysis);
+		expect(out).toContain('昼时：');
+		expect(out).toContain('夜时：');
+		expect(out).toContain('←当前');   // FIX-4 current 标识
+	});
+
+	it('FIX-5 埃及历含 siriusYear 岁年', ()=>{
+		const out = buildClassicalAnalysisSection(fullAnalysis);
+		expect(out).toContain('岁年 1991');
+	});
+
+	it('FIX-2 Almuten 逐星得分全表(按分降序)', ()=>{
+		const out = buildClassicalAnalysisSection(fullAnalysis);
+		expect(out).toContain('Almuten 逐星得分：');
+		// 三个得分行(Venus29 / Saturn29 / Sun6)按降序出现:Sun(6)的位置必须在 29 行之后。
+		expect(out).toContain(' 29');
+		expect(out).toContain(' 6');
+		const six = out.indexOf(' 6');
+		const twentyNine = out.indexOf(' 29');
+		expect(six).toBeGreaterThan(twentyNine);
+	});
+
+	it('FIX-6 阿拉伯点扩展(extraLots)按 label+category+度数输出', ()=>{
+		const out = buildClassicalAnalysisSection(fullAnalysis);
+		expect(out).toContain('阿拉伯点(扩展)');
+		expect(out).toContain('爱欲点');
+		expect(out).toContain('（七点）');
 	});
 });

@@ -7,6 +7,7 @@ import * as Constants from './constants';
 // 寿命格局段:复用本命引擎(纯函数,无 React;已验证不回 import 本文件,无环)。
 import buildFacts from '../divination/engine/chartFacts';
 import { runLifespan } from '../divination/lifespan/lifespanEngine';
+import { bodyPartsOf, degreePosition } from '../divination/data/bodyParts';
 
 export const ASTRO_AI_SNAPSHOT_KEY = 'horosa.ai.snapshot.astro.v1';
 let ASTRO_AI_SNAPSHOT_MEMORY = null;
@@ -364,6 +365,20 @@ function buildBaseInfoLines(chartObj, fields){
 	if(chart.timerStar){
 		lines.push(`时主星：${msg(chart.timerStar)}`);
 	}
+	// FIX-16 命主星 1R(派生 ASC→落座→该星主→该星落宫;与 AstroInfo.js:1039 SIGN_RULER 同源)。
+	// 排盘信息层显式标识,AI 不必再去主宰星链推导。
+	const objectMapForRuler = getObjectsMap(chartObj);
+	const asc = objectMapForRuler.Asc;
+	if(asc && asc.sign){
+		const SIGN_RULER = { Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon', Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter' };
+		const rulerId = SIGN_RULER[asc.sign];
+		const rulerObj = rulerId ? objectMapForRuler[rulerId] : null;
+		if(rulerObj){
+			const housePart = rulerObj.house ? `落${msg(rulerObj.house)}` : '';
+			const signPart = rulerObj.sign ? `（${msg(rulerObj.sign)}）` : '';
+			lines.push(`命主星：${msg(rulerId)} ${housePart}${signPart}`);
+		}
+	}
 	return lines;
 }
 
@@ -424,14 +439,24 @@ export function buildInfoSection(chartObj, fields, options = {}){
 	const normalReceptions = (receptions.normal || []).filter((item)=>keepReceptionLine(item, false, onlyRulerExaltReception));
 	const abnormalReceptions = (receptions.abnormal || []).filter((item)=>keepReceptionLine(item, true, onlyRulerExaltReception));
 	if(normalReceptions.length || abnormalReceptions.length){
+		// FIX-15 「拒绝」标识(supplier 在 beneficiary 所在座为 exile/fall = 该 supplier 实际是 beneficiary 的「凶接纳」=拒绝);
+		// 与 AstroInfo.genReceptionsDom 一致;abnormal 接纳尤须标识(承接星自身落陷)。
+		const isReject = (item)=>{
+			const dig = item && item.supplierRulerShip;
+			if(!dig) return false;
+			const arr = Array.isArray(dig) ? dig : [dig];
+			return arr.some((d)=> d === 'exile' || d === 'fall' || d === 'detriment');
+		};
 		lines.push('接纳');
 		lines.push('正接纳：');
 		normalReceptions.forEach((item)=>{
-			lines.push(`${msgWithHouse(item.beneficiary, chartObj)} 被 ${msgWithHouse(item.supplier, chartObj)} 接纳 (${ruleshipText(item.supplierRulerShip)})`);
+			const rejMark = isReject(item) ? '（拒绝）' : '';
+			lines.push(`${msgWithHouse(item.beneficiary, chartObj)} 被 ${msgWithHouse(item.supplier, chartObj)} 接纳 (${ruleshipText(item.supplierRulerShip)})${rejMark}`);
 		});
 		lines.push('邪接纳：');
 		abnormalReceptions.forEach((item)=>{
-			lines.push(`${msgWithHouse(item.beneficiary, chartObj)} (${ruleshipText(item.beneficiaryDignity)}) 被 ${msgWithHouse(item.supplier, chartObj)} 接纳 (${ruleshipText(item.supplierRulerShip)})`);
+			const rejMark = isReject(item) ? '（拒绝）' : '';
+			lines.push(`${msgWithHouse(item.beneficiary, chartObj)} (${ruleshipText(item.beneficiaryDignity)}) 被 ${msgWithHouse(item.supplier, chartObj)} 接纳 (${ruleshipText(item.supplierRulerShip)})${rejMark}`);
 		});
 	}
 
@@ -593,6 +618,7 @@ function buildPlanetSection(chartObj){
 	const objectMap = getObjectsMap(chartObj);
 	const starsMap = getStarsMap(chartObj);
 	const orientOccident = chart.orientOccident || {};
+	const nakshatras = (chart && chart.nakshatras) || chartObj.nakshatras || {};
 
 	AstroConst.LIST_OBJECTS.forEach((id)=>{
 		const obj = objectMap[id];
@@ -600,9 +626,22 @@ function buildPlanetSection(chartObj){
 			return;
 		}
 		lines.push(msgWithHouse(id, chartObj));
-		lines.push(`落座：${formatSignDegree(obj.sign, obj.signlon)}`);
+		// FIX-12 落座行附加 29°歧度 / 燃烧之路 / 压抑之路 临界标(参 AstroPlanet.js:181,193,196)。
+		let signDegLine = `落座：${formatSignDegree(obj.sign, obj.signlon)}`;
+		const extras = [];
+		if(typeof obj.signlon === 'number' && Math.floor(obj.signlon) === 29){ extras.push('位于歧度'); }
+		if(obj.isViaCombust){ extras.push('位于燃烧之路'); }
+		if(obj.isViaRepression){ extras.push('位于压抑之路'); }
+		if(extras.length){ signDegLine += '；' + extras.join('；'); }
+		lines.push(signDegLine);
 		if(obj.house){
 			lines.push(`落宫：${msg(obj.house)}`);
+		}
+		// FIX-7 月宿 nakshatra(印度盘场景关键;参 AstroPlanet.js:155,205)。
+		const nak = nakshatras[id];
+		if(nak && nak.index){
+			const lordCn = AstroText.AstroMsg && AstroText.AstroMsg[nak.lord] ? AstroText.AstroMsg[nak.lord] : (nak.lord || '');
+			lines.push(`月宿：第${nak.index}宿 ${nak.name || ''}${nak.label ? `（${nak.label}）` : ''} 第${nak.pada || '?'}步·宿主${lordCn}`);
 		}
 		if(obj.antisciaPoint){
 			lines.push(`映点：${formatSignDegree(obj.antisciaPoint.sign, obj.antisciaPoint.signlon)}`);
@@ -801,6 +840,31 @@ function buildDispositorSection(chartObj){
 		}
 		lines.push(`${msg(id)}：${chain.map((k)=>msg(k)).join(' → ')}`);
 	});
+	// FIX-1 宫神星 12 宫表(houseRows):宫号·宫头座·宫主星·宫主落宫·宫主落座(并入主宰星链段,无需 bump 版本)。
+	// 与 AstroDispositor.js:15-84 houseRows 派生逻辑同源。
+	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
+	const houses = chart.houses || [];
+	if(houses.length){
+		const SIGN_RULER = { Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon', Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter' };
+		const houseLines = [];
+		houses.forEach((h, idx)=>{
+			if(!h || !h.sign) return;
+			const houseNum = idx + 1;
+			const ruler = SIGN_RULER[h.sign];
+			const rulerObj = ruler ? objectMap[ruler] : null;
+			if(ruler && rulerObj){
+				const rh = rulerObj.house ? msg(rulerObj.house) : '';
+				const rs = rulerObj.sign ? msg(rulerObj.sign) : '';
+				houseLines.push(`${houseNum}宫(${msg(h.sign)})：宫主 ${msg(ruler)} 落 ${rh} ${rs}`);
+			} else if(ruler){
+				houseLines.push(`${houseNum}宫(${msg(h.sign)})：宫主 ${msg(ruler)}`);
+			}
+		});
+		if(houseLines.length){
+			lines.push('宫神星(houseRows)：');
+			lines.push(...houseLines);
+		}
+	}
 	return lines;
 }
 
@@ -887,6 +951,72 @@ function buildLifespanSection(chartObj){
 		if(parts.length){
 			lines.push(`盘主体系：${parts.join('；')}${r.concordant ? '（家主=盘主，格局相合）' : ''}`);
 		}
+	}
+	// FIX-8 取主法 + 朔/望月 显式标识。
+	if(res.method){ lines.push(`取主法：${res.method}`); }
+	if(res.birthType){ lines.push(`朔/望月：${res.birthType === 'conjunctional' ? '朔月(合)' : '望月(冲)'}`); }
+	// FIX-8 Hyleg 候选列表(key/house/aphetic/rank/reason)。
+	if(Array.isArray(res.candidates) && res.candidates.length){
+		lines.push('生命主候选：');
+		res.candidates.forEach((c)=>{
+			if(!c || !c.key) return;
+			const ah = c.aphetic ? '投射' : '非投射';
+			const rk = (c.rank !== undefined && c.rank !== null) ? `rank=${c.rank}` : '';
+			const rsn = c.reason ? `·${c.reason}` : '';
+			const hs = c.house ? `第${c.house}宫` : '';
+			lines.push(`${lifespanName(c.key)} ${hs}·${ah}${rk ? '·' + rk : ''}${rsn}`);
+		});
+	}
+	// FIX-8 Alcocoden 全字段(viaDignity/angularity/band/modifiers)。
+	if(res.alcocoden){
+		const a = res.alcocoden;
+		const detail = [];
+		if(a.viaDignity){ detail.push(`经${a.viaDignity}`); }
+		if(a.angularity){ detail.push(a.angularity); }
+		if(a.band){ detail.push(`限 ${a.band}`); }
+		if(a.baseYears !== undefined){ detail.push(`基础${a.baseYears}年`); }
+		if(detail.length){ lines.push(`寿主星细节：${detail.join('；')}`); }
+		if(Array.isArray(a.modifiers) && a.modifiers.length){
+			a.modifiers.forEach((m)=>{
+				if(!m) return;
+				const p = m.planet ? lifespanName(m.planet) : '';
+				const asp = m.aspect ? `·${m.aspect}` : '';
+				const dlt = (m.delta !== undefined && m.delta !== null) ? `(Δ${m.delta})` : '';
+				const k = m.kind ? `·${m.kind}` : '';
+				lines.push(`修正：${p}${asp}${dlt}${k}`);
+			});
+		}
+	}
+	// FIX-9 医疗危机 Zoller v1(sixthSign/sixthRuler/hylegAfflictions/bodyHyleg/note)。
+	if(res.medical){
+		const m = res.medical;
+		const mp = [];
+		if(m.sixthSign){ mp.push(`六宫${msg(m.sixthSign)}`); }
+		if(m.sixthRuler){ mp.push(`六宫主 ${lifespanName(m.sixthRuler)}`); }
+		if(mp.length){ lines.push(`医疗危机：${mp.join('；')}`); }
+		if(Array.isArray(m.hylegAfflictions) && m.hylegAfflictions.length){
+			const ha = m.hylegAfflictions.map((x)=> `${lifespanName(x.planet || x.id)}${x.aspect ? '·' + x.aspect : ''}`).join('、');
+			lines.push(`生命主受克：${ha}`);
+		}
+		if(Array.isArray(m.bodyHyleg) && m.bodyHyleg.length){
+			lines.push(`生命主部位：${m.bodyHyleg.join('、')}`);
+		}
+		if(m.note){ lines.push(`备注：${m.note}`); }
+	}
+	// FIX-10 行星状态盘 states.rows(hayyiz/sunState/orient/motion/inSect/house)。
+	if(res.states && Array.isArray(res.states.rows) && res.states.rows.length){
+		lines.push('行星状态盘：');
+		res.states.rows.forEach((row)=>{
+			if(!row || !row.planet) return;
+			const parts = [];
+			if(row.hayyiz){ parts.push(row.hayyiz); }
+			if(row.sunState){ parts.push(row.sunState); }
+			if(row.orient){ parts.push(row.orient); }
+			if(row.motion){ parts.push(row.motion); }
+			if(row.inSect){ parts.push(row.inSect); }
+			if(row.house){ parts.push(`第${row.house}宫`); }
+			lines.push(`${lifespanName(row.planet)}：${parts.join('·')}`);
+		});
 	}
 	return lines;
 }
@@ -1037,6 +1167,8 @@ function buildClassicalSection(chartObj){
 		const dl = [];
 		if(o.monomoiria){ dl.push(`单度主星${msg(o.monomoiria)}`); }
 		if(o.ninthPart){ dl.push(`九分${msg(o.ninthPart)}`); }
+		// FIX-13 度数主星补 Face(对齐 AstroInfo.genDegreeLordsDom 单度/九分/面/Darijan 四列)。
+		if(o.dignities && o.dignities.face){ dl.push(`面主${msg(o.dignities.face)}`); }
 		if(o.darijan){ dl.push(`Darijan${msg(o.darijan)}`); }
 		if(dl.length){ parts.push(dl.join('·')); }
 		if(parts.length){ profile.push(`${msg(id)}：${parts.join('；')}`); }
@@ -1058,6 +1190,20 @@ function buildClassicalSection(chartObj){
 	if(enc.length){
 		lines.push('围绕');
 		lines.push(...enc);
+	}
+	// FIX-11 全身部位 Melothesia(每星所落星座主管部位 + 度数上中下,对齐 AstroInfo.genMelothesiaDom)。
+	const melo = [];
+	CLS_STATUS_IDS.forEach((id)=>{
+		const o = objectMap[id];
+		if(!o || !o.sign) return;
+		const parts = bodyPartsOf(String(o.sign).toLowerCase());
+		if(!parts || !parts.length) return;
+		const pos = (o.signlon != null) ? degreePosition(o.signlon) : '';
+		melo.push(`${msg(id)}：${pos ? pos + '·' : ''}${parts.join('、')}`);
+	});
+	if(melo.length){
+		lines.push('身体部位(Melothesia)');
+		lines.push(...melo);
 	}
 	return lines;
 }
@@ -1099,19 +1245,35 @@ export function buildClassicalAnalysisSection(analysis){
 		if(aver.length){ lines.push(`不合意：${aver.join('；')}`); }
 		if(bend.length){ lines.push(`交点弯曲：${bend.join('；')}`); }
 	}
-	const ta = (analysis.topicAlmuten || []).filter((t)=> t && t.almuten).map((t)=> `${t.topic}（${t.house}宫）主星${msg(t.almuten)}`);
+	// FIX-3 Topical Almuten 补 significator(自然象征,对齐侧栏列)。
+	const ta = (analysis.topicAlmuten || []).filter((t)=> t && t.almuten).map((t)=>{
+		const sig = t.significator ? `·自然象征${msg(t.significator)}` : '';
+		return `${t.topic}（${t.house}宫${sig}）主星${msg(t.almuten)}`;
+	});
 	if(ta.length){ lines.push('逐题主星'); lines.push(ta.join('；')); }
 	const acc = (analysis.accidentalDignity || []).filter((r)=> r && r.planet).map((r)=> `${msg(r.planet)} ${r.score}（${(r.factors || []).join('·')}）`);
 	if(acc.length){ lines.push('偶然尊贵'); lines.push(...acc); }
 	const fs = (analysis.fixedStarHits || []).map((s)=> `${msg(s.point)} 合 ${s.cn || s.star}${s.behenian ? '·比尼' : ''}${s.royal ? `·王者${s.royal}` : ''}`);
 	if(fs.length){ lines.push('恒星触发'); lines.push(fs.join('；')); }
 	const ph = analysis.planetaryHours;
-	if(ph && ph.dayRuler){ lines.push(`行星时：值日星 ${msg(ph.dayRuler)}（日出 ${ph.sunrise} / 日落 ${ph.sunset}）`); }
+	if(ph && ph.dayRuler){
+		lines.push(`行星时：值日星 ${msg(ph.dayRuler)}（日出 ${ph.sunrise} / 日落 ${ph.sunset}）`);
+		// FIX-4 24 时辰表(昼12+夜12),逐时 index/ruler/diurnal/current 全输出,对齐侧栏 renderPlanetaryHours。
+		if(Array.isArray(ph.hours) && ph.hours.length){
+			const day = ph.hours.filter((h)=> h && h.diurnal);
+			const night = ph.hours.filter((h)=> h && !h.diurnal);
+			const fmtHour = (h)=> `${h.index}.${msg(h.ruler)}${h.current ? '←当前' : ''}`;
+			if(day.length){ lines.push(`昼时：${day.map(fmtHour).join(' / ')}`); }
+			if(night.length){ lines.push(`夜时：${night.map(fmtHour).join(' / ')}`); }
+		}
+	}
 	const eg = analysis.egyptianCalendar;
 	if(eg && (eg.siriusRising || eg.decanIndex)){
 		// 极区 siriusRising 可能为 null,但上升十分宫仍有 → 各自独立呈现,勿因天狼缺失整块丢失(对齐 UI renderEgyptian)。
 		const parts = [];
 		if(eg.siriusRising){ parts.push(`天狼偕日升 ${eg.siriusRising}`); }
+		// FIX-5 补 siriusYear(岁年),对齐侧栏 renderEgyptian 完整显示。
+		if(eg.siriusYear){ parts.push(`岁年 ${eg.siriusYear}`); }
 		if(eg.decanIndex){ parts.push(`上升第${eg.decanIndex}旬（${msg(eg.decanSign)}）面主${msg(eg.decanRuler)}`); }
 		if(parts.length){ lines.push(`埃及历：${parts.join('；')}`); }
 	}
@@ -1141,7 +1303,23 @@ export function buildClassicalAnalysisSection(analysis){
 	const am = analysis.almutem;
 	if(am && am.winner){
 		const totals = Object.keys(am.totals || {}).map((k)=> [k, am.totals[k]]).sort((a, b)=> b[1] - a[1]);
-		lines.push(`Almuten 总主：${msg(am.winner)}${totals.length ? `（得分 ${totals.map((t)=> `${msg(t[0])}${t[1]}`).join(' ')}）` : ''}`);
+		lines.push(`Almuten 总主：${msg(am.winner)}`);
+		// FIX-2 totals 全表逐行展开(按分降序;AI 可引具体星分),不再仅汇总一行。
+		if(totals.length){
+			lines.push('Almuten 逐星得分：');
+			lines.push(...totals.map((t)=> `${msg(t[0])} ${t[1]}`));
+		}
+	}
+	// FIX-6 阿拉伯点扩展 extraLots(LOT_CN 28 种,带 category 题别;前 60 控总长)。
+	const extra = (analysis.extraLots || []).filter((l)=> l && l.label);
+	if(extra.length){
+		lines.push('阿拉伯点(扩展)');
+		extra.slice(0, 60).forEach((l)=>{
+			const cat = l.category ? `（${l.category}）` : '';
+			const sign = l.sign ? msg(l.sign) : '';
+			const dg = (l.signlon !== undefined && l.signlon !== null) ? formatSignDegree(l.sign, l.signlon) : sign;
+			lines.push(`${l.label}${cat}：${dg}`);
+		});
 	}
 	return buildSectionText('古典格局', lines);
 }

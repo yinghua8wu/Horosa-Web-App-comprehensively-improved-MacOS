@@ -1234,7 +1234,7 @@ export default {
 
 		*updateBook({ payload: values }, { call, put }){
 			const store = getStore();
-			const userstate = store.getState().user;
+			const userstate = store.user;   // getStore() 是 dva 拍平表(.user/.astro/.app),无 .getState();原 .getState().user 触发 TypeError(同文件其余 effect 一律 store.user 直取,见 779/801/955)。
 			const fld = userstate.bookFields;
             let params = {
 				BookId: fld.bookId.value,

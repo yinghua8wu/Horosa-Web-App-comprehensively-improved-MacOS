@@ -10,7 +10,7 @@ import GuaZhanChart from './GuaZhanChart';
 import GuaDesc from './GuaDesc';
 import { getGua64, Gua64, Gua8, randYao, ZiList, HourZi, SixGods, getXunEmpty } from '../gua/GuaConst';
 import DateTime from '../comp/DateTime';
-import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { getStore } from '../../utils/storageutil';
 import { fetchPreciseNongli } from '../../utils/preciseCalcBridge';
 import { setNongliLocalCache } from '../../utils/localCalcCache';

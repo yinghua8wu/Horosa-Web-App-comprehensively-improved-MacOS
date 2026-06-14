@@ -5310,8 +5310,19 @@ async function fetchAstroClassicalAnalysisSectionForExport(){
 	try{
 		const store = getStore();
 		const chartObj = store && store.astro ? store.astro.chartObj : null;
-		const params = chartObj && chartObj.params ? chartObj.params : null;
-		if(!params){
+		const raw = chartObj && chartObj.params ? chartObj.params : null;
+		if(!raw){
+			return '';
+		}
+		// chartObj.params 用合并的 birth「YYYY-MM-DD HH:mm:ss」,无独立 date/time → 须像 chartParams 那样拆出,
+		// 否则 /astroextra/analysis 报 miss.date。无 date 则直接放弃(静默,不发请求、不弹错)。
+		const birthParts = `${raw.birth || ''}`.split(' ');
+		const params = {
+			...raw,
+			date: raw.date || birthParts[0],
+			time: raw.time || birthParts[1] || '12:00:00',
+		};
+		if(!params.date){
 			return '';
 		}
 		const data = await request(`${ExportConstants.ServerRoot}/astroextra/analysis`, {
