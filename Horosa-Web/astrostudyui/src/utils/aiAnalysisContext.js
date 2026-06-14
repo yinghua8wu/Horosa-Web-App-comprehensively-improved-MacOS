@@ -28,7 +28,7 @@ function buildDayBoundaryMeta(after23NewDay, lateZiHourUseNextDay){
 		note: `本盘排盘规则：日柱开关【${dayLabel}】+ 时柱开关【${hourLabel}】。23:00–23:59 范围内,日柱与时柱按上述规则计算;其他时辰两个开关均不影响。`,
 	};
 }
-import { buildAstroSnapshotContent, loadAstroAISnapshot } from './astroAiSnapshot';
+import { buildAstroSnapshotContent, loadAstroAISnapshot, buildClassicalAnalysisSection } from './astroAiSnapshot';
 import { getCaseTypeLabel, getCaseTypeMeta, listLocalCases } from './localcases';
 import { listLocalCharts } from './localcharts';
 import { loadModuleAISnapshot, saveModuleAISnapshot } from './moduleAiSnapshot';
@@ -1930,48 +1930,70 @@ function hasMatchingSavedAstroSnapshot(record){
 	return snapshot;
 }
 
+// 古典格局派生分析(analyze_chart)按需 fetch — 优雅降级(失败/异常返回 '',不影响 AI 主体)。
+// ~50ms 级(仅极区 heliacal 才慢),只在 AI 实际取数时拉,绝不进每盘预建快照 → 信息tab 不受拖累。
+async function fetchClassicalAnalysisSection(params){
+	try{
+		const data = await request(`${Constants.ServerRoot}/astroextra/analysis`, {
+			body: JSON.stringify({ ...params, fixedStarOrb: 1 }),
+			silent: true,
+			timeoutMs: 20000,
+		});
+		const analysis = data && data.Result ? data.Result : data;
+		return buildClassicalAnalysisSection(analysis) || '';
+	}catch(e){
+		return '';
+	}
+}
+
 async function buildChartContext(source){
 	const record = source && source.record ? source.record : null;
 	if(!record){
 		throw new Error('chart.source.required');
 	}
+	const fields = buildFieldObject(record);
+	const params = fieldParams(fields);
+	let content;
+	let meta;
 	const saved = hasMatchingSavedAstroSnapshot(record);
 	if(saved){
-		return {
-			content: `${saved.content || ''}`.trim(),
-			title: source.title,
-			module: 'astrochart',
-			meta: {
-				sourceType: 'chart',
-				sourceId: source.id,
-				birth: record.birth || '',
-				zone: record.zone || '',
-				reusedStoredSnapshot: true,
-			},
-		};
-	}
-	const fields = buildFieldObject(record);
-	const rsp = await fetchChart({
-		...fieldParams(fields),
-		includePrimaryDirection: false,
-	}, {
-		silent: true,
-		timeoutMs: 20000,
-	});
-	if(!rsp || !rsp.Result){
-		throw new Error('chart.context.failed');
-	}
-	const content = buildAstroSnapshotContent(rsp.Result, fields) || '';
-	return {
-		content: `${content}`.trim(),
-		title: source.title,
-		module: 'astrochart',
-		meta: {
+		content = `${saved.content || ''}`.trim();
+		meta = {
 			sourceType: 'chart',
 			sourceId: source.id,
 			birth: record.birth || '',
 			zone: record.zone || '',
-		},
+			reusedStoredSnapshot: true,
+		};
+	}else{
+		const rsp = await fetchChart({
+			...params,
+			includePrimaryDirection: false,
+		}, {
+			silent: true,
+			timeoutMs: 20000,
+		});
+		if(!rsp || !rsp.Result){
+			throw new Error('chart.context.failed');
+		}
+		content = `${buildAstroSnapshotContent(rsp.Result, fields) || ''}`.trim();
+		meta = {
+			sourceType: 'chart',
+			sourceId: source.id,
+			birth: record.birth || '',
+			zone: record.zone || '',
+		};
+	}
+	// 古典格局派生分析(护卫/优势相位/相位动态/逐题主星/偶然尊贵/恒星/行星时/埃及历/巴比伦)按需拼入 → AI 挂载不遗漏。
+	const analysisSection = await fetchClassicalAnalysisSection(params);
+	if(analysisSection){
+		content = `${content}\n\n${analysisSection}`.trim();
+	}
+	return {
+		content,
+		title: source.title,
+		module: 'astrochart',
+		meta,
 	};
 }
 

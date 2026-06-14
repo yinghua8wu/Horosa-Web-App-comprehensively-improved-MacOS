@@ -1,4 +1,4 @@
-import { buildAstroSnapshotContent } from '../astroAiSnapshot';
+import { buildAstroSnapshotContent, buildClassicalAnalysisSection } from '../astroAiSnapshot';
 
 // 自检(第四同步 AI挂载 + 导出):西占快照[古典]段 = 逐曜古典状态 + 围攻详断。
 // 断言只用「我方逐字输出的固定标签」(与 msg() 翻译无关),与 AstroInfo.js 古典渲染同源。
@@ -83,5 +83,29 @@ describe('西占 AI 快照[古典]段', ()=>{
 		const bare = { chart: { isDiurnal: true, stars: [], houses: [], objects: [{ id: 'Sun', sign: 'Aries', signlon: 1, house: 'House1' }] }, params: {}, lots: [], aspects: {}, receptions: {}, mutuals: {}, declParallel: {}, surround: {} };
 		const o2 = buildAstroSnapshotContent(bare, null);
 		expect(o2).not.toContain('[古典]');
+	});
+});
+
+describe('古典格局派生分析段 buildClassicalAnalysisSection', ()=>{
+	const analysis = {
+		classicalPatterns: { doryphory: [{ planet: 'Mercury', light: 'Sun', elong: -7.87 }], overcoming: [{ over: 'Sun', under: 'Mars', aspect: 'square', overSign: 'Pisces', underSign: 'Gemini' }], besieging: [] },
+		aspectDynamics: { translation: [{ mover: 'Moon', from: 'Mercury', to: 'Sun' }], collection: [{ collector: 'Sun', p1: 'Mercury', p2: 'Venus' }], aversion: [{ a: 'Sun', b: 'Mercury' }], bending: [] },
+		topicAlmuten: [{ topic: '婚配', house: 7, significator: 'Venus', almuten: 'Mars' }],
+		accidentalDignity: [{ planet: 'Venus', score: 14, factors: ['角宫+5', '自由光+5'] }],
+		fixedStarHits: [{ star: 'Aldebaran', cn: '毕宿五', point: 'Mars', behenian: true, royal: '东' }],
+		planetaryHours: { dayRuler: 'Mercury', sunrise: '06:31', sunset: '17:44' },
+		egyptianCalendar: { siriusRising: '1991-08-06', decanIndex: 11, decanSign: 'Cancer', decanRuler: 'Mercury' },
+		babylonianStars: [{ planet: 'Mercury', star: 'Deneb Algedi', cn: '垒壁阵', conj: true }],
+	};
+
+	it('格式化 analyze_chart 全部新键(护卫/优势/传光/聚光/不合意/逐题/偶然/恒星/行星时/埃及/巴比伦)', ()=>{
+		const out = buildClassicalAnalysisSection(analysis);
+		expect(out).toContain('[古典格局]');
+		['护卫', '优势相位', '传光', '聚光', '不合意', '逐题主星', '偶然尊贵', '恒星触发', '比尼', '王者', '行星时', '埃及历', '巴比伦参照星'].forEach((t)=> expect(out).toContain(t));
+	});
+
+	it('空/无 analysis → 空段(优雅降级,不抛)', ()=>{
+		expect(buildClassicalAnalysisSection(null)).toBe('');
+		expect(buildClassicalAnalysisSection({})).toBe('');
 	});
 });

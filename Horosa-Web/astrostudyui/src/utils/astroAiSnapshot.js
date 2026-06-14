@@ -974,7 +974,30 @@ function buildBesiegementLines(chartObj){
 	return lines;
 }
 
-// 逐曜古典状态:出界/偕日相/喜乐/宗派/野逸/度数性质·阳阴/月站/远地点·数·光/单度·九分·Darijan + 围攻详断。
+// 围绕:某星 C 被紧邻两侧七政 A、B 夹持,过 C 黄道弧 < 90°,A-C/B-C 间无他星(取紧邻自然满足)。与 AstroInfo.genSurroundEncircleDom 同算法(七政按黄经排序、环形紧邻、span<90)。快照=全七政几何(无显示过滤)。
+function buildEncircleLines(chartObj){
+	const objectMap = getObjectsMap(chartObj);
+	const bodies = CLS_STATUS_IDS.map((id)=> objectMap[id]).filter((o)=> o && typeof o.lon === 'number');
+	if(bodies.length < 3){
+		return [];
+	}
+	const sorted = bodies.slice().sort((a, b)=> a.lon - b.lon);
+	const n = sorted.length;
+	const norm = (x)=> ((x % 360) + 360) % 360;
+	const lines = [];
+	for(let i=0; i<n; i++){
+		const mid = sorted[i];
+		const left = sorted[(i - 1 + n) % n];
+		const right = sorted[(i + 1) % n];
+		const span = norm(mid.lon - left.lon) + norm(right.lon - mid.lon);
+		if(span < 90){
+			lines.push(`${msg(left.id)} 与 ${msg(right.id)} 围绕 ${msg(mid.id)}（跨${span.toFixed(1)}°）`);
+		}
+	}
+	return lines;
+}
+
+// 逐曜古典状态:出界/偕日相/喜乐/宗派/野逸/度数性质·阳阴/月站/远地点·数·光/单度·九分·Darijan + 围攻详断 + 围绕。
 function buildClassicalSection(chartObj){
 	const lines = [];
 	const objectMap = getObjectsMap(chartObj);
@@ -1031,7 +1054,59 @@ function buildClassicalSection(chartObj){
 		lines.push('围攻详断');
 		lines.push(...bsg);
 	}
+	const enc = buildEncircleLines(chartObj);
+	if(enc.length){
+		lines.push('围绕');
+		lines.push(...enc);
+	}
 	return lines;
+}
+
+const CLS_OVR_ASP = { sextile: '六分', square: '四分', trine: '三分', conjunction: '合', opposition: '冲' };
+
+// 古典格局派生分析(astroextra.analyze_chart):护卫/优势相位/度数围攻 + 传光/聚光/不合意/交点弯曲 +
+// 逐题主星 + 偶然尊贵 + 恒星触发 + 行星时值日 + 埃及历 + 巴比伦参照星。与「古典」(逐曜本盘状态)互补,
+// 由 AI 挂载/导出按需 fetch /astroextra/analysis 后拼到快照(非每盘预建,避免极区 heliacal 拖慢信息tab)。
+export function buildClassicalAnalysisSection(analysis){
+	if(!analysis || typeof analysis !== 'object'){
+		return '';
+	}
+	const lines = [];
+	const cp = analysis.classicalPatterns || {};
+	const dory = (cp.doryphory || []).map((d)=> `${msg(d.planet)} 护卫 ${msg(d.light)}（距${round3(d.elong)}°）`);
+	const over = (cp.overcoming || []).map((o)=> `${msg(o.over)}(${msg(o.overSign)}) 凌驾 ${msg(o.under)}(${msg(o.underSign)})·${CLS_OVR_ASP[o.aspect] || o.aspect}`);
+	const bsgd = (cp.besieging || []).map((b)=> `${msg(b.planet)} 被 ${msg(b.left)}/${msg(b.right)} 度数围攻`);
+	if(dory.length || over.length || bsgd.length){
+		lines.push('古典格局');
+		if(dory.length){ lines.push(`护卫：${dory.join('；')}`); }
+		if(over.length){ lines.push(`优势相位：${over.join('；')}`); }
+		if(bsgd.length){ lines.push(`度数围攻：${bsgd.join('；')}`); }
+	}
+	const ad = analysis.aspectDynamics || {};
+	const trans = (ad.translation || []).map((t)=> `${msg(t.mover)} 自 ${msg(t.from)} 传光予 ${msg(t.to)}`);
+	const coll = (ad.collection || []).map((c)=> `${msg(c.collector)} 聚 ${msg(c.p1)}、${msg(c.p2)} 之光`);
+	const aver = (ad.aversion || []).map((v)=> `${msg(v.a)} 与 ${msg(v.b)} 不合意`);
+	const bend = (ad.bending || []).map((b)=> `${msg(b.planet)} 交点弯曲${b.at ? `（${b.at}）` : ''}`);
+	if(trans.length || coll.length || aver.length || bend.length){
+		lines.push('相位动态');
+		if(trans.length){ lines.push(`传光：${trans.join('；')}`); }
+		if(coll.length){ lines.push(`聚光：${coll.join('；')}`); }
+		if(aver.length){ lines.push(`不合意：${aver.join('；')}`); }
+		if(bend.length){ lines.push(`交点弯曲：${bend.join('；')}`); }
+	}
+	const ta = (analysis.topicAlmuten || []).filter((t)=> t && t.almuten).map((t)=> `${t.topic}（${t.house}宫）主星${msg(t.almuten)}`);
+	if(ta.length){ lines.push('逐题主星'); lines.push(ta.join('；')); }
+	const acc = (analysis.accidentalDignity || []).filter((r)=> r && r.planet).map((r)=> `${msg(r.planet)} ${r.score}（${(r.factors || []).join('·')}）`);
+	if(acc.length){ lines.push('偶然尊贵'); lines.push(...acc); }
+	const fs = (analysis.fixedStarHits || []).map((s)=> `${msg(s.point)} 合 ${s.cn || s.star}${s.behenian ? '·比尼' : ''}${s.royal ? `·王者${s.royal}` : ''}`);
+	if(fs.length){ lines.push('恒星触发'); lines.push(fs.join('；')); }
+	const ph = analysis.planetaryHours;
+	if(ph && ph.dayRuler){ lines.push(`行星时：值日星 ${msg(ph.dayRuler)}（日出 ${ph.sunrise} / 日落 ${ph.sunset}）`); }
+	const eg = analysis.egyptianCalendar;
+	if(eg && eg.siriusRising){ lines.push(`埃及历：天狼偕日升 ${eg.siriusRising}；上升第${eg.decanIndex}旬（${msg(eg.decanSign)}）面主${msg(eg.decanRuler)}`); }
+	const bab = (analysis.babylonianStars || []).filter((b)=> b && b.conj).map((b)=> `${msg(b.planet)} 合参照星 ${b.cn || b.star}`);
+	if(bab.length){ lines.push('巴比伦参照星'); lines.push(bab.join('；')); }
+	return buildSectionText('古典格局', lines);
 }
 
 export function buildAstroSnapshotContent(chartObj, fields, options = {}){
