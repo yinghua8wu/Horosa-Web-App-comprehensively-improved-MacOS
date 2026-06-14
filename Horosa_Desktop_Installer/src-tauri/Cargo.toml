@@ -2,7 +2,7 @@
 name = "horosa-desktop-installer"
 version = "2.6.7"
 description = "Horosa macOS desktop shell"
-authors = ["horacedong"]
+authors = ["Horosa"]
 edition = "2021"
 build = "build.rs"
 

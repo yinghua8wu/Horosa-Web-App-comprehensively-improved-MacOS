@@ -2553,11 +2553,16 @@ fn open_ai_analysis_backup_command() -> std::result::Result<Option<AiAnalysisFil
 
 fn load_release_config(app: &AppHandle) -> Result<ReleaseConfig> {
     let resource_dir = app.path().resource_dir().context("missing resource dir")?;
-    let candidates = [
+    // 发行二进制只从 bundle 资源读 release_config.json。源码树相对路径仅 debug 构建保留
+    // (方便从源码直接 `cargo run`);若编进 release,env!("CARGO_MANIFEST_DIR") 会把构建机
+    // 绝对路径(含用户名与仓库目录名)烤进二进制常量,--remap-path-prefix 也去不掉。
+    #[allow(unused_mut)] // release 构建无下方 debug-only push,mut 会被判未用
+    let mut candidates = vec![
         resource_dir.join("_up_/config/release_config.json"),
         resource_dir.join("config/release_config.json"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../config/release_config.json"),
     ];
+    #[cfg(debug_assertions)]
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../config/release_config.json"));
     let mut parse_errors = Vec::new();
     for path in candidates {
         if path.exists() {
