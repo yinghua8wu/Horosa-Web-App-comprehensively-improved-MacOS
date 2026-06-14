@@ -19,6 +19,7 @@ from flatlib import utils
 from flatlib.tools import arabicparts
 from flatlib.ephem import swe
 from astrostudy.nakshatra import nakshatra_from_lon
+from astrostudy import classical_tables as ctab
 from astrostudy.helper import distance
 from astrostudy.jieqi.realsuntime import getOffsetByDate
 
@@ -265,6 +266,13 @@ def takeLon(obj):
 def takeAttackDelta(stars):
     delta = (stars[1]['lon'] - stars[0]['lon'] + 360) % 360
     return delta
+
+# 偕日相可见弧 arcus visionis(度,标准值,可入设置微调):内行星偏小、外行星偏大。
+# 日下细分:核心 cazimi ≤16′、焦伤 combust <8°、日光束下 underBeams <arcus、否则自由光 free。
+ARCUS_VISIONIS = {
+    const.MERCURY: 10.0, const.VENUS: 5.0, const.MARS: 11.5, const.JUPITER: 10.0, const.SATURN: 11.0,
+}
+
 
 class PerChart:
 
@@ -612,6 +620,106 @@ class PerChart:
         if 178 <= star.lon < 186:
             star.isViaRepression = True
 
+    def setupOutOfBounds(self, planet, obj):
+        """出界 Out-of-Bounds:|赤纬| > 真黄赤交角 ε。月亮另判趋势(going 远离极值 / returning 回归)。
+        赤纬为赤道坐标、与黄道制无关 → 恒星制盘同样适用。"""
+        eps = getattr(self, 'eclObliquity', 23.4367)
+        decl = getattr(planet, 'decl', None)
+        if decl is None:
+            return
+        planet.outOfBounds = bool(abs(decl) > eps)
+        planet.oobDelta = round(abs(decl) - eps, 3)
+        if obj == const.MOON:
+            try:
+                eqflag = swisseph.FLG_SWIEPH | swisseph.FLG_EQUATORIAL
+                jd0 = self.dateTime.jd
+                d_now = abs(swisseph.calc_ut(jd0, swisseph.MOON, eqflag)[0][1])
+                d_prev = abs(swisseph.calc_ut(jd0 - 1.0 / 24.0, swisseph.MOON, eqflag)[0][1])
+                planet.oobMode = 'going' if d_now > d_prev else 'returning'
+            except Exception:
+                planet.oobMode = None
+
+    def setupPhasis(self, planet, obj, sun):
+        """偕日相 phasis / 可见弧:据与太阳的黄经差细分 核心/焦伤/日光束下/自由光;
+        若出生临近该星偕日升(晨星初现)或偕日没(昏星初没)则标 phasisEvent。仅日月五星中的五星。"""
+        arcus = ARCUS_VISIONIS.get(obj)
+        if arcus is None or sun is None:
+            return
+        ae = abs(((planet.lon - sun.lon + 180.0) % 360.0) - 180.0)
+        planet.phasisElong = round(ae, 3)
+        if ae <= 16.0 / 60.0:
+            planet.phase = 'cazimi'
+        elif ae < 8.0:
+            planet.phase = 'combust'
+        elif ae < arcus:
+            planet.phase = 'underBeams'
+        else:
+            planet.phase = 'free'
+        # 仅当落在可见弧边界窗(±5°)时才查偕日升/没事件(heliacal_ut 较贵,远离边界无意义)。
+        planet.phasisEvent = None
+        if abs(ae - arcus) <= 5.0:
+            planet.phasisEvent = self._phasis_event(obj)
+
+    def _phasis_event(self, obj):
+        """birth 临近(≤7 天)该星偕日升→morningRising(晨星初现);偕日没→eveningSetting(昏星初没)。任何异常返 None。"""
+        try:
+            geopos = [float(self.pos.lon), float(self.pos.lat), 0.0]
+            atmo = [1013.25, 15.0, 40.0, 0.25]
+            observer = [36.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+            birth_jd = self.dateTime.jd
+            flag = swisseph.FLG_SWIEPH | swisseph.HELFLAG_HIGH_PRECISION
+            for event, label in ((swisseph.HELIACAL_RISING, 'morningRising'), (swisseph.HELIACAL_SETTING, 'eveningSetting')):
+                tret = swisseph.heliacal_ut(birth_jd - 15.0, geopos, atmo, observer, obj, event, flag)
+                jd = tret[0] if isinstance(tret, (list, tuple)) else tret
+                if abs(jd - birth_jd) <= 7.0:
+                    return label
+        except Exception:
+            pass
+        return None
+
+    def setupFeral(self, planet, obj):
+        """野逸 feral:该星与七政中任何他星皆不成托勒密相位(0/60/90/120/180,统一容许 7°)→ 野逸。"""
+        lons = getattr(self, '_sevenLons', None)
+        if not lons or obj not in lons:
+            return
+        PTOL = (0.0, 60.0, 90.0, 120.0, 180.0)
+        orb = 7.0
+        plon = planet.lon
+        feral = True
+        for qid, qlon in lons.items():
+            if qid == obj:
+                continue
+            sep = abs(((plon - qlon + 180.0) % 360.0) - 180.0)
+            if any(abs(sep - asp) <= orb for asp in PTOL):
+                feral = False
+                break
+        planet.feral = bool(feral)
+
+    def setupJoy(self, planet, obj):
+        """行星喜乐 joy:整宫制下行星所落宫 == 该星喜乐宫。整宫房=自上升星座起算。"""
+        JOY = {const.MERCURY: 1, const.MOON: 3, const.VENUS: 5, const.MARS: 6, const.SUN: 9, const.JUPITER: 11, const.SATURN: 12}
+        j = JOY.get(obj)
+        if j is None:
+            return
+        try:
+            psidx = const.LIST_SIGNS.index(planet.sign)
+            wsh = ((psidx - getattr(self, 'ascSignIdx', 0)) % 12) + 1
+            planet.wholeSignHouse = wsh
+            planet.joy = bool(wsh == j)
+            planet.joyHouse = j
+        except Exception:
+            pass
+
+    def setupSect(self, planet, obj, sun):
+        """宗派 sect:日间星(日木土)在日盘 / 夜间星(月金火)在夜盘 = 同宗(of-sect);水星随其东西向(晨星=日间)。"""
+        if obj in (const.SUN, const.JUPITER, const.SATURN):
+            planet.ofSect = bool(self.isDiurnal)
+        elif obj in (const.MOON, const.VENUS, const.MARS):
+            planet.ofSect = bool(not self.isDiurnal)
+        elif obj == const.MERCURY and sun is not None:
+            oriental = (((planet.lon - sun.lon + 180.0) % 360.0) - 180.0) < 0
+            planet.ofSect = bool(oriental == self.isDiurnal)
+
     def setupPlanets(self):
         self.isDiurnal = self.chart.isDiurnal()
         suobjs = const.LIST_OBJECTS_TRADITIONAL.copy()
@@ -627,6 +735,7 @@ class PerChart:
         asc = self.chart.getAngle(const.ASC)
         ascsign = asc.sign
         sidx = const.LIST_SIGNS.index(ascsign)
+        self.ascSignIdx = sidx   # 整宫制起算(WI-03 喜乐 等用)
 
         suobjs.extend(const.LIST_ANGLES)
         for obj in suobjs:
@@ -653,6 +762,7 @@ class PerChart:
             }
             house = self.chart.houses.getHouseByLon(angle.lon)
             angle.house = house.id
+            angle.mansion = ctab.mansion_of(angle.lon)   # WI-07 上升宿
             self.setupSpecial(angle)
 
         for obj in const.LIST_HOUSES:
@@ -660,10 +770,60 @@ class PerChart:
             house.planets = []
             house.exalt = None
 
+        # 真黄赤交角(度,≈23.436):出界 Out-of-Bounds 判据(赤纬与黄道制无关,恒星盘亦适用)。
+        try:
+            self.eclObliquity = round(swisseph.calc_ut(self.dateTime.jd, swisseph.ECL_NUT)[0][0], 4)
+        except Exception:
+            self.eclObliquity = 23.4367
+        try:
+            sunObj = self.chart.get(const.SUN)
+        except Exception:
+            sunObj = None
+        # 七政经度(野逸判据用):七星互相是否成相。
+        self._sevenLons = {}
+        for sid in const.LIST_SEVEN_PLANETS:
+            try:
+                self._sevenLons[sid] = self.chart.get(sid).lon
+            except Exception:
+                pass
+        # WI-25/25b 远地点/数增减/光增减 用:七政→swisseph 体 id + 当下太阳黄经。
+        _SWE_BODY = {const.SUN: swisseph.SUN, const.MOON: swisseph.MOON, const.MERCURY: swisseph.MERCURY,
+                     const.VENUS: swisseph.VENUS, const.MARS: swisseph.MARS,
+                     const.JUPITER: swisseph.JUPITER, const.SATURN: swisseph.SATURN}
+        _sun_lon_now = sunObj.lon if sunObj else None
+
         for obj in objs:
             planet = self.chart.get(obj)
             self.setupSpecial(planet)
+            self.setupOutOfBounds(planet, obj)
+            self.setupPhasis(planet, obj, sunObj)
+            self.setupJoy(planet, obj)
+            self.setupSect(planet, obj, sunObj)
+            self.setupFeral(planet, obj)
+            # WI-09 阳/阴度数 + WI-07 月站(回归制,0°白羊起;与恒星制 nakshatra 并存勿混)。
+            planet.degreeGender = ctab.degree_gender(planet.sign, planet.signlon)
+            planet.mansion = ctab.mansion_of(planet.lon)
+            # WI-05 度数性质 明/暗/空/烟 + WI-09 特殊度数 陷度/慢病/增福(al-Qabisi 录本)。
+            planet.degreeQuality = ctab.degree_quality(planet.sign, planet.signlon)
+            planet.specialDegree = ctab.special_degree(planet.sign, planet.signlon)
+            # WI-15 单度主星 + WI-17 九分 + WI-14 Darijan(印度十度分;迦勒底面另由必然尊贵 face 提供)。
+            planet.monomoiria = ctab.monomoiria_ruler(planet.lon)
+            planet.ninthPart = ctab.ninth_part_sign(planet.lon)
+            planet.darijan = ctab.darijan_ruler(planet.sign, planet.signlon)
             planet.movedir = planet.movement()
+            # WI-25/25b 远地点 apogee 升降 + 数增数减 + (月)光增光减:用 swisseph 距速 distspeed。
+            # distspeed>0=距地渐增→趋远地点(升)+行速渐慢(数减);<0=距地渐减→趋近地点(降)+行速渐快(数增)。
+            try:
+                _swid = _SWE_BODY.get(obj)
+                if _swid is not None:
+                    _distspeed = swisseph.calc_ut(self.dateTime.jd, _swid, swisseph.FLG_SWIEPH | swisseph.FLG_SPEED)[0][5]
+                    planet.apogeeDir = 'rising' if _distspeed > 0 else 'falling'
+                    planet.numberTrend = 'decreasing' if _distspeed > 0 else 'increasing'
+                    if obj == const.MOON and _sun_lon_now is not None:
+                        _elong = (planet.lon - _sun_lon_now) % 360.0
+                        planet.lightTrend = 'waxing' if _elong < 180.0 else 'waning'
+            except Exception:
+                pass
             antipnt = planet.antiscia()
             cantipnt = planet.cantiscia()
             planet.antisciaPoint = {
@@ -1378,6 +1538,152 @@ class PerChart:
                 res[obj] = atk
 
         return res
+
+    # ── 围攻详断(《围攻》十六式):三种围 + 春秋势 + 宰执夏冬 + 协防 + 围魏救赵 + 日木互容制约 + 逆行 ──
+    _BESIEGE_TYPE = {
+        'MarsSaturn': ('围攻', '凶', ['Mars', 'Saturn']),
+        'VenusJupiter': ('围荣', '富', ['Venus', 'Jupiter']),
+        'SunMoon': ('围耀', '贵', ['Sun', 'Moon']),
+    }
+
+    def _is_strong_house(self, planet_obj):
+        """后天强弱:一旦主宰 3/6/8/12 任一宫即「被污染」→弱(即便同时主吉宫,如主6又主10仍弱);
+        只主吉宫(全不沾 3/6/8/12)→强;无主宫(罕见)退看落宫是否非凶宫。"""
+        if planet_obj is None:
+            return False
+        weak = {const.LIST_HOUSES[i] for i in (2, 5, 7, 11)}  # House3/6/8/12
+        try:
+            rh = getattr(planet_obj, 'ruleHouses', []) or []
+            if any(h in weak for h in rh):
+                return False                                   # 主凶宫 → 污染 → 弱
+            if rh:
+                return True                                    # 只主吉宫 → 强
+            return getattr(planet_obj, 'house', None) not in weak   # 无主宫,退看落宫
+        except Exception:
+            return False
+
+    def _besiege_defense(self, target_id, target_lon, attacker_eps):
+        """协防(《围攻》弃车保帅):吉星 木/日/金 的相位点须落入「围攻区域」截击某围攻者——
+        即与该侧围攻者相位点同侧、且更靠近被围星(距≤围攻者距,挡在被围星与围攻者之间),方成协防。
+        以身作盾=吉星本体(合相点)贴被围星≤1°;否则遥光。强=主/落强宫(除3/6/8/12外;日木金可任,水月不计)。"""
+        aspectlist = [-120, -90, -60, 0, 60, 90, 120, 180]
+
+        def sd(x):
+            return ((x - target_lon + 180.0) % 360.0) - 180.0
+
+        # 各侧最近的围攻者及其距(春=被围星高经度侧 d>0 / 秋=低经度侧)。
+        side_attacker = {}
+        for ep in (attacker_eps or []):
+            d = sd(ep['lon'])
+            s = '春' if d > 0 else '秋'
+            if s not in side_attacker or abs(d) < side_attacker[s][1]:
+                side_attacker[s] = (ep['id'], abs(d))
+
+        out = []
+        for yid in (const.JUPITER, const.SUN, const.VENUS):
+            if yid == target_id:
+                continue
+            try:
+                y = self.chart.getObject(yid)
+            except Exception:
+                continue
+            best_asp, best_d = None, None
+            for asp in aspectlist:
+                d = sd((y.lon + asp + 360.0) % 360.0)
+                if best_d is None or abs(d) < abs(best_d):
+                    best_asp, best_d = asp, d
+            if best_d is None:
+                continue
+            side = '春' if best_d > 0 else '秋'
+            atkr = side_attacker.get(side)
+            # 须截击:该侧有围攻者,且吉星相位点更近被围星(挡在中间)。否则不构成协防。
+            if not atkr or abs(best_d) > atkr[1] + 1e-6:
+                continue
+            out.append({'id': yid, 'aspect': best_asp, 'side': side, 'against': atkr[0],
+                        'orb': round(abs(best_d), 2), 'byBody': abs(sd(y.lon)) <= 1.0,
+                        'strong': self._is_strong_house(y)})
+        return out
+
+    def besiegementDetail(self):
+        attacks = self.surroundAttacks()
+        if not attacks:
+            return []
+        SIGNS = const.LIST_SIGNS
+
+        def obj_of(pid):
+            try:
+                return self.chart.getObject(pid)
+            except Exception:
+                return None
+
+        # 日木互容制约:被日/木互容的火/土,凶减半。文中"只有日、木可以,他俩还要主强宫"→ 制约方 须主/落强宫。
+        # getMutuals()→{normal:[],abnormal:[]},每项 {planetA:{id..},planetB:{id..}}。
+        restrained = {}
+        try:
+            mut = self.getMutuals() or {}
+            for item in (mut.get('normal', []) + mut.get('abnormal', [])):
+                a = (item.get('planetA') or {}).get('id')
+                b = (item.get('planetB') or {}).get('id')
+                for auth in (const.SUN, const.JUPITER):
+                    if not self._is_strong_house(obj_of(auth)):   # 日/木 须主强宫方能制约
+                        continue
+                    if a == auth and b:
+                        restrained.setdefault(b, []).append(auth)
+                    elif b == auth and a:
+                        restrained.setdefault(a, []).append(auth)
+        except Exception:
+            pass
+
+        # 围魏救赵:围攻者自身也被某「围」(火土/金木/日月皆可,如日月围其凶星)所围 → 其害减。
+        besieged_set = set(tid for tid, a in attacks.items()
+                           if a.get('SunMoon') or a.get('VenusJupiter') or a.get('MarsSaturn'))
+
+        out = []
+        for tid, atk in attacks.items():
+            t = obj_of(tid)
+            if t is None:
+                continue
+            tsi = SIGNS.index(t.sign)
+            for typ in ('MarsSaturn', 'VenusJupiter', 'SunMoon'):
+                if not atk.get(typ):
+                    continue
+                kind, nature, _ids = self._BESIEGE_TYPE[typ]
+                is_malefic = (typ == 'MarsSaturn')
+                besiegers = []
+                for ep in atk[typ]:
+                    bid = ep['id']
+                    b = obj_of(bid)
+                    if b is None:
+                        continue
+                    # 春秋四季只标在「围攻者」(组间关系,被围星之冬夏可由此自然推得,不另标):
+                    # off = 围攻者座 − 被围星座(星座相位,非光线)。春{7-11}主宰/秋{1-5}受制;
+                    # 春+宰执被围星(off==9,被围星落围攻者10座之逆=围攻者落被围星之上)→ 夏(强极);
+                    # 秋+被被围星宰执(off==3,被围星落围攻者10座)→ 冬(弱极)。
+                    off = (SIGNS.index(b.sign) - tsi) % 12
+                    if off in (7, 8, 9, 10, 11):
+                        season = '夏' if off == 9 else '春'
+                    elif off in (1, 2, 3, 4, 5):
+                        season = '冬' if off == 3 else '秋'
+                    else:
+                        season = '中'
+                    info = {'id': bid, 'aspect': ep['aspect'], 'season': season,
+                            'retro': (getattr(b, 'lonspeed', 0) or 0) < 0, 'delta': round(ep.get('delta', 0), 2)}
+                    if is_malefic:
+                        info['restrained'] = restrained.get(bid, [])
+                        info['counterBesieged'] = bid in besieged_set
+                    besiegers.append(info)
+                # 火土有一围攻者为春/夏(主宰侧)→ 见血(《围攻》:火土只要一颗为春夏,必见血)。
+                severe = bool(is_malefic and any(x['season'] in ('春', '夏') for x in besiegers))
+                # 协防:吉星相位点须截击某围攻者(同侧且更近被围星),并注明防御的是哪颗围攻星(against)。
+                defense = self._besiege_defense(tid, t.lon, atk[typ]) if is_malefic else []
+                out.append({
+                    'target': tid, 'type': typ, 'kind': kind, 'nature': nature,
+                    'besiegers': besiegers,
+                    'targetRetro': (getattr(t, 'lonspeed', 0) or 0) < 0,
+                    'severe': severe if is_malefic else None,
+                    'defense': defense,
+                })
+        return out
 
 
     def surroundHouse(self, houseid):

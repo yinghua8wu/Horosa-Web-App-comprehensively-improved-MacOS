@@ -172,6 +172,7 @@ class AstroEphemeris extends Component{
 									{key: 'type', title: '类型'},
 									{key: 'eclipseType', title: '细分'},
 									{key: 'sign', title: '位置', render: (_v, row)=>fmtDegree(row)},
+									{key: 'digit', title: '食分', render: (v, row)=> (v == null ? '—' : <span>{fmtNum(v)}<span style={{opacity: 0.6, fontSize: 11, marginLeft: 4}}>{row.band || ''}</span></span>)},
 								])}
 							</div>
 						</TabPane>

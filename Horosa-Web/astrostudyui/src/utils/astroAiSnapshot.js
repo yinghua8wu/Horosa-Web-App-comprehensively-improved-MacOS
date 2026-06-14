@@ -929,6 +929,111 @@ export function createAstroSnapshotSignature(chartObj, fields, options = {}){
 	return [chartId, birth, zone, lon, lat, zodiacal, hsys, chart.isDiurnal ? '1' : '0', onlyRulerExaltReception ? '1' : '0', siderealAyanamsa].join('|');
 }
 
+// === 古典占星(WI-00..28 逐曜状态 + 围攻详断);标签与 AstroInfo.js 古典渲染严格一致(单一语义源)。===
+const CLS_STATUS_IDS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+const CLS_PHASE = { cazimi: '核心', combust: '焦伤', underBeams: '日光束下', free: '自由光' };
+const CLS_PHASE_EVENT = { morningRising: '晨星初现', eveningSetting: '昏星初没' };
+const CLS_QUALITY = { B: '明度', D: '暗度', E: '空度', S: '烟度' };
+const CLS_SPECIAL = { pitted: '陷度', azemene: '慢病度', fortune: '增福度' };
+const CLS_APOGEE = { rising: '升·趋远地点', falling: '降·趋近地点' };
+const CLS_NUM = { increasing: '数增·渐疾', decreasing: '数减·渐迟' };
+const CLS_LIGHT = { waxing: '光增·渐盈', waning: '光减·渐亏' };
+const CLS_SEASON = { '春': '春·主宰', '夏': '夏·宰执', '秋': '秋·受制', '冬': '冬·被执', '中': '中' };
+const CLS_MEAN_ATK = { Sun: '精神阴暗·心灵扭曲', Moon: '凶死夭折·绝症残疾', Mercury: '智力特异·语言障碍', Venus: '欲望混乱·专断残暴', Jupiter: '世俗无成·离经叛道', Mars: '自身受困崩坏', Saturn: '自身受困崩坏' };
+
+function fixedNum(val, digits){
+	const n = Number(val);
+	return Number.isNaN(n) ? '' : n.toFixed(digits);
+}
+
+// 围攻详断(《围攻》十六式):三种围 + 春秋势 + 宰执夏冬 + 协防 + 围魏救赵 + 日木互容制约 + 逆行 + 断语。
+function buildBesiegementLines(chartObj){
+	const list = (chartObj && chartObj.surround && chartObj.surround.besiegement) || [];
+	const lines = [];
+	(list || []).forEach((b)=>{
+		if(!b || !Array.isArray(b.besiegers)){
+			return;
+		}
+		const besiegers = b.besiegers.map((x)=>{
+			let s = `${msg(x.id)}（${CLS_SEASON[x.season] || x.season}`;
+			if(x.retro){ s += '·逆行'; }
+			if(x.restrained && x.restrained.length){ s += '·日木制约凶减半'; }
+			if(x.counterBesieged){ s += '·围魏救赵'; }
+			return `${s}）`;
+		}).join(' 与 ');
+		let head = `${msg(b.target)}${b.targetRetro ? '（逆行）' : ''} 被 ${besiegers} ${b.kind}（${b.nature}）`;
+		if(b.severe){ head += '·凶剧见血'; }
+		lines.push(head);
+		if(b.defense && b.defense.length){
+			const d = b.defense.map((y)=> `${msg(y.id)}（${y.byBody ? '以身作盾' : '遥光'}·护${y.against ? msg(y.against) : y.side}侧·${y.strong ? '强' : '弱'}）`).join('，');
+			lines.push(`协防：${d}`);
+		}
+		const mean = b.kind === '围攻' ? (CLS_MEAN_ATK[b.target] || '') : (b.kind === '围荣' ? '致富·舒适自由·财帛丰盈' : '致贵·领袖魅力·载众载民');
+		if(mean){ lines.push(`断语：${mean}`); }
+	});
+	return lines;
+}
+
+// 逐曜古典状态:出界/偕日相/喜乐/宗派/野逸/度数性质·阳阴/月站/远地点·数·光/单度·九分·Darijan + 围攻详断。
+function buildClassicalSection(chartObj){
+	const lines = [];
+	const objectMap = getObjectsMap(chartObj);
+	const profile = [];
+	CLS_STATUS_IDS.forEach((id)=>{
+		const o = objectMap[id];
+		if(!o){
+			return;
+		}
+		const parts = [];
+		if(o.outOfBounds){
+			const mode = (id === 'Moon' && o.oobMode) ? (o.oobMode === 'going' ? '远行' : '回归') : '';
+			parts.push(`出界+${fixedNum(o.oobDelta, 2)}°${mode ? `（${mode}）` : ''}`);
+		}
+		if(o.phase){
+			let p = CLS_PHASE[o.phase] || o.phase;
+			if(o.phasisElong != null){ p += `（距日${fixedNum(o.phasisElong, 1)}°）`; }
+			if(o.phasisEvent){ p += `·${CLS_PHASE_EVENT[o.phasisEvent] || o.phasisEvent}`; }
+			parts.push(p);
+		}
+		if(o.joy){ parts.push(`喜乐（${o.joyHouse}宫）`); }
+		if(o.ofSect !== undefined && o.ofSect !== null){ parts.push(o.ofSect ? '同宗' : '异宗'); }
+		if(o.feral){ parts.push('野逸'); }
+		if(o.degreeQuality){ parts.push(CLS_QUALITY[o.degreeQuality] || `${o.degreeQuality}度`); }
+		if(o.degreeGender){ parts.push(o.degreeGender === 'masculine' ? '阳性度' : '阴性度'); }
+		if(o.specialDegree){
+			const tags = Object.keys(o.specialDegree).filter((k)=> o.specialDegree[k]).map((k)=> CLS_SPECIAL[k] || k);
+			if(tags.length){ parts.push(tags.join('·')); }
+		}
+		if(o.mansion && o.mansion.cn){ parts.push(`月站${o.mansion.cn}（${o.mansion.nature}）`); }
+		if(o.apogeeDir){
+			let a = CLS_APOGEE[o.apogeeDir] || o.apogeeDir;
+			if(o.numberTrend){ a += `·${CLS_NUM[o.numberTrend] || ''}`; }
+			if(o.lightTrend){ a += `·${CLS_LIGHT[o.lightTrend] || ''}`; }
+			parts.push(a);
+		}
+		const dl = [];
+		if(o.monomoiria){ dl.push(`单度主星${msg(o.monomoiria)}`); }
+		if(o.ninthPart){ dl.push(`九分${msg(o.ninthPart)}`); }
+		if(o.darijan){ dl.push(`Darijan${msg(o.darijan)}`); }
+		if(dl.length){ parts.push(dl.join('·')); }
+		if(parts.length){ profile.push(`${msg(id)}：${parts.join('；')}`); }
+	});
+	if(profile.length){
+		lines.push('逐曜古典状态');
+		lines.push(...profile);
+	}
+	const asc = objectMap.Asc;
+	if(asc && asc.mansion && asc.mansion.cn){
+		lines.push(`上升宿：${asc.mansion.cn}（${asc.mansion.nature} · ${asc.mansion.use}）`);
+	}
+	const bsg = buildBesiegementLines(chartObj);
+	if(bsg.length){
+		lines.push('围攻详断');
+		lines.push(...bsg);
+	}
+	return lines;
+}
+
 export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 	if(!chartObj || !chartObj.chart){
 		return '';
@@ -943,6 +1048,7 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 	sections.push(buildSectionText('希腊点', buildLotsSection(chartObj)));
 	sections.push(buildSectionText('12分度', buildDodecaSection(chartObj)));
 	sections.push(buildSectionText('主宰星链', buildDispositorSection(chartObj)));
+	sections.push(buildSectionText('古典', buildClassicalSection(chartObj)));
 	sections.push(buildSectionText('寿命格局', buildLifespanSection(chartObj)));
 	sections.push(buildSectionText('可能性', buildPossibilitySection(chartObj)));
 	return sections.filter(Boolean).join('\n\n').trim();

@@ -4,10 +4,19 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { randomStr} from '../../utils/helper'
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
+import { bodyPartsOf, degreePosition, } from '../../divination/data/bodyParts';
+import AstroLifespan from './AstroLifespan';
+import AstroDodeca from './AstroDodeca';
+import AstroDispositor from './AstroDispositor';
 import { buildMeaningTipByCategory, } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import * as Constants from '../../utils/constants';
 import styles from '../../css/styles.less';
+
+// WI-02 偕日相 / WI-04 宗派 中文口径(中性词)。
+const PHASE_LABEL = { cazimi: '核心', combust: '焦伤', underBeams: '日光束下', free: '自由光' };
+const PHASIS_EVENT_LABEL = { morningRising: '晨星初现', eveningSetting: '昏星初没' };
+const STATUS_PLANET_IDS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
 
 export function resolveAstroDisplayMode(perchart, fields){
 	let zodiacal = perchart && perchart.zodiacal ? perchart.zodiacal : null;
@@ -38,7 +47,6 @@ class AstroInfo extends Component{
 
 		this.planetSet = new Set();
 		this.state = {
-
 		};
 
 		this.fieldsToParams = this.fieldsToParams.bind(this);
@@ -49,6 +57,14 @@ class AstroInfo extends Component{
 		this.genSurroundHousesDom = this.genSurroundHousesDom.bind(this);
 		this.genSurroundPlanetsDom = this.genSurroundPlanetsDom.bind(this);
 		this.genAntisciasDom = this.genAntisciasDom.bind(this);
+		this.genOutOfBoundsDom = this.genOutOfBoundsDom.bind(this);
+		this.genPhasisDom = this.genPhasisDom.bind(this);
+		this.genJoyDom = this.genJoyDom.bind(this);
+		this.genSectDom = this.genSectDom.bind(this);
+		this.genMansionDom = this.genMansionDom.bind(this);
+		this.genDegreeGenderDom = this.genDegreeGenderDom.bind(this);
+		this.genDegreeLordsDom = this.genDegreeLordsDom.bind(this);
+		this.genFeralDom = this.genFeralDom.bind(this);
 		this.canDisplayPlanet = this.canDisplayPlanet.bind(this);
 		this.genDeclParallelDom = this.genDeclParallelDom.bind(this);
 			this.initPlanets = this.initPlanets.bind(this);
@@ -460,6 +476,54 @@ class AstroInfo extends Component{
 		return dom;
 	}
 
+	// 围攻详断(《围攻》十六式):三种围 + 春秋势 + 宰执夏冬 + 协防 + 围魏救赵 + 日木互容制约 + 逆行 + 释义。
+	genBesiegementDom(list){
+		const items = list || [];
+		if(!items.length){ return null; }
+		const DANGER = 'var(--horosa-danger, #cf1322)';
+		const JADE = 'var(--horosa-jade, #3a9a6a)';
+		const GOLD = 'var(--horosa-gold, #b8860b)';
+		const ACCENT = 'var(--horosa-accent, #6c5ce7)';
+		const MUTED = 'var(--horosa-muted, #999)';
+		const TYPE_COL = { '围攻': DANGER, '围荣': GOLD, '围耀': ACCENT };
+		const SEASON_T = { '春': '春·主宰', '夏': '夏·宰执', '秋': '秋·受制', '冬': '冬·被执', '中': '中' };
+		const MEAN_ATK = { Sun: '精神阴暗·心灵扭曲', Moon: '凶死夭折·绝症残疾', Mercury: '智力特异·语言障碍', Venus: '欲望混乱·专断残暴', Jupiter: '世俗无成·离经叛道', Mars: '自身受困崩坏', Saturn: '自身受困崩坏' };
+		const badge = (txt, col) => <span style={{ fontSize: 10, color: col, border: `1px solid ${col}`, borderRadius: 4, padding: '0 4px', marginLeft: 4, opacity: 0.92 }}>{txt}</span>;
+		return items.map((b, i)=>{
+			const col = TYPE_COL[b.kind] || MUTED;
+			const mean = b.kind === '围攻' ? (MEAN_ATK[b.target] || '') : (b.kind === '围荣' ? '致富·舒适自由·财帛丰盈' : '致贵·领袖魅力·载众载民');
+			// 四季只标围攻者:春/夏(主宰侧,用本围类型色;夏=峰极加粗)、秋/冬(受制侧,玉/灰)。被围星之冬夏由组间关系自明,不另标。
+			const seasonStyle = (s)=> (s === '夏' ? { color: col, fontWeight: 700 } : (s === '春' ? { color: col } : (s === '秋' ? { color: JADE } : { color: MUTED })));
+			return (
+				<div key={`bsg-${i}`} style={{ borderLeft: `3px solid ${col}`, paddingLeft: 9, marginBottom: 9, lineHeight: 1.95 }}>
+					<div>
+						<strong style={{ color: col }}>{b.kind}</strong><span style={{ color: MUTED, fontSize: 11 }}>（{b.nature}）</span>
+						&emsp;{this.planetLabel(b.target, this.props.value)}
+						{b.targetRetro ? badge('逆', DANGER) : null}
+						{b.severe ? badge('凶剧·见血', DANGER) : null}
+					</div>
+					<div style={{ fontSize: 12.5 }}>
+						{b.besiegers.map((x, j)=>(
+							<span key={`b-${i}-${j}`} style={{ marginRight: 12 }}>
+								{this.planetLabel(x.id, this.props.value)}
+								<span style={{ ...seasonStyle(x.season), marginLeft: 2 }}>{SEASON_T[x.season] || x.season}</span>
+								{x.retro ? badge('逆', MUTED) : null}
+								{x.restrained && x.restrained.length ? badge('日木制约·凶减半', JADE) : null}
+								{x.counterBesieged ? badge('围魏救赵', JADE) : null}
+							</span>
+						))}
+					</div>
+					{b.defense && b.defense.length ? (
+						<div style={{ fontSize: 12, color: MUTED }}>协防：{b.defense.map((y, k)=>(
+							<span key={`d-${i}-${k}`} style={{ marginRight: 10, color: y.strong ? JADE : MUTED }}>{this.planetLabel(y.id, this.props.value)} {y.byBody ? '以身作盾' : '遥光'}·护{y.against ? this.planetLabel(y.against, this.props.value) : y.side}侧{y.strong ? '·强' : '·弱'}</span>
+						))}</div>
+					) : null}
+					{mean ? <div style={{ fontSize: 11, color: MUTED, fontStyle: 'italic' }}>{mean}</div> : null}
+				</div>
+			);
+		});
+	}
+
 	genSurroundAttacksDom(attacks){
 		let divs = [];
 		let idx = 0;
@@ -663,6 +727,239 @@ class AstroInfo extends Component{
 		return dom;
 	}
 
+	// WI-02 偕日相:列星-日关系(核心/焦伤/日光束下/自由光)+ 偕日升没事件。
+	genPhasisDom(perchart){
+		if(!perchart || !Array.isArray(perchart.objects)){ return null; }
+		let rows = [];
+		perchart.objects.forEach((obj)=>{
+			if(!obj || obj.phase === undefined || obj.phase === null){ return; }
+			if(!this.canDisplayPlanet(obj.id)){ return; }
+			let ev = obj.phasisEvent ? `（${PHASIS_EVENT_LABEL[obj.phasisEvent] || obj.phasisEvent}）` : '';
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(obj.id, this.props.value)}&nbsp;{PHASE_LABEL[obj.phase] || obj.phase}
+					{obj.phasisElong != null ? <span style={{color:'var(--horosa-muted, #999)'}}>&nbsp;(距日 {Number(obj.phasisElong).toFixed(1)}°)</span> : null}
+					{ev}
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
+	// WI-03 喜乐:列处喜乐宫的行星。
+	genJoyDom(perchart){
+		if(!perchart || !Array.isArray(perchart.objects)){ return null; }
+		let rows = [];
+		perchart.objects.forEach((obj)=>{
+			if(!obj || !obj.joy){ return; }
+			if(!this.canDisplayPlanet(obj.id)){ return; }
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(obj.id, this.props.value)}&nbsp;喜乐&nbsp;（{obj.joyHouse}宫）
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
+	// WI-04 宗派:宗派光 + 同宗吉/凶星 + 每星同宗/异宗。
+	genSectDom(perchart){
+		if(!perchart || !Array.isArray(perchart.objects)){ return null; }
+		let day = !!perchart.isDiurnal;
+		let lightId = day ? 'Sun' : 'Moon';
+		let beneficId = day ? 'Jupiter' : 'Venus';
+		let maleficId = day ? 'Saturn' : 'Mars';
+		let ofSect = [], contra = [];
+		perchart.objects.forEach((obj)=>{
+			if(!obj || obj.ofSect === undefined || !this.canDisplayPlanet(obj.id)){ return; }
+			(obj.ofSect ? ofSect : contra).push(obj.id);
+		});
+		const lbl = (id) => <span key={randomStr(8)}>{this.planetLabel(id, this.props.value)}</span>;
+		const muted = { color: 'var(--horosa-muted, #999)' };
+		const line = (title, ids) => (
+			<div key={randomStr(8)} className="horosa-classical-line">
+				<span style={muted}>{title}：</span>{ids.length ? ids.map((id)=> <span key={randomStr(8)}>{lbl(id)}&nbsp;</span>) : <span>—</span>}
+			</div>
+		);
+		return [
+			<div key={randomStr(8)} className="horosa-classical-line"><span style={muted}>宗派光：</span>{lbl(lightId)}&nbsp;（{day ? '日盘' : '夜盘'}）</div>,
+			<div key={randomStr(8)} className="horosa-classical-line"><span style={muted}>同宗吉/凶星：</span>{lbl(beneficId)}&nbsp;/&nbsp;{lbl(maleficId)}</div>,
+			line('同宗', ofSect),
+			line('异宗', contra),
+		];
+	}
+
+	// WI-19 野逸:与七政皆不成托勒密相位的行星。
+	genFeralDom(perchart){
+		let objs = (perchart && perchart.objects) || [];
+		let rows = [];
+		STATUS_PLANET_IDS.forEach((id)=>{
+			let o = objs.find((x)=> x && x.id === id);
+			if(!o || !o.feral || !this.canDisplayPlanet(id)){ return; }
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(id, this.props.value)}&nbsp;野逸
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
+	// WI-07 月站:月亮宿 + 上升宿(回归制,0°白羊起;与恒星制 nakshatra 并存勿混)。
+	genMansionDom(perchart){
+		let objs = (perchart && perchart.objects) || [];
+		let find = (id) => objs.find((o)=> o && o.id === id);
+		let line = (label, o) => (o && o.mansion) ? (
+			<div key={randomStr(8)} style={{marginBottom:2}}>
+				<span style={{color:'#999'}}>{label}：</span>第{o.mansion.idx}宿 {o.mansion.cn}<span style={{color:'#999'}}>（{o.mansion.nature} · {o.mansion.use}）</span>
+			</div>
+		) : null;
+		let rows = [line('月亮宿', find('Moon')), line('上升宿', find('Asc'))].filter(Boolean);
+		return rows.length ? rows : null;
+	}
+
+	// WI-14/15/17 度数主星:单度主星(连续迦勒底)/ 九分 / 面 / Darijan,逐星一行。
+	genDegreeLordsDom(perchart){
+		let objs = (perchart && perchart.objects) || [];
+		let g = (id) => id ? <span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[id] || id}</span> : <span>—</span>;
+		let m = { color: 'var(--horosa-muted, #999)' };
+		let rows = [];
+		STATUS_PLANET_IDS.forEach((id)=>{
+			let o = objs.find((x)=> x && x.id === id);
+			if(!o || !this.canDisplayPlanet(id) || (!o.monomoiria && !o.ninthPart && !o.darijan)){ return; }
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(id, this.props.value)}&emsp;
+					<span style={m}>单度</span>&nbsp;{g(o.monomoiria)}&ensp;
+					<span style={m}>九分</span>&nbsp;{g(o.ninthPart)}&ensp;
+					<span style={m}>面</span>&nbsp;{g(o.dignities && o.dignities.face)}&ensp;
+					<span style={m}>Darijan</span>&nbsp;{g(o.darijan)}
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
+	// WI-09 阳/阴度数:每星所落度的阴阳(男命落阳/女命落阴 增力)。
+	genDegreeGenderDom(perchart){
+		let objs = (perchart && perchart.objects) || [];
+		let rows = [];
+		STATUS_PLANET_IDS.forEach((id)=>{
+			let o = objs.find((x)=> x && x.id === id);
+			if(!o || !o.degreeGender || !this.canDisplayPlanet(id)){ return; }
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(id, this.props.value)}&nbsp;{o.degreeGender === 'masculine' ? '阳性度' : '阴性度'}
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
+	// WI-05 度数性质:每星所落度的 明/暗/空/烟(al-Qabisi 录本)。
+	genDegreeQualityDom(perchart){
+		let objs = (perchart && perchart.objects) || [];
+		const Q = { B: '明', D: '暗', E: '空', S: '烟' };
+		const TIP = { B: '光明·增吉', D: '黑暗·减力', E: '空虚·中性', S: '烟雾·微凶' };
+		const COL = { B: 'var(--horosa-jade, #3a9a6a)', D: 'var(--horosa-danger, #cf1322)', E: 'var(--horosa-muted, #999)', S: 'var(--horosa-gold, #b8860b)' };
+		let rows = [];
+		STATUS_PLANET_IDS.forEach((id)=>{
+			let o = objs.find((x)=> x && x.id === id);
+			if(!o || !o.degreeQuality || !this.canDisplayPlanet(id)){ return; }
+			let gender = o.degreeGender === 'masculine' ? '阳性度' : (o.degreeGender === 'feminine' ? '阴性度' : '');
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(id, this.props.value)}&nbsp;<span style={{color: COL[o.degreeQuality]}}>{Q[o.degreeQuality] || o.degreeQuality}</span>
+					<span style={{color: 'var(--horosa-muted, #999)', marginLeft: 6}}>{TIP[o.degreeQuality] || ''}</span>
+					{gender ? <span style={{color: 'var(--horosa-muted, #999)', marginLeft: 8}}>· {gender}</span> : null}
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
+	// WI-09 特殊度数:陷度 well / 慢病 azemene / 增福度(行星正落该度)。
+	genSpecialDegreeDom(perchart){
+		let objs = (perchart && perchart.objects) || [];
+		const LBL = { pitted: '陷度', azemene: '慢病度', fortune: '增福度' };
+		const TIP = { pitted: '落此度力弱受损', azemene: '主残疾·慢性病', fortune: '吉力增益' };
+		const COL = { pitted: 'var(--horosa-danger, #cf1322)', azemene: 'var(--horosa-danger, #cf1322)', fortune: 'var(--horosa-jade, #3a9a6a)' };
+		let rows = [];
+		STATUS_PLANET_IDS.forEach((id)=>{
+			let o = objs.find((x)=> x && x.id === id);
+			if(!o || !o.specialDegree || !this.canDisplayPlanet(id)){ return; }
+			let tags = Object.keys(o.specialDegree).filter((k)=> o.specialDegree[k]);
+			if(!tags.length){ return; }
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(id, this.props.value)}&nbsp;
+					{tags.map((k)=> <span key={k} style={{color: COL[k], marginRight: 8}}>{LBL[k] || k}<span style={{opacity: 0.6, fontSize: 11}}>（{TIP[k]}）</span></span>)}
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
+	// WI-25/25b 远地点 apogee 升降 + 数增数减 +(月)光增光减:距地渐增=升·趋远地点+数减,渐减=降·趋近地点+数增。
+	genApogeeDom(perchart){
+		let objs = (perchart && perchart.objects) || [];
+		const DIR = { rising: '升·趋远地点', falling: '降·趋近地点' };
+		const NUM = { increasing: '数增·渐疾', decreasing: '数减·渐迟' };
+		const LIGHT = { waxing: '光增·渐盈', waning: '光减·渐亏' };
+		let rows = [];
+		STATUS_PLANET_IDS.forEach((id)=>{
+			let o = objs.find((x)=> x && x.id === id);
+			if(!o || !o.apogeeDir || !this.canDisplayPlanet(id)){ return; }
+			let m = { color: 'var(--horosa-muted, #999)' };
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(id, this.props.value)}&nbsp;
+					<span style={{color: o.apogeeDir === 'rising' ? 'var(--horosa-gold, #b8860b)' : 'var(--horosa-jade, #3a9a6a)'}}>{DIR[o.apogeeDir] || o.apogeeDir}</span>
+					<span style={{...m, marginLeft: 8}}>{NUM[o.numberTrend] || ''}</span>
+					{o.lightTrend ? <span style={{...m, marginLeft: 8}}>{LIGHT[o.lightTrend]}</span> : null}
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
+	// WI-21 全身部位 melothesia:每星所落星座主管部位 + 度数上中下细分(早度=上/中度=中/晚度=下)。
+	genMelothesiaDom(perchart){
+		let objs = (perchart && perchart.objects) || [];
+		let rows = [];
+		STATUS_PLANET_IDS.forEach((id)=>{
+			let o = objs.find((x)=> x && x.id === id);
+			if(!o || !o.sign || !this.canDisplayPlanet(id)){ return; }
+			let parts = bodyPartsOf(String(o.sign).toLowerCase());
+			if(!parts || !parts.length){ return; }
+			let pos = (o.signlon != null) ? degreePosition(o.signlon) : '';
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(id, this.props.value)}&emsp;
+					{pos ? <span style={{color:'var(--horosa-muted, #999)'}}>{pos}</span> : null}&nbsp;{parts.join('、')}
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
+	// WI-01 出界:列出 |赤纬|>黄赤交角 的行星(月亮另标远行/回归)。
+	genOutOfBoundsDom(perchart){
+		if(!perchart || !Array.isArray(perchart.objects)){ return null; }
+		let rows = [];
+		perchart.objects.forEach((obj)=>{
+			if(!obj || !obj.outOfBounds){ return; }
+			if(!this.canDisplayPlanet(obj.id)){ return; }
+			let modeTxt = (obj.id === 'Moon' && obj.oobMode) ? (obj.oobMode === 'going' ? '（远行）' : '（回归）') : '';
+			rows.push(
+				<div key={randomStr(8)} className="horosa-classical-line">
+					{this.planetLabel(obj.id, this.props.value)}&nbsp;出界&nbsp;+{Number(obj.oobDelta).toFixed(2)}°{modeTxt}
+				</div>
+			);
+		});
+		return rows.length ? rows : null;
+	}
+
 	render(){
 		this.planetSet = new Set();
 		if(this.props.planetDisplay){
@@ -680,6 +977,7 @@ class AstroInfo extends Component{
 		let recpDom = this.genReceptionsDom(chart.receptions);
 		let mutDom = this.genMutualDom(chart.mutuals);
 		let surattacks = this.genSurroundAttacksDom(chart.surround ? chart.surround.attacks : {});
+		let besiegeDom = this.genBesiegementDom(chart.surround ? chart.surround.besiegement : []);
 		let surhouses = this.genSurroundHousesDom(chart.surround ? chart.surround.houses : {});
 		let surplanets = this.genSurroundPlanetsDom(chart.surround ? chart.surround.planets : {});
 
@@ -704,6 +1002,20 @@ class AstroInfo extends Component{
 				['黄道', zodiacal],
 				['宫位制', hsys],
 			];
+			// B3 格局速览(纯本盘数据,无需分析请求):命主星(1R) + 三围(围攻/围荣/围耀) + 互容 + 接纳。
+			const SIGN_RULER = { Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon', Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter' };
+			const objs = perchart.objects || [];
+			const ascSign = (perchart.houses && perchart.houses[0]) ? perchart.houses[0].sign : null;
+			const ruler1 = ascSign ? SIGN_RULER[ascSign] : null;
+			const ruler1Obj = ruler1 ? objs.find((o)=> o && o.id === ruler1) : null;
+			const cn = (id)=> (id ? (AstroText.AstroMsgCN[id] || id) : '--');
+			const besg = (chart.surround && chart.surround.besiegement) ? chart.surround.besiegement : [];
+			// 互容/接纳 均为 {normal:[],abnormal:[]};互容项 {planetA:{id},planetB:{id}},接纳项 {beneficiary,supplier}。
+			const mutsObj = chart.mutuals || {};
+			const mutList = [...(mutsObj.normal || []), ...(mutsObj.abnormal || [])];
+			const recsObj = chart.receptions || {};
+			const recCount = (recsObj.normal || []).length + (recsObj.abnormal || []).length;
+			const KIND_COL = { '围攻': 'var(--horosa-danger, #cf1322)', '围荣': 'var(--horosa-gold, #b8860b)', '围耀': 'var(--horosa-accent, #6c5ce7)' };
 			return (
 				<div className={`horosa-astro-info-scroll horosa-astro-content-scroll ${styles.scrollbar}`} style={astyle}>
 					<div className="horosa-info-card">
@@ -726,27 +1038,110 @@ class AstroInfo extends Component{
 							<strong>{perchart.timerStar ? (AstroText.AstroMsgCN[perchart.timerStar] || perchart.timerStar) : '--'}</strong>
 						</div>
 					</div>
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">格局速览</div>
+						<div className="horosa-info-row">
+							<span>命主星 1R</span>
+							<strong>{ruler1Obj ? `${cn(ruler1)} · 落${ruler1Obj.house ? (AstroText.AstroMsg[ruler1Obj.house] || ruler1Obj.house) : '?'} · ${cn(ruler1Obj.sign)}座` : (ruler1 ? cn(ruler1) : '--')}</strong>
+						</div>
+						<div className="horosa-info-row">
+							<span>三围</span>
+							<strong>{besg.length ? besg.map((b, i)=>(
+								<span key={`sg-${i}`} style={{ color: KIND_COL[b.kind] || 'inherit', marginLeft: i ? 8 : 0 }}>{b.kind}{cn(b.target)}{b.kind === '围攻' && b.severe ? '·凶剧' : ''}</span>
+							)) : '无围攻 / 围荣 / 围耀'}</strong>
+						</div>
+						<div className="horosa-info-row">
+							<span>互容</span>
+							<strong>{mutList.length ? mutList.map((it, i)=>{ const a = it.planetA ? it.planetA.id : null; const b = it.planetB ? it.planetB.id : null; return <span key={`mu-${i}`} style={{ marginLeft: i ? 8 : 0 }}>{cn(a)}{cn(b)}</span>; }) : '无'}</strong>
+						</div>
+						<div className="horosa-info-row">
+							<span>接纳</span>
+							<strong>{recCount ? `${recCount} 组` : '无'}</strong>
+						</div>
+					</div>
 				</div>
 			);
 		}
 
 		if(mode === 'classical'){
-			const hasReception = !!recpDom;
-			const hasMutual = !!mutDom;
+			const surr = chart.surround || {};
+			const declP = chart.declParallel || {};
+			// 「有内容」判据:部分 gen* 空数据仍返回空 div(非 null),故按源数据判,空则显示占位。
+			const has = {
+				anti: !!antiDom,
+				decl: !!((declP.parallel || []).length || Object.keys(declP.contraParallel || {}).length),
+				recp: !!recpDom,
+				mut: !!mutDom,
+				attacks: !!surattacks,
+				houses: Object.keys(surr.houses || {}).some((k) => (surr.houses[k] || []).length >= 2),
+				planets: Object.keys(surr.planets || {}).some((k) => (surr.planets[k] || []).length >= 2),
+			};
+			const empty = (txt) => <div className="horosa-empty-line">{txt || '暂无'}</div>;
+			// 卡片标题双语(中文 + 英文小字):有的人看不懂中文术语。无 subtab,所有卡片依次排列。
+			const card = (zh, en, dom, ok, emptyTxt) => (
+				<div className="horosa-info-card horosa-classical-card">
+					<div className="horosa-classical-card-title">
+						<span className="horosa-classical-zh">{zh}</span>
+						<span className="horosa-classical-en">{en}</span>
+					</div>
+					{ok ? dom : empty(emptyTxt)}
+				</div>
+			);
+			// 轻量分节标题(非交互,仅组织视觉)。
+			const section = (zh, en) => (
+				<div className="horosa-classical-section" key={`sec-${en}`}>
+					<span className="horosa-classical-section-zh">{zh}</span>
+					<span className="horosa-classical-section-en">{en}</span>
+				</div>
+			);
+			const oobDom = this.genOutOfBoundsDom(perchart);
+			const phasisDom = this.genPhasisDom(perchart);
+			const joyDom = this.genJoyDom(perchart);
+			const sectDom = this.genSectDom(perchart);
+			const feralDom = this.genFeralDom(perchart);
+			const apogeeDom = this.genApogeeDom(perchart);
+			const mansionDom = this.genMansionDom(perchart);
+			const degreeQualityDom = this.genDegreeQualityDom(perchart);
+			const specialDegreeDom = this.genSpecialDegreeDom(perchart);
+			const degreeLordsDom = this.genDegreeLordsDom(perchart);
+			const melothesiaDom = this.genMelothesiaDom(perchart);
+			// 不自带滚动:由外层 AstroChartMain 古典 TabPane 的单一滚动容器统管(避免双层滚动条),
+			// 古典卡片与下方寿命/十二分部/定位星同处一条滚动栏。
 			return (
-				<div className={`horosa-astro-info-scroll horosa-astro-content-scroll ${styles.scrollbar}`} style={astyle}>
-					<div className="horosa-info-card horosa-classical-card">
-						<div className="horosa-info-card-title">接纳</div>
-						{hasReception ? recpDom : <div className="horosa-empty-line">暂无接纳信息</div>}
-					</div>
-					<div className="horosa-info-card horosa-classical-card">
-						<div className="horosa-info-card-title">互容</div>
-						{hasMutual ? mutDom : <div className="horosa-empty-line">暂无互容信息</div>}
-					</div>
-					<div className="horosa-info-card horosa-classical-card">
-						<div className="horosa-info-card-title">围攻</div>
-						{surattacks || <div className="horosa-empty-line">暂无围攻信息</div>}
-					</div>
+				<div className={`horosa-astro-info-scroll horosa-classical-scroll ${styles.scrollbar}`}>
+					{/* 既有的关系/配置卡(接纳/互容/围攻/夹宫/夹星/纬照)置顶;映点/反映点已在别处展示,此处不重复。 */}
+					{section('格局补充', 'Configurations')}
+					{card('接纳', 'Reception', recpDom, has.recp, '暂无接纳信息')}
+					{card('互容', 'Mutual Reception', mutDom, has.mut, '暂无互容信息')}
+					{card('光线围攻', 'Besiegement by Rays', surattacks, has.attacks, '暂无围攻信息')}
+					{card('围攻详断', 'Besiegement Analysis · 三围 / 势 / 极 / 救', besiegeDom, !!besiegeDom, '无围攻/围荣/围耀')}
+					{card('夹宫', 'Enclosure by Houses', surhouses, has.houses, '暂无夹宫信息')}
+					{card('夹星', 'Enclosure by Planets', surplanets, has.planets, '暂无夹星信息')}
+					{/* 主宰星链 与 宫神星 归入格局补充 */}
+					<AstroDispositor value={this.props.value} />
+					{section('相位动态', 'Aspect Dynamics')}
+					{card('纬照', 'Declination Parallel', declParaDom, has.decl, '暂无纬照（同/反赤纬）')}
+					{/* 以下为本次新增的古典参数(逐行星状态 / 度数),按要求置于最后。 */}
+					{section('状态', 'Conditions')}
+					{card('出界', 'Out of Bounds', oobDom, !!oobDom, '无行星出界（赤纬皆在黄赤交角内）')}
+					{card('偕日相', 'Phasis', phasisDom, !!phasisDom, '暂无（星历未含日月五星）')}
+					{card('喜乐', 'Joy', joyDom, !!joyDom, '无行星处其喜乐宫')}
+					{card('宗派', 'Sect', sectDom, !!sectDom, '暂无宗派信息')}
+					{card('野逸', 'Feral', feralDom, !!feralDom, '无野逸行星（七政皆有相）')}
+					{card('远地点', 'Apogee · Number · Light', apogeeDom, !!apogeeDom, '暂无')}
+					{/* 行星状态盘 归入状态 */}
+					<AstroLifespan value={this.props.value} parts={['status']} />
+					{section('度数', 'Degrees')}
+					{card('月站', 'Lunar Mansions', mansionDom, !!mansionDom, '暂无月站（回归制，与恒星制 Nakshatra 并存）')}
+					{card('度数性质', 'Light / Dark / Empty / Smoky · Gender Degrees', degreeQualityDom, !!degreeQualityDom, '暂无')}
+					{card('特殊度数', 'Pitted / Azemene / Fortune Degrees', specialDegreeDom, !!specialDegreeDom, '无行星落陷度/慢病/增福度')}
+					{card('度数主星', 'Degree Lords · Monomoiria / Ninth / Face / Darijan', degreeLordsDom, !!degreeLordsDom, '暂无')}
+					{/* 十二分度 归入度数 */}
+					<AstroDodeca value={this.props.value} />
+					{section('医疗', 'Medical')}
+					{card('身体部位', 'Melothesia', melothesiaDom, !!melothesiaDom, '暂无')}
+					{section('寿命', 'Lifespan')}
+					<AstroLifespan value={this.props.value} parts={['method', 'life', 'medical']} />
 				</div>
 			);
 		}

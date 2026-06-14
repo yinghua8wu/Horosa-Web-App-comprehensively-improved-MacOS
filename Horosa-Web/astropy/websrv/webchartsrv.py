@@ -154,7 +154,8 @@ class WebChartSrv:
                 'surround': {
                     'planets': perchart.surroundPlanets(),
                     'attacks': perchart.surroundAttacks(),
-                    'houses': perchart.surroundHouses()
+                    'houses': perchart.surroundHouses(),
+                    'besiegement': perchart.besiegementDetail()
                 },
                 'guoStarSect': {
                     'houses': guostar.allTerm()
@@ -226,7 +227,8 @@ class WebChartSrv:
                 'surround': {
                     'planets': perchart.surroundPlanets(),
                     'attacks': perchart.surroundAttacks(),
-                    'houses': perchart.surroundHouses()
+                    'houses': perchart.surroundHouses(),
+                    'besiegement': perchart.besiegementDetail()
                 },
                 'guoStarSect': {
                     'houses': guostar.allTerm()

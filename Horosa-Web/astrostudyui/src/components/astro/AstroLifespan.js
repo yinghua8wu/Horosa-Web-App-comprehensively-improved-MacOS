@@ -9,9 +9,9 @@ import { chartIdOfKey } from '../../divination/engine/utils';
 import { astroSymbol, fmtNum, cardStyle, SmallTable } from './AstroExtraCommon';
 
 const METHODS = [
-	{ value: 'ptolemy', label: '托勒密' },
-	{ value: 'alcabitius', label: '阿尔卡比修斯' },
-	{ value: 'dorotheus', label: '多罗修斯' },
+	{ value: 'ptolemy', label: '托勒密', en: 'Ptolemy', desc: '释放位限 10/1/11/7/9（权重降序）；地平下及 8/12 宫排除' },
+	{ value: 'alcabitius', label: '阿尔卡比修斯', en: 'Alcabitius', desc: '增 8 宫；7/8/9 宫须星座性别合宗派；上升前 5° 入命' },
+	{ value: 'dorotheus', label: '多罗修斯', en: 'Dorotheus', desc: '托勒密诸位 + 阴阳星座×象限双合；无寿主则降级顺移' },
 ];
 const DIGNITY_CN = { domicile: '本垣', exaltation: '擢升', triplicity: '三分', term: '界', face: '十度' };
 const BAND_CN = { greatest: '大限', mean: '中限', least: '小限' };
@@ -66,34 +66,46 @@ class AstroLifespan extends Component {
 
 		const hy = res.hyleg;
 		const alc = res.alcocoden;
+		// 分区渲染:reorg 后古典tab把 行星状态盘 放「状态」节、其余寿命卡放「寿命」节(各自一个实例)。
+		// 默认(无 parts)= 全渲染,向后兼容。
+		const parts = this.props.parts || ['method', 'life', 'status', 'medical'];
+		const show = (k) => parts.indexOf(k) >= 0;
+		const activeMethod = METHODS.find((m) => m.value === this.state.method) || METHODS[0];
 
 		return (
 			<div style={{ paddingRight: 6 }}>
 				{/* 作者选择 */}
-				<div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-					<span style={{ fontWeight: 600, fontSize: 13 }}>寿命格局</span>
-					<span style={{ fontSize: 12, opacity: 0.7 }}>取主法：</span>
-					{METHODS.map((m) => (
-						<span
-							key={m.value}
-							onClick={() => this.setState({ method: m.value })}
-							style={{
-								cursor: 'pointer', fontSize: 12, padding: '2px 10px', borderRadius: 6,
-								border: '1px solid rgba(148,163,184,.4)',
-								background: this.state.method === m.value ? 'var(--horosa-accent, #6c5ce7)' : 'transparent',
-								// accent 实底必须配 on-accent(暗色下 accent 是浅金,白字会隐形)
-								color: this.state.method === m.value ? 'var(--horosa-on-accent, #fff)' : 'inherit',
-							}}
-						>{m.label}</span>
-					))}
-					<span style={{ fontSize: 12, opacity: 0.7, marginLeft: 'auto' }}>
-						{res.isDiurnal ? '日生盘' : '夜生盘'} · {res.birthType === 'conjunctional' ? '朔月型' : '望月型'}
-					</span>
+				{show('method') ? (
+				<div style={cardStyle}>
+					<div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+						<span style={{ fontWeight: 600, fontSize: 13 }}>寿命格局 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>Length of Life</span></span>
+						<span style={{ fontSize: 12, opacity: 0.7 }}>取主法：</span>
+						{METHODS.map((m) => (
+							<span
+								key={m.value}
+								onClick={() => this.setState({ method: m.value })}
+								style={{
+									cursor: 'pointer', fontSize: 12, padding: '2px 10px', borderRadius: 6,
+									border: '1px solid rgba(148,163,184,.4)',
+									background: this.state.method === m.value ? 'var(--horosa-accent, #6c5ce7)' : 'transparent',
+									// accent 实底必须配 on-accent(暗色下 accent 是浅金,白字会隐形)
+									color: this.state.method === m.value ? 'var(--horosa-on-accent, #fff)' : 'inherit',
+								}}
+							>{m.label}<span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>{m.en}</span></span>
+						))}
+						<span style={{ fontSize: 12, opacity: 0.7, marginLeft: 'auto' }}>
+							{res.isDiurnal ? '日生盘' : '夜生盘'} · {res.birthType === 'conjunctional' ? '朔月型' : '望月型'}
+						</span>
+					</div>
+					{/* 取主法说明随选择切换(让"点了有反应") */}
+					<div style={{ fontSize: 11, opacity: 0.65, marginTop: 7 }}>{activeMethod.label} {activeMethod.en}：{activeMethod.desc}</div>
 				</div>
+				) : null}
 
 				{/* 生命主候选 */}
+				{show('life') ? (
 				<div style={cardStyle}>
-					<div style={sectionTitle}>生命主（Hyleg）{hy ? <span>　→　{sym(hy.key)} {posText(hy.sign, hy.signlon)}（{houseText(hy.house)}）</span> : '　→　未定'}</div>
+					<div style={sectionTitle}>生命主（Hyleg<span style={{ fontWeight: 400, opacity: 0.65, fontSize: 12 }}> · {activeMethod.label}法</span>）{hy ? <span>　→　{sym(hy.key)} {posText(hy.sign, hy.signlon)}（{houseText(hy.house)}）</span> : '　→　未定'}</div>
 					<SmallTable
 						rowKey={(r) => r.key}
 						rows={res.candidates}
@@ -107,7 +119,10 @@ class AstroLifespan extends Component {
 					/>
 				</div>
 
+				) : null}
+
 				{/* 寿主星与寿数 */}
+				{show('life') ? (
 				<div style={cardStyle}>
 					<div style={sectionTitle}>寿主星（Alcocoden）与寿数</div>
 					{alc && alc.alcocoden ? (
@@ -129,9 +144,12 @@ class AstroLifespan extends Component {
 					)}
 				</div>
 
+				) : null}
+
 				{/* 盘主体系 */}
+				{show('life') ? (
 				<div style={cardStyle}>
-					<div style={sectionTitle}>盘主体系（占控 / 家主 / 盘主）</div>
+					<div style={sectionTitle}>盘主体系 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>Rulership System</span>（占控 / 家主 / 盘主）</div>
 					{res.rulers ? (
 						<div style={kv}>
 							<span>占控星 Epikratetor：{sym(res.rulers.epikratetor)}</span>
@@ -142,9 +160,12 @@ class AstroLifespan extends Component {
 					) : <span style={{ fontSize: 12, opacity: 0.7 }}>-</span>}
 				</div>
 
+				) : null}
+
 				{/* 行星状态盘 */}
+				{show('status') ? (
 				<div style={cardStyle}>
-					<div style={sectionTitle}>行星状态盘</div>
+					<div style={sectionTitle}>行星状态盘 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>Planetary Conditions</span></div>
 					<SmallTable
 						rowKey={(r) => r.planet}
 						rows={res.states.rows}
@@ -160,9 +181,12 @@ class AstroLifespan extends Component {
 					/>
 				</div>
 
+				) : null}
+
 				{/* 医疗危机 */}
+				{show('medical') ? (
 				<div style={cardStyle}>
-					<div style={sectionTitle}>医疗危机（Zoller 法 v1）</div>
+					<div style={sectionTitle}>医疗危机 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>Medical Crisis</span>（Zoller 法 v1）</div>
 					<div style={kv}>
 						<span>第六宫：{res.medical.sixthSign ? sn(res.medical.sixthSign) : '-'}</span>
 						<span>六宫主：{res.medical.sixthRuler ? sym(res.medical.sixthRuler) : '-'}</span>
@@ -173,6 +197,7 @@ class AstroLifespan extends Component {
 					</div>
 					<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>{res.medical.note}</div>
 				</div>
+				) : null}
 			</div>
 		);
 	}

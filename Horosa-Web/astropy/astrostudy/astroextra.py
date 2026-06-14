@@ -76,17 +76,6 @@ DIGNITY_SCORES = {
     'face': 1,
 }
 
-PARS_SPIRIT = 'Pars Spirit'
-
-LOT_FORMULAS = [
-    ('pars_eros_extra', 'Lot of Eros', const.VENUS),
-    ('pars_necessity_extra', 'Lot of Necessity', const.MERCURY),
-    ('pars_courage_extra', 'Lot of Courage', const.MARS),
-    ('pars_victory_extra', 'Lot of Victory', const.JUPITER),
-    ('pars_nemesis_extra', 'Lot of Nemesis', const.SATURN),
-]
-
-
 def norm360(value):
     return value % 360.0
 
@@ -197,8 +186,26 @@ def chart_params_from_jd(base, jd, pos=None):
     return params
 
 
-def swe_lon(body, jd):
-    xx, _ = swisseph.calc_ut(jd, PLANET_SWISS_IDS[body], swisseph.FLG_SWIEPH | swisseph.FLG_SPEED)
+# 坐标系中心:geo 地心 / helio 日心 / topo 站心(复合行星周期、多中心黄经分析需要)。geo 默认 flag=0 → 与改动前逐字一致。
+CENTER_FLAGS = {'geo': 0, 'helio': swisseph.FLG_HELCTR, 'topo': swisseph.FLG_TOPOCTR}
+
+
+def center_flag(center):
+    return CENTER_FLAGS.get(str(center or 'geo').lower(), 0)
+
+
+def swe_lon(body, jd, center='geo', lat=0.0, lon=0.0, alt=0.0):
+    c = str(center or 'geo').lower()
+    if c == 'topo':
+        # 站心必须先置观测点:否则 swisseph 冷启抛「geographic position has not been set」,
+        # 或复用上一次全局 set_topo 的位置(跨请求泄漏 → 非确定性、不可 golden)。
+        # 每次显式置点(无坐标→(0,0,0) 确定性兜底):永不抛、永不泄漏、同输入同输出。
+        try:
+            swisseph.set_topo(float(lon or 0.0), float(lat or 0.0), float(alt or 0.0))
+        except Exception:
+            pass
+    xx, _ = swisseph.calc_ut(jd, PLANET_SWISS_IDS[body],
+                             swisseph.FLG_SWIEPH | swisseph.FLG_SPEED | center_flag(c))
     return norm360(xx[0]), xx[3], xx
 
 
@@ -400,13 +407,8 @@ def almuten_table(perchart):
 
 
 def extra_lots(perchart):
-    points = {p['id']: p for p in chart_points(perchart, include_angles=True)}
-    for lot in perchart.getPars(perchart.chart):
-        points[lot.id] = object_to_dict(lot)
+    """阿拉伯点目录:单一来源(各点专属公式,昼夜反转已内置),按题归类,无重复。"""
     res = []
-    asc = points.get(const.ASC)
-    fortuna = points.get(const.PARS_FORTUNA)
-    spirit = points.get(PARS_SPIRIT)
     for lot in perchart.getPars(perchart.chart):
         obj = object_to_dict(lot)
         res.append({
@@ -415,28 +417,37 @@ def extra_lots(perchart):
             'lon': obj['lon'],
             'sign': obj['sign'],
             'signlon': obj['signlon'],
-            'formula': 'flatlib arabicparts registry',
-            'source': 'built_in',
-        })
-    for lot_id, label, planet_id in LOT_FORMULAS:
-        planet = points.get(planet_id)
-        if not asc or not planet:
-            continue
-        base = spirit if spirit else fortuna
-        if not base:
-            continue
-        lon = norm360(asc['lon'] + planet['lon'] - base['lon'])
-        res.append({
-            'id': lot_id,
-            'label': label,
-            'lon': lon,
-            'sign': sign_name_from_lon(lon),
-            'signlon': lon % 30,
-            'formula': 'ASC + planet - reference lot',
-            'planet': planet_id,
-            'reference': base['id'],
+            'category': _lot_category(obj['id']),
         })
     return res
+
+
+# 点的题别归类(中性词);未列入者归「其它」。
+_LOT_CATEGORY = {
+    'Pars Spirit': '核心', 'Pars Fortuna': '核心', 'Pars Faith': '核心', 'Pars Substance': '财帛',
+    'Pars Father': '亲属', 'Pars Mother': '亲属', 'Pars Brothers': '亲属', 'Pars Sons': '亲属',
+    'Pars Wedding [Male]': '婚配', 'Pars Wedding [Female]': '婚配',
+    'Pars Diseases': '疾厄', 'Pars Death': '疾厄', 'Pars Travel': '行旅', 'Pars Friends': '人际',
+    'Pars Enemies': '人际', 'Pars Saturn': '行星点', 'Pars Jupiter': '行星点', 'Pars Mars': '行星点',
+    'Pars Venus': '行星点', 'Pars Mercury': '行星点', 'Pars Horsemanship': '事务', 'Pars Life': '核心',
+    'Pars Radix': '核心', 'Pars Eros': '七点', 'Pars Necessity': '七点', 'Pars Courage': '七点',
+    'Pars Victory': '七点', 'Pars Nemesis': '七点',
+}
+
+
+def _lot_category(lot_id):
+    return _LOT_CATEGORY.get(lot_id, '其它')
+
+
+# WI-22 比尼/王者恒星:15 比尼星名录 + 四王者星(守望者);性质取托勒密行星对应(中性行星字标,
+# 土=Saturn 木=Jupiter 火=Mars 金=Venus 水=Mercury 日=Sun 月=Moon)。坐标/中文名由星历单一来源,此处仅作分类标注。
+_BEHENIAN_NATURE = {
+    'Algol': '土·木', 'Alcyone': '月·火', 'Aldebaran': '火', 'Capella': '火·水',
+    'Sirius': '木·火', 'Procyon': '水·火', 'Regulus': '火·木', 'Algorab': '火·土',
+    'Spica': '金·水', 'Arcturus': '火·木', 'Alphecca': '金·水', 'Antares': '火·木',
+    'Vega': '金·水', 'Deneb Algedi': '土·木', 'Fomalhaut': '金·水',
+}
+_ROYAL_WATCHER = {'Aldebaran': '东', 'Regulus': '北', 'Antares': '西', 'Fomalhaut': '南'}
 
 
 def fixed_star_hits(perchart, orb=1.0):
@@ -445,19 +456,479 @@ def fixed_star_hits(perchart, orb=1.0):
     hits = []
     for star in stars:
         slon = safe_float(getattr(star, 'lon', 0))
+        sid = getattr(star, 'id', '')
+        mag = getattr(star, 'mag', None)
+        watcher = _ROYAL_WATCHER.get(sid, '')
         for p in points:
             delta = angle_distance(slon, p['lon'])
             if delta <= orb:
                 hits.append({
-                    'star': getattr(star, 'id', ''),
+                    'star': sid,
+                    'cn': getattr(star, 'name', ''),
+                    'mag': safe_float(mag[0] if isinstance(mag, (tuple, list)) else mag, None),
                     'point': p['id'],
                     'orb': delta,
                     'starLon': slon,
                     'pointLon': p['lon'],
                     'sign': sign_name_from_lon(slon),
                     'signlon': slon % 30,
+                    'behenian': sid in _BEHENIAN_NATURE,
+                    'royal': watcher,
+                    'nature': _BEHENIAN_NATURE.get(sid, ''),
                 })
-    return sorted(hits, key=lambda item: item['orb'])
+    # 去重(星历名录含个别重名星条目,如 Alcyone),同一 星-点 取最紧容许度;
+    # 再按"王者→比尼→其余",同档容许度升序排序,凸显择时要星。
+    seen = {}
+    for h in hits:
+        k = (h['star'], h['point'])
+        if k not in seen or h['orb'] < seen[k]['orb']:
+            seen[k] = h
+
+    def _rank(h):
+        return (0 if h['royal'] else (1 if h['behenian'] else 2), h['orb'])
+    return sorted(seen.values(), key=_rank)
+
+
+def compute_classical_patterns(perchart):
+    """WI-08 古典格局:护卫 doryphory / 优势相位 overcoming(右旋三分四分六分) / 度数围攻 besieging-by-degree。"""
+    pts = {p['id']: p for p in chart_points(perchart, include_angles=False)}
+    try:
+        is_diurnal = bool(perchart.chart.isDiurnal())
+    except Exception:
+        is_diurnal = True
+    out = {'doryphory': [], 'overcoming': [], 'besieging': []}
+
+    def signed(a, b):
+        return ((a - b + 180.0) % 360.0) - 180.0
+
+    sun = pts.get(const.SUN)
+    merc_oriental = bool(sun and const.MERCURY in pts and signed(pts[const.MERCURY]['lon'], sun['lon']) < 0)
+    diurnal_planets = [const.SUN, const.JUPITER, const.SATURN] + ([const.MERCURY] if merc_oriental else [])
+    nocturnal_planets = [const.MOON, const.VENUS, const.MARS] + ([] if merc_oriental else [const.MERCURY])
+    sect_planets = diurnal_planets if is_diurnal else nocturnal_planets
+    seven = [const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS, const.JUPITER, const.SATURN]
+
+    # 护卫 doryphory:同宗行星于宗派光之前 7–15°(晨升侧)护卫。
+    light = const.SUN if is_diurnal else const.MOON
+    if light in pts:
+        ll = pts[light]['lon']
+        for pid in sect_planets:
+            if pid == light or pid not in pts:
+                continue
+            el = signed(pts[pid]['lon'], ll)
+            if -15.0 <= el <= -7.0:
+                out['doryphory'].append({'planet': pid, 'light': light, 'elong': round(el, 2)})
+
+    # 优势相位 overcoming:A 处 B 上方(右旋)第 9/10/11 座(三分/四分/六分压制)。
+    SIGNS = const.LIST_SIGNS
+    OVR = {8: 'trine', 9: 'square', 10: 'sextile'}
+    for a in seven:
+        for b in seven:
+            if a == b or a not in pts or b not in pts:
+                continue
+            try:
+                off = (SIGNS.index(pts[a]['sign']) - SIGNS.index(pts[b]['sign'])) % 12
+            except Exception:
+                continue
+            if off in OVR:
+                out['overcoming'].append({'over': a, 'under': b, 'aspect': OVR[off],
+                                          'overSign': pts[a]['sign'], 'underSign': pts[b]['sign']})
+
+    # 度数围攻 besieging-by-degree:目标被两凶星天体在 ±7° 内夹,其间无他星(区别于整宫围攻)。
+    malefics = [const.MARS, const.SATURN]
+    for tid in seven:
+        if tid in malefics or tid not in pts:
+            continue
+        t = pts[tid]['lon']
+        left = right = None
+        for mid in malefics:
+            if mid not in pts:
+                continue
+            el = signed(pts[mid]['lon'], t)
+            if -7.0 <= el < 0.0:
+                left = (mid, el)
+            elif 0.0 < el <= 7.0:
+                right = (mid, el)
+        if left and right:
+            between = any(
+                oid not in (tid, left[0], right[0]) and oid in pts and left[1] < signed(pts[oid]['lon'], t) < right[1]
+                for oid in seven)
+            if not between:
+                out['besieging'].append({'planet': tid, 'left': left[0], 'right': right[0],
+                                         'leftOrb': round(abs(left[1]), 2), 'rightOrb': round(abs(right[1]), 2)})
+    return out
+
+
+def compute_accidental_dignity(perchart):
+    """WI-16 偶然尊贵评分:角续果宫 / 行速 / 东西向 / 日下相 / 月相增减 / 会吉凶 / 喜乐 / 度数围攻 加权汇总。
+    标准权重(可入设置);与必然尊贵得分并列。返回每星 {planet, score, factors[]},降序。"""
+    SEVEN = [const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS, const.JUPITER, const.SATURN]
+    ANGULAR = {1, 4, 7, 10}
+    SUCCEDENT = {2, 5, 8, 11}
+    INNER = {const.MERCURY, const.VENUS}
+    OUTER = {const.MARS, const.JUPITER, const.SATURN}
+    MALEFICS = [const.MARS, const.SATURN]
+    objs = {o.id: o for o in perchart.chart.objects if getattr(o, 'id', None) in SEVEN}
+    sun = objs.get(const.SUN)
+
+    def signed(a, b):
+        return ((a - b + 180.0) % 360.0) - 180.0
+
+    rows = []
+    for pid in SEVEN:
+        o = objs.get(pid)
+        if not o:
+            continue
+        score = 0
+        parts = []
+        try:
+            hn = int(str(getattr(o, 'house', '') or '').replace('House', ''))
+        except Exception:
+            hn = 0
+        if hn in ANGULAR:
+            score += 5; parts.append('角宫+5')
+        elif hn in SUCCEDENT:
+            score += 3; parts.append('续宫+3')
+        elif hn:
+            score -= 2; parts.append('果宫-2')
+        ms = getattr(o, 'meanSpeed', None)
+        sp = getattr(o, 'lonspeed', None)
+        if ms is not None and sp is not None and pid not in (const.SUN, const.MOON):
+            if abs(sp) > abs(ms):
+                score += 2; parts.append('行速+2')
+            else:
+                score -= 2; parts.append('行迟-2')
+        if sun is not None and pid != const.SUN:
+            el = signed(o.lon, sun.lon)
+            if pid in OUTER and el < 0:
+                score += 2; parts.append('东出+2')
+            elif pid in INNER and el > 0:
+                score += 2; parts.append('西入+2')
+        ph = getattr(o, 'phase', None)
+        if ph == 'free':
+            score += 5; parts.append('自由光+5')
+        elif ph == 'combust':
+            score -= 5; parts.append('焦伤-5')
+        elif ph == 'cazimi':
+            score += 5; parts.append('核心+5')
+        if pid == const.MOON and sun is not None:
+            me = (o.lon - sun.lon) % 360.0
+            if 0 < me < 180:
+                score += 2; parts.append('增光+2')
+            else:
+                score -= 2; parts.append('减光-2')
+        for bid, w, lbl in ((const.JUPITER, 5, '会木+5'), (const.VENUS, 4, '会金+4'), (const.SATURN, -5, '会土-5'), (const.MARS, -4, '会火-4')):
+            if bid != pid and bid in objs and abs(signed(o.lon, objs[bid].lon)) <= 8.0:
+                score += w; parts.append(lbl)
+        if getattr(o, 'joy', False):
+            score += 5; parts.append('喜乐+5')
+        if pid not in MALEFICS:
+            left = right = False
+            for mid in MALEFICS:
+                if mid in objs:
+                    el = signed(objs[mid].lon, o.lon)
+                    if -7.0 <= el < 0.0:
+                        left = True
+                    elif 0.0 < el <= 7.0:
+                        right = True
+            if left and right:
+                score -= 5; parts.append('围攻-5')
+        rows.append({'planet': pid, 'score': score, 'factors': parts})
+    rows.sort(key=lambda r: r['score'], reverse=True)
+    return rows
+
+
+def compute_bonification(perchart):
+    """WI-12 吉化/凶化:被同类吉星(木/金)会合·凌驾·夹 = 吉化;被凶星(土/火) = 凶化。逐关键星汇总受处置。"""
+    pts = {p['id']: p for p in chart_points(perchart, include_angles=False)}
+    BEN = [const.JUPITER, const.VENUS]
+    MAL = [const.SATURN, const.MARS]
+    SIGNS = const.LIST_SIGNS
+    seven = [const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS, const.JUPITER, const.SATURN]
+    OVR = {8: '三分压制', 9: '四分压制', 10: '六分压制'}
+
+    def signed(a, b):
+        return ((a - b + 180.0) % 360.0) - 180.0
+
+    out = []
+    for tid in seven:
+        if tid not in pts:
+            continue
+        t = pts[tid]
+        bon = []
+        mal = []
+        for src in BEN + MAL:
+            if src == tid or src not in pts:
+                continue
+            rel = None
+            if abs(signed(t['lon'], pts[src]['lon'])) <= 8.0:
+                rel = '会合'
+            else:
+                try:
+                    off = (SIGNS.index(pts[src]['sign']) - SIGNS.index(t['sign'])) % 12
+                except Exception:
+                    off = -1
+                if off in OVR:
+                    rel = OVR[off]
+            if rel:
+                (bon if src in BEN else mal).append({'by': src, 'rel': rel})
+        if bon or mal:
+            out.append({'planet': tid, 'bonified': bon, 'maltreated': mal})
+    return out
+
+
+_PTOL = [0, 60, 90, 120, 180]
+_PTOL_CN = {0: '合', 60: '六分', 90: '四分', 120: '三分', 180: '冲'}
+
+
+def compute_aspect_dynamics(perchart):
+    """WI-10 入相/出相 · 传光 · 聚光 + WI-11 左右相位 · 不合意 · 交点弯曲。七政两两托勒密相位为底。"""
+    objs = {o.id: o for o in perchart.chart.objects if getattr(o, 'id', None) in
+            (const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS, const.JUPITER, const.SATURN)}
+    ids = [i for i in (const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS, const.JUPITER, const.SATURN) if i in objs]
+    SIGNS = const.LIST_SIGNS
+
+    def diff(la, lb):
+        return abs(((la - lb + 180.0) % 360.0) - 180.0)
+
+    def applying(a, b, asp):
+        la, lb = objs[a].lon, objs[b].lon
+        sa = getattr(objs[a], 'lonspeed', 0.0) or 0.0
+        sb = getattr(objs[b], 'lonspeed', 0.0) or 0.0
+        now = abs(diff(la, lb) - asp)
+        nxt = abs(diff(la + sa * 0.02, lb + sb * 0.02) - asp)
+        return nxt < now
+
+    aspects = []
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            for asp in _PTOL:
+                d = diff(objs[a].lon, objs[b].lon)
+                if abs(d - asp) <= 8.0:
+                    # 左右相位:发出星(慢者发向快者)在黄道序「之前」为右旋(dexter),「之后」为左旋(sinister)。
+                    off = (SIGNS.index(objs[a].sign) - SIGNS.index(objs[b].sign)) % 12
+                    hand = 'dexter' if off in (9, 10, 11, 8) else 'sinister'
+                    aspects.append({'a': a, 'b': b, 'aspect': asp, 'orb': round(abs(d - asp), 2),
+                                    'applying': applying(a, b, asp), 'hand': hand})
+                    break
+
+    # 传光 translation:某快星先出相于一星、再入相于另一星(两被连星彼此可无相)。
+    translation = []
+    speeds = {i: abs(getattr(objs[i], 'lonspeed', 0.0) or 0.0) for i in ids}
+    for mover in ids:
+        seps = [x for x in aspects if mover in (x['a'], x['b']) and not x['applying']]
+        apps = [x for x in aspects if mover in (x['a'], x['b']) and x['applying']]
+        for s in seps:
+            other_s = s['b'] if s['a'] == mover else s['a']
+            for ap in apps:
+                other_a = ap['b'] if ap['a'] == mover else ap['a']
+                if other_s != other_a and speeds.get(mover, 0) >= speeds.get(other_s, 0) and speeds.get(mover, 0) >= speeds.get(other_a, 0):
+                    translation.append({'mover': mover, 'from': other_s, 'to': other_a})
+    # 聚光 collection:某慢星同时被两更快星入相,而该两快星彼此不成相。
+    collection = []
+    aspect_set = {(x['a'], x['b']) for x in aspects} | {(x['b'], x['a']) for x in aspects}
+    for collector in ids:
+        incoming = [x for x in aspects if collector in (x['a'], x['b']) and x['applying']]
+        fasters = [(x['b'] if x['a'] == collector else x['a']) for x in incoming
+                   if speeds.get(x['b'] if x['a'] == collector else x['a'], 0) > speeds.get(collector, 0)]
+        for m in range(len(fasters)):
+            for n in range(m + 1, len(fasters)):
+                if (fasters[m], fasters[n]) not in aspect_set:
+                    collection.append({'collector': collector, 'p1': fasters[m], 'p2': fasters[n]})
+
+    # 不合意 aversion:星座相距 2/6/8/12(无托勒密相位)。
+    aversion = []
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            off = (SIGNS.index(objs[a].sign) - SIGNS.index(objs[b].sign)) % 12
+            if off in (1, 5, 7, 11):
+                aversion.append({'a': a, 'b': b})
+
+    # 交点弯曲 bending:行星距北/南交点 90°(±3°)处。
+    bending = []
+    try:
+        node = perchart.chart.getObject(const.NORTH_NODE)
+        nlon = node.lon
+        for i in ids:
+            for tgt, tag in ((nlon + 90.0, '北弯'), (nlon - 90.0, '南弯')):
+                if diff(objs[i].lon, tgt % 360.0) <= 3.0:
+                    bending.append({'planet': i, 'at': tag})
+    except Exception:
+        pass
+
+    return {'aspects': aspects, 'translation': translation, 'collection': collection,
+            'aversion': aversion, 'bending': bending}
+
+
+# 题别 → (宫位, 自然象征星, 中文)。逐题复合主星 = 该宫起始星座的必然尊贵胜出星 + 自然象征星。
+_TOPIC_HOUSES = [
+    ('父亲', 4, const.SATURN), ('母亲', 10, const.VENUS), ('兄弟', 3, const.MARS),
+    ('婚配', 7, const.VENUS), ('子女', 5, const.JUPITER), ('事业', 10, const.SUN),
+    ('财帛', 2, const.JUPITER), ('疾厄', 6, const.MARS), ('死亡', 8, const.SATURN),
+]
+
+
+def compute_topic_almuten(perchart):
+    """WI-13 逐题复合主星:每题取相关宫起始星座的必然尊贵积分胜出星 + 自然象征星。"""
+    out = []
+    for label, house_num, sig in _TOPIC_HOUSES:
+        winner = None
+        try:
+            house = perchart.chart.getHouse(const.LIST_HOUSES[house_num - 1])
+            dig = essential.getInfo(house.sign, house.signlon)
+            scores = {}
+            for key, sc in DIGNITY_SCORES.items():
+                oid = dig.get(key)
+                if oid:
+                    scores[oid] = scores.get(oid, 0) + sc
+            winner = max(scores.items(), key=lambda x: x[1])[0] if scores else None
+        except Exception:
+            winner = None
+        out.append({'topic': label, 'house': house_num, 'significator': sig, 'almuten': winner})
+    return out
+
+
+# WI-18 行星时(不等时):昼弧/夜弧各12等分;首时主星=值日星(按日出civil星期),
+# 其后逐时按迦勒底降序轮替;标出生所在时段。
+_DAY_RULER_BY_DOW = {  # swisseph.day_of_week:0=周一..6=周日
+    0: const.MOON, 1: const.MARS, 2: const.MERCURY, 3: const.JUPITER,
+    4: const.VENUS, 5: const.SATURN, 6: const.SUN,
+}
+_CHALDEAN_DESC = [const.SATURN, const.JUPITER, const.MARS, const.SUN, const.VENUS, const.MERCURY, const.MOON]
+
+
+def compute_planetary_hours(params):
+    geopos = [
+        geo_to_degree(params.get('lon', '0e00'), 'e', 'w'),
+        geo_to_degree(params.get('lat', '0n00'), 'n', 's'),
+        safe_float(params.get('altitude', 0.0), 0.0),
+    ]
+    zone = params.get('zone', '+00:00')
+    try:
+        birth = Datetime(params.get('date'), params.get('time', '12:00:00'), zone).jd
+    except Exception:
+        return None
+
+    def nxt(jd, flag):
+        _ret, tret = swisseph.rise_trans(jd, PLANET_SWISS_IDS[const.SUN], flag, geopos, 0.0, 0.0, swisseph.FLG_SWIEPH)
+        return tret[0]
+
+    try:
+        anchor = math.floor(birth - 0.5) + 0.5 - 1.0
+        sr0 = nxt(anchor, swisseph.CALC_RISE)
+        ss0 = nxt(sr0, swisseph.CALC_SET)
+        sr1 = nxt(ss0, swisseph.CALC_RISE)
+        ss1 = nxt(sr1, swisseph.CALC_SET)
+        sr2 = nxt(ss1, swisseph.CALC_RISE)
+    except Exception:
+        return None  # 极区无升降等
+
+    if sr1 <= birth < sr2:
+        sr, ss, srn = sr1, ss1, sr2
+    else:
+        sr, ss, srn = sr0, ss0, sr1
+
+    dow = swisseph.day_of_week(sr + zone_value(zone) / 24.0)
+    day_ruler = _DAY_RULER_BY_DOW.get(dow, const.SUN)
+    start_idx = _CHALDEAN_DESC.index(day_ruler)
+    day_h = (ss - sr) / 12.0
+    night_h = (srn - ss) / 12.0
+    hours = []
+    for i in range(24):
+        if i < 12:
+            t0, t1, diurnal = sr + day_h * i, sr + day_h * (i + 1), True
+        else:
+            j = i - 12
+            t0, t1, diurnal = ss + night_h * j, ss + night_h * (j + 1), False
+        hours.append({
+            'index': i + 1,
+            'ruler': _CHALDEAN_DESC[(start_idx + i) % 7],
+            'diurnal': diurnal,
+            'start': date_time_from_jd(t0, zone)['time'],
+            'end': date_time_from_jd(t1, zone)['time'],
+            'current': bool(t0 <= birth < t1),
+        })
+    return {
+        'dayRuler': day_ruler,
+        'sunrise': date_time_from_jd(sr, zone)['time'],
+        'sunset': date_time_from_jd(ss, zone)['time'],
+        'nextSunrise': date_time_from_jd(srn, zone)['time'],
+        'hours': hours,
+    }
+
+
+def compute_babylonian_stars(perchart):
+    """WI-27 参照星定位(巴比伦式):每七政最近的亮参照星(星等<2.5,近黄道)+ 黄经距;<1°标合。
+    以星历亮星近似 Normal Stars 参照集(非该专名全集逐字转录,避免数据转录失真)。"""
+    try:
+        stars = []
+        for s in perchart.getFixedStars():
+            mg = getattr(s, 'mag', None)
+            m = mg[0] if isinstance(mg, (tuple, list)) else mg
+            if m is not None and float(m) < 2.5 and abs(safe_float(getattr(s, 'lat', 0))) <= 12.0:
+                stars.append(s)
+    except Exception:
+        stars = []
+    if not stars:
+        return []
+    pts = {p['id']: p for p in chart_points(perchart, include_angles=False)}
+    seven = [const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS, const.JUPITER, const.SATURN]
+    out = []
+    for pid in seven:
+        if pid not in pts:
+            continue
+        plon = pts[pid]['lon']
+        best, bestd = None, 999.0
+        for s in stars:
+            d = angle_distance(safe_float(getattr(s, 'lon', 0)), plon)
+            if d < bestd:
+                bestd, best = d, s
+        if best is None:
+            continue
+        out.append({
+            'planet': pid,
+            'star': getattr(best, 'id', ''),
+            'cn': getattr(best, 'name', ''),
+            'dist': round(bestd, 2),
+            'conj': bool(bestd < 1.0),
+        })
+    return out
+
+
+def compute_egyptian_calendar(perchart, params):
+    """WI-28 埃及历法:天狼偕日升(Sothic/wepet-renpet 埃及岁首标志,出生年) + 上升十分宫(36 旬·夜时主,迦勒底面主)。
+    天狼升较贵故仅在格局分析按需算(非每次排盘)。"""
+    out = {}
+    try:
+        geopos = [
+            geo_to_degree(params.get('lon', '0e00'), 'e', 'w'),
+            geo_to_degree(params.get('lat', '0n00'), 'n', 's'),
+            safe_float(params.get('altitude', 0.0), 0.0),
+        ]
+        atmo = [1013.25, 15.0, 40.0, 0.25]
+        observer = [36.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+        flag = swisseph.FLG_SWIEPH | swisseph.HELFLAG_HIGH_PRECISION
+        date = str(params.get('date', ''))
+        year = int(date.split('/')[0]) if '/' in date else int(date[:4])
+        jd0 = swisseph.julday(year, 1, 1, 0.0)
+        tret = swisseph.heliacal_ut(jd0, geopos, atmo, observer, 'Sirius', swisseph.HELIACAL_RISING, flag)
+        sj = tret[0] if isinstance(tret, (list, tuple)) else tret
+        rising = date_time_from_jd(sj, params.get('zone', '+00:00'))['date']
+        out['siriusRising'] = rising
+        # 高纬度该年天狼或不可见,heliacal_ut 顺推至次年 → siriusYear 取实际升起年(日期前4位),勿与 siriusRising 矛盾。
+        ys = str(rising)[:4]
+        out['siriusYear'] = int(ys) if ys.isdigit() else year
+    except Exception:
+        out['siriusRising'] = None
+    try:
+        asc = perchart.chart.getAngle(const.ASC)
+        d = int(asc.lon // 10.0) % 36
+        out['decanIndex'] = d + 1
+        out['decanSign'] = asc.sign
+        out['decanRuler'] = essential.getInfo(asc.sign, asc.signlon).get('face')
+    except Exception:
+        pass
+    return out
 
 
 def analyze_chart(data):
@@ -476,6 +947,14 @@ def analyze_chart(data):
         'temperament': temperament,
         'extraLots': extra_lots(perchart),
         'fixedStarHits': fixed_star_hits(perchart, safe_float(data.get('fixedStarOrb', 1.0), 1.0)),
+        'classicalPatterns': compute_classical_patterns(perchart),
+        'accidentalDignity': compute_accidental_dignity(perchart),
+        'bonification': compute_bonification(perchart),
+        'aspectDynamics': compute_aspect_dynamics(perchart),
+        'topicAlmuten': compute_topic_almuten(perchart),
+        'planetaryHours': compute_planetary_hours(params),
+        'egyptianCalendar': compute_egyptian_calendar(perchart, params),
+        'babylonianStars': compute_babylonian_stars(perchart),
     }
 
 
@@ -517,11 +996,14 @@ def calc_ingresses(start_jd, end_jd, zone, planets):
                     return norm180(l - cur_sign * 30.0)
                 hit_jd = refine_crossing(f, jd, nxt)
                 hit_lon, hit_speed, _ = swe_lon(body, hit_jd)
+                # 入座符号取「已知的进入星座」cur_sign,而非由 hit_lon 反推:
+                # 求根可能收敛到边界下侧(如 29.9999°),sign_name_from_lon 会误判成「离开的星座」。
+                # cur_sign = nxt 时刻所在星座 = 实际进入星座(顺逆行皆然),不受浮点边界抖动影响。
                 events.append({
                     **date_time_from_jd(hit_jd, zone),
                     'type': 'ingress',
                     'body': body,
-                    'toSign': sign_name_from_lon(hit_lon),
+                    'toSign': const.LIST_SIGNS[cur_sign],
                     'lon': hit_lon,
                     'speed': hit_speed,
                 })
@@ -617,6 +1099,19 @@ def eclipse_type(retflag, lunar=False):
     return '/'.join(types) if types else 'eclipse'
 
 
+def _eclipse_band(digit):
+    # WI-23 食分分档:1–2 小 / 3–6 中 / 7–11 大 / ≥12 全(月食 umbral 可 >12 仍为全食)。
+    if digit is None:
+        return None
+    if digit < 3.0:
+        return '小'
+    if digit < 7.0:
+        return '中'
+    if digit < 12.0:
+        return '大'
+    return '全'
+
+
 def calc_eclipses(start_jd, end_jd, zone):
     events = []
     jd = start_jd - 1
@@ -627,6 +1122,12 @@ def calc_eclipses(start_jd, end_jd, zone):
             break
         if e_jd >= start_jd:
             sun_lon, _, _ = swe_lon(const.SUN, e_jd)
+            try:
+                _r, _geo, sattr = swisseph.sol_eclipse_where(e_jd, swisseph.FLG_SWIEPH)
+                mag = float(sattr[0])
+            except Exception:
+                mag = None
+            digit = round(mag * 12.0, 1) if mag is not None else None
             events.append({
                 **date_time_from_jd(e_jd, zone),
                 'type': 'solar_eclipse',
@@ -635,6 +1136,9 @@ def calc_eclipses(start_jd, end_jd, zone):
                 'lon': sun_lon,
                 'sign': sign_name_from_lon(sun_lon),
                 'signlon': sun_lon % 30,
+                'magnitude': mag,
+                'digit': digit,
+                'band': _eclipse_band(digit),
             })
         jd = e_jd + 1
     jd = start_jd - 1
@@ -645,6 +1149,12 @@ def calc_eclipses(start_jd, end_jd, zone):
             break
         if e_jd >= start_jd:
             moon_lon, _, _ = swe_lon(const.MOON, e_jd)
+            try:
+                _r, lattr = swisseph.lun_eclipse_how(e_jd, [0.0, 0.0, 0.0], swisseph.FLG_SWIEPH)
+                mag = float(lattr[0])   # 本影食分(>1 即全食)
+            except Exception:
+                mag = None
+            digit = round(mag * 12.0, 1) if mag is not None else None
             events.append({
                 **date_time_from_jd(e_jd, zone),
                 'type': 'lunar_eclipse',
@@ -653,6 +1163,9 @@ def calc_eclipses(start_jd, end_jd, zone):
                 'lon': moon_lon,
                 'sign': sign_name_from_lon(moon_lon),
                 'signlon': moon_lon % 30,
+                'magnitude': mag,
+                'digit': digit,
+                'band': _eclipse_band(digit),
             })
         jd = e_jd + 1
     return sorted(events, key=lambda item: item['jd'])
@@ -1152,8 +1665,13 @@ def compute_planet_cycles(data):
         aspect = float(data.get('aspect', 0))
     except Exception:
         aspect = 0.0
+    # 中心透传:地心走原调用(golden 字节级不变);日心/站心加 center 旗标(全局周期,topo 无经纬≈geo)。
+    center = str(data.get('center', 'geo') or 'geo').lower()
+    _extra_flag = center_flag(center) if center in ('helio', 'topo') else 0
 
     def _lon(jd_, planet):
+        if _extra_flag:
+            return swisseph.calc_ut(jd_, planet, swisseph.FLG_SWIEPH | _extra_flag)[0][0]
         return swisseph.calc_ut(jd_, planet)[0][0]
 
     def _signed_diff(jd_):
@@ -1192,7 +1710,7 @@ def compute_planet_cycles(data):
         'events': results,
         'startYear': start_year, 'endYear': end_year,
         'p1': str(data.get('p1', 'Jupiter')), 'p2': str(data.get('p2', 'Saturn')),
-        'aspect': aspect,
+        'aspect': aspect, 'center': center,
     }
 
 

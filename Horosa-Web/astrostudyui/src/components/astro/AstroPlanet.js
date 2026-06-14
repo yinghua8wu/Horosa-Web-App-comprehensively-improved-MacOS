@@ -10,6 +10,10 @@ import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import styles from '../../css/styles.less';
 import { XQCard as Card } from '../xq-ui';
 
+// WI-02 偕日相中文口径(中性词)。
+const PLANET_PHASE_LABEL = { cazimi: '核心', combust: '焦伤', underBeams: '日光束下', free: '自由光' };
+const PLANET_PHASIS_EVENT_LABEL = { morningRising: '晨星初现', eveningSetting: '昏星初没' };
+
 class AstroPlanet extends Component{
 
 	constructor(props) {
@@ -333,7 +337,59 @@ class AstroPlanet extends Component{
 										<Col span={ctSpan} style={{fontFamily: AstroConst.NormalFont}}>
 											{AstroText.AstroMsg[obj.sunPos]}
 										</Col>
-									</Row>	
+									</Row>
+								)
+							}
+							{
+								obj.outOfBounds && (
+									<Row gutter={12}>
+										<Col span={titleSpan}>出界</Col>
+										<Col span={ctSpan} style={{fontFamily: AstroConst.NormalFont}}>
+											+{Number(obj.oobDelta).toFixed(2)}°{obj.id === 'Moon' && obj.oobMode ? (obj.oobMode === 'going' ? '（远行）' : '（回归）') : ''}
+										</Col>
+									</Row>
+								)
+							}
+							{
+								obj.phase && (
+									<Row gutter={12}>
+										<Col span={titleSpan}>偕日相</Col>
+										<Col span={ctSpan} style={{fontFamily: AstroConst.NormalFont}}>
+											{PLANET_PHASE_LABEL[obj.phase] || obj.phase}
+											{obj.phasisElong != null ? ` (距日 ${Number(obj.phasisElong).toFixed(1)}°)` : ''}
+											{obj.phasisEvent ? `（${PLANET_PHASIS_EVENT_LABEL[obj.phasisEvent] || obj.phasisEvent}）` : ''}
+										</Col>
+									</Row>
+								)
+							}
+							{
+								obj.joy && (
+									<Row gutter={12}>
+										<Col span={titleSpan}>喜乐</Col>
+										<Col span={ctSpan} style={{fontFamily: AstroConst.NormalFont}}>
+											{obj.joyHouse}宫
+										</Col>
+									</Row>
+								)
+							}
+							{
+								obj.ofSect !== undefined && (
+									<Row gutter={12}>
+										<Col span={titleSpan}>宗派</Col>
+										<Col span={ctSpan} style={{fontFamily: AstroConst.NormalFont}}>
+											{obj.ofSect ? '同宗' : '异宗'}
+										</Col>
+									</Row>
+								)
+							}
+							{
+								obj.feral && (
+									<Row gutter={12}>
+										<Col span={titleSpan}>野逸</Col>
+										<Col span={ctSpan} style={{fontFamily: AstroConst.NormalFont}}>
+											无相
+										</Col>
+									</Row>
 								)
 							}
 							{

@@ -73,6 +73,18 @@ export function buildFacts(result){
 			combustion: cid === 'Sun' ? null : combustionState(o.lon, sunLon),
 			orientality: cid === 'Sun' ? null : orientalityOf(o.lon, sunLon),
 			hayyiz: o.hayyiz,
+			outOfBounds: !!o.outOfBounds,
+			oobDelta: o.oobDelta != null ? o.oobDelta : null,
+			phase: o.phase || null,
+			phasisEvent: o.phasisEvent || null,
+			joy: !!o.joy,
+			ofSect: o.ofSect !== undefined ? !!o.ofSect : null,
+			mansion: o.mansion || null,
+			degreeGender: o.degreeGender || null,
+			feral: !!o.feral,
+			monomoiria: o.monomoiria || null,
+			ninthPart: o.ninthPart || null,
+			darijan: o.darijan || null,
 		};
 	});
 

@@ -7,9 +7,6 @@ import AstroPlanet from './AstroPlanet';
 import AstroLots from './AstroLots';
 import AstroPredictPlanetSign from './AstroPredictPlanetSign';
 import AstroAnalysisLab from './AstroAnalysisLab';
-import AstroLifespan from './AstroLifespan';
-import AstroDodeca from './AstroDodeca';
-import AstroDispositor from './AstroDispositor';
 import AspSelector from './AspSelector';
 import ChartDisplaySelector from './ChartDisplaySelector';
 import PlanetSelector from './PlanetSelector';
@@ -889,9 +886,7 @@ class AstroChartMain extends Component{
 								showAstroMeaning={this.props.showAstroMeaning}
 								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 							/>
-							<AstroLifespan value={chartObj} />
-							<AstroDodeca value={chartObj} />
-							<AstroDispositor value={chartObj} />
+							{/* 寿命/十二分度/主宰星链 已并入 AstroInfo 古典分节(状态/度数/格局补充/寿命),此处不再单列 */}
 							</div>
 					</TabPane>
 						<TabPane tab="可能性" key="5">
