@@ -9,12 +9,12 @@
 **把所有玄学放进一个原生 macOS 软件中**<br />
 *Every kind of metaphysics, in one native macOS app*
 
-[![Version](https://img.shields.io/badge/version-2.6.6-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
+[![Version](https://img.shields.io/badge/version-2.6.7-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.6/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.7/Horosa-Installer-macos-arm64-offline.pkg) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -33,7 +33,7 @@
 
 > Regular users grab the offline installer and open it like any finished macOS app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.6/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.7/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合：Apple Silicon · macOS 12+ · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -95,7 +95,18 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.6.6 beta
+## 本次更新 · What's New in v2.6.7 beta
+
+这一版主线是**古典占星补全 + 围攻详断 + AI 古典挂载** / This release headlines the **classical-astrology augmentation, besiegement analysis, and AI classical mount**:
+
+- **古典 · 命盘参数** —— 出界 / 偕日相（含偕日升没）/ 喜乐 / 宗派 / 野逸 / 度数性质（明暗空烟·阴阳）/ 二十八月站 / 远地点 / 单度主星·九分·Darijan，逐曜列于「古典」标签。/ Out of Bounds, phasis (with heliacal rising-setting), joy, sect, feral, degree quality & gender, the 28 mansions, apogee, monomoiria·ninth-part·Darijan — per planet on the Classical tab.
+- **古典 · 格局分析** —— 护卫 / 优势相位 / 相位动态（入相出相·左右旋·传光·聚光·不合意·交点弯曲）/ 逐题主星 / 偶然尊贵 / 比尼·王者恒星 / 行星时 / 埃及历 / 巴比伦参照星 / 交食食分。/ Doryphory, overcoming, aspect dynamics, topical almutens, accidental dignity, Behenian·Royal stars, planetary hours, Egyptian calendar, Babylonian reference stars, eclipse digits.
+- **围攻详断（十六式）** —— 三围（火土围攻凶 / 金木围荣富 / 日月围耀贵）+ 春秋势 + 宰执夏冬 + 协防截击 + 围魏救赵 + 日木互容制约 + 逆行。/ Sixteen-rule besiegement: three siege types + spring/autumn momentum + overcoming season + interception defense + counter-besiegement + Sun/Jupiter mutual-reception restraint + retrogradation.
+- **AI 古典挂载** —— AI 分析 / 导出快照新增「古典」段（逐曜古典状态 + 围攻详断），四同步（导出 / 导出设置 / 挂载 / 储存）一致；「信息」标签新增格局速览。/ The AI analysis/export snapshot gains a "Classical" section (per-planet classical state + besiegement), consistent across all four mirrors; the Info tab gains a configurations overview.
+
+> 命盘其余计算与 v2.6.6 完全一致。/ Outside these additions, every chart computation is identical to v2.6.6.
+
+### 旧版 · What's New in v2.6.6 beta
 
 这一版主线是**主限法（Primary Directions）全面升级**与 **AI 报告打磨** / This release headlines a **comprehensive Primary Directions upgrade** plus **AI-report polish**:
 

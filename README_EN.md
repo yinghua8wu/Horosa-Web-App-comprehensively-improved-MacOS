@@ -8,12 +8,12 @@
 
 **Every kind of metaphysics, in one native macOS app**
 
-[![Version](https://img.shields.io/badge/version-2.6.6-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
+[![Version](https://img.shields.io/badge/version-2.6.7-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.6)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.6/Horosa-Installer-macos-arm64-offline.pkg) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.7/Horosa-Installer-macos-arm64-offline.pkg) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@ This repository is the macOS delivery of that app: the application source, the s
 
 Regular users should go straight to the offline installer and open Horosa like any other macOS app.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.6/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.7/Horosa-Installer-macos-arm64-offline.pkg)**
 
 Best for:
 
@@ -91,7 +91,18 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## What's New in v2.6.6 beta
+## What's New in v2.6.7 beta
+
+This release headlines the **classical-astrology augmentation, besiegement analysis, and AI classical mount**:
+
+- **Classical · natal parameters** — Out of Bounds, phasis (with heliacal rising-setting), joy, sect, feral, degree quality & gender, the 28 lunar mansions, apogee, monomoiria·ninth-part·Darijan — per planet on the Classical tab.
+- **Classical · configuration analysis** — doryphory, overcoming, aspect dynamics (applying-separating / dexter-sinister / translation / collection / aversion / nodal bending), topical almutens, accidental dignity, Behenian·Royal stars, planetary hours, Egyptian calendar, Babylonian reference stars, eclipse digits.
+- **Besiegement analysis (sixteen rules)** — three siege types (Mars-Saturn malefic / Venus-Jupiter benefic-frame / Sun-Moon glory) + spring/autumn momentum + overcoming season + interception defense + counter-besiegement + Sun/Jupiter mutual-reception restraint + retrogradation.
+- **AI classical mount** — the AI analysis/export snapshot gains a "Classical" section (per-planet classical state + besiegement), consistent across all four mirrors (export / export-settings / mount / storage); the Info tab gains a configurations overview.
+
+> Outside these additions, every chart computation is identical to v2.6.6.
+
+### Previously · What's New in v2.6.6 beta
 
 This release headlines a **comprehensive Primary Directions upgrade** plus **AI-report polish**:
 
