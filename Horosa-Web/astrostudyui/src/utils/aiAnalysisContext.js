@@ -1933,6 +1933,10 @@ function hasMatchingSavedAstroSnapshot(record){
 // 古典格局派生分析(analyze_chart)按需 fetch — 优雅降级(失败/异常返回 '',不影响 AI 主体)。
 // ~50ms 级(仅极区 heliacal 才慢),只在 AI 实际取数时拉,绝不进每盘预建快照 → 信息tab 不受拖累。
 async function fetchClassicalAnalysisSection(params){
+	// 守 (HIGH-5):缺 date/zone/lat/lon 任一都静默 skip,后端必校验,缺则 4xx 易经 silent 漏到顶栏。
+	if(!params || !params.date || !params.zone || params.lat === undefined || params.lat === null || params.lon === undefined || params.lon === null){
+		return '';
+	}
 	try{
 		const data = await request(`${Constants.ServerRoot}/astroextra/analysis`, {
 			body: JSON.stringify({ ...params, fixedStarOrb: 1 }),
@@ -1966,22 +1970,21 @@ async function buildChartContext(source){
 			reusedStoredSnapshot: true,
 		};
 	}else{
-		const rsp = await fetchChart({
-			...params,
-			includePrimaryDirection: false,
-		}, {
-			silent: true,
-			timeoutMs: 20000,
-		});
-		if(!rsp || !rsp.Result){
-			throw new Error('chart.context.failed');
+		// 修(HIGH-6):fetchChart 失败时不再 throw(原代码 throw 上传至 AI 主流程 → 红屏「构造命盘上下文失败」)。
+		// 优雅退化:返回空 content + reused-snapshot-style meta,AI 可降级使用既有片段或提示用户。
+		let rsp = null;
+		try{
+			rsp = await fetchChart({ ...params, includePrimaryDirection: false }, { silent: true, timeoutMs: 20000 });
+		}catch(e){
+			rsp = null;
 		}
-		content = `${buildAstroSnapshotContent(rsp.Result, fields) || ''}`.trim();
+		content = (rsp && rsp.Result) ? `${buildAstroSnapshotContent(rsp.Result, fields) || ''}`.trim() : '';
 		meta = {
 			sourceType: 'chart',
 			sourceId: source.id,
 			birth: record.birth || '',
 			zone: record.zone || '',
+			chartFetchFailed: !(rsp && rsp.Result),
 		};
 	}
 	// 古典格局派生分析(护卫/优势相位/相位动态/逐题主星/偶然尊贵/恒星/行星时/埃及历/巴比伦)按需拼入 → AI 挂载不遗漏。

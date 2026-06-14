@@ -5322,7 +5322,8 @@ async function fetchAstroClassicalAnalysisSectionForExport(){
 			date: raw.date || birthParts[0],
 			time: raw.time || birthParts[1] || '12:00:00',
 		};
-		if(!params.date){
+		// 守 (HIGH-4):缺 date/zone/lat/lon 任一都静默 skip(后端必校验,缺则 4xx)。
+		if(!params.date || !params.zone || params.lat === undefined || params.lat === null || params.lon === undefined || params.lon === null){
 			return '';
 		}
 		const data = await request(`${ExportConstants.ServerRoot}/astroextra/analysis`, {

@@ -445,7 +445,7 @@ export function buildInfoSection(chartObj, fields, options = {}){
 			const dig = item && item.supplierRulerShip;
 			if(!dig) return false;
 			const arr = Array.isArray(dig) ? dig : [dig];
-			return arr.some((d)=> d === 'exile' || d === 'fall' || d === 'detriment');
+			return arr.some((d)=> d === 'exile' || d === 'fall');   // 全栈代码库只产 exile/fall(detriment 不存在,删死分支)
 		};
 		lines.push('接纳');
 		lines.push('正接纳：');
@@ -637,10 +637,11 @@ function buildPlanetSection(chartObj){
 		if(obj.house){
 			lines.push(`落宫：${msg(obj.house)}`);
 		}
-		// FIX-7 月宿 nakshatra(印度盘场景关键;参 AstroPlanet.js:155,205)。
+		// FIX-7 月宿 nakshatra(印度盘场景关键;参 AstroPlanet.js:155,205)。lord 中文化用 AstroConst.NAK_LORD_CN
+		// (含 7 行星 + Rahu/Ketu),勿用 AstroMsg(那是星历字体 glyph,会输出 'A/B/C')。
 		const nak = nakshatras[id];
 		if(nak && nak.index){
-			const lordCn = AstroText.AstroMsg && AstroText.AstroMsg[nak.lord] ? AstroText.AstroMsg[nak.lord] : (nak.lord || '');
+			const lordCn = AstroConst.NAK_LORD_CN && AstroConst.NAK_LORD_CN[nak.lord] ? AstroConst.NAK_LORD_CN[nak.lord] : (nak.lord || '');
 			lines.push(`月宿：第${nak.index}宿 ${nak.name || ''}${nak.label ? `（${nak.label}）` : ''} 第${nak.pada || '?'}步·宿主${lordCn}`);
 		}
 		if(obj.antisciaPoint){
@@ -846,18 +847,29 @@ function buildDispositorSection(chartObj){
 	const houses = chart.houses || [];
 	if(houses.length){
 		const SIGN_RULER = { Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon', Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter' };
+		// CRASH-1 修:perchart.py 返回的 houses 数组按黄经排序(House8/9/10/11/12/1/2/3/4/5/6/7),
+		// 索引 idx 与真宫号不对应。必须从 h.id ("House1".."House12") 提取真号,再按宫号 1..12 升序排。
+		// 旧 `idx+1` 会把整张宫神星表错位 → 所有逐宫断语污染。同源 AstroDispositor.js:50 `houseNum(h.id)`。
 		const houseLines = [];
-		houses.forEach((h, idx)=>{
-			if(!h || !h.sign) return;
-			const houseNum = idx + 1;
-			const ruler = SIGN_RULER[h.sign];
+		const rows = [];
+		houses.forEach((h)=>{
+			if(!h || !h.sign || !h.id) return;
+			const m = /House\s*(\d+)/.exec(String(h.id));
+			if(!m) return;
+			const houseNum = parseInt(m[1], 10);
+			if(!houseNum || houseNum < 1 || houseNum > 12) return;
+			rows.push({ houseNum, sign: h.sign });
+		});
+		rows.sort((a, b)=> a.houseNum - b.houseNum);
+		rows.forEach(({ houseNum, sign })=>{
+			const ruler = SIGN_RULER[sign];
 			const rulerObj = ruler ? objectMap[ruler] : null;
 			if(ruler && rulerObj){
 				const rh = rulerObj.house ? msg(rulerObj.house) : '';
 				const rs = rulerObj.sign ? msg(rulerObj.sign) : '';
-				houseLines.push(`${houseNum}宫(${msg(h.sign)})：宫主 ${msg(ruler)} 落 ${rh} ${rs}`);
+				houseLines.push(`${houseNum}宫(${msg(sign)})：宫主 ${msg(ruler)} 落 ${rh} ${rs}`);
 			} else if(ruler){
-				houseLines.push(`${houseNum}宫(${msg(h.sign)})：宫主 ${msg(ruler)}`);
+				houseLines.push(`${houseNum}宫(${msg(sign)})：宫主 ${msg(ruler)}`);
 			}
 		});
 		if(houseLines.length){
@@ -967,13 +979,16 @@ function buildLifespanSection(chartObj){
 			lines.push(`${lifespanName(c.key)} ${hs}·${ah}${rk ? '·' + rk : ''}${rsn}`);
 		});
 	}
-	// FIX-8 Alcocoden 全字段(viaDignity/angularity/band/modifiers)。
+	// FIX-8 Alcocoden 全字段(viaDignity/angularity/band/modifiers);英文 token 中文化。
+	const VIA_DIG = { ruler: '本垣', exalt: '擢升', triplicity: '三分', term: '界', face: '面 / 十度' };
+	const ANGLR = { angular: '角宫', succedent: '续宫', cadent: '果宫' };
+	const BAND_CN = { greatest: '大限', mean: '中限', least: '小限', max: '大限', min: '小限' };
 	if(res.alcocoden){
 		const a = res.alcocoden;
 		const detail = [];
-		if(a.viaDignity){ detail.push(`经${a.viaDignity}`); }
-		if(a.angularity){ detail.push(a.angularity); }
-		if(a.band){ detail.push(`限 ${a.band}`); }
+		if(a.viaDignity){ detail.push(`经${VIA_DIG[a.viaDignity] || a.viaDignity}`); }
+		if(a.angularity){ detail.push(ANGLR[a.angularity] || a.angularity); }
+		if(a.band){ detail.push(`限 ${BAND_CN[a.band] || a.band}`); }
 		if(a.baseYears !== undefined){ detail.push(`基础${a.baseYears}年`); }
 		if(detail.length){ lines.push(`寿主星细节：${detail.join('；')}`); }
 		if(Array.isArray(a.modifiers) && a.modifiers.length){
@@ -988,10 +1003,13 @@ function buildLifespanSection(chartObj){
 		}
 	}
 	// FIX-9 医疗危机 Zoller v1(sixthSign/sixthRuler/hylegAfflictions/bodyHyleg/note)。
+	// HIGH-2 修:lifespan 引擎 sixth.sign 来自 facts.houses(全 lowercase 'virgo'/'pisces');msg() 仅识 PascalCase
+	// → 直出原英文。先首字大写再 msg(),与逐曜古典段 sign 输出一致。
+	const capSign = (s)=> (s && typeof s === 'string') ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 	if(res.medical){
 		const m = res.medical;
 		const mp = [];
-		if(m.sixthSign){ mp.push(`六宫${msg(m.sixthSign)}`); }
+		if(m.sixthSign){ mp.push(`六宫${msg(capSign(m.sixthSign))}`); }
 		if(m.sixthRuler){ mp.push(`六宫主 ${lifespanName(m.sixthRuler)}`); }
 		if(mp.length){ lines.push(`医疗危机：${mp.join('；')}`); }
 		if(Array.isArray(m.hylegAfflictions) && m.hylegAfflictions.length){
@@ -1003,17 +1021,21 @@ function buildLifespanSection(chartObj){
 		}
 		if(m.note){ lines.push(`备注：${m.note}`); }
 	}
-	// FIX-10 行星状态盘 states.rows(hayyiz/sunState/orient/motion/inSect/house)。
+	// FIX-10 行星状态盘 states.rows;全部英文 raw 字段中文化;inSect 是 boolean(非字串) → 显式判 true/false。
+	const STATE_HAYYIZ = { Hayyiz: '得时得地', DemiHayyiz: '半得', InWrongPos: '失位', None: '' };
+	const STATE_SUN = { cazimi: '核心', combust: '焦伤', under_beams: '日光束下', underBeams: '日光束下', free: '自由光' };
+	const STATE_ORIENT = { oriental: '东出', occidental: '西入' };
+	const STATE_MOTION = { retro: '逆行', direct: '顺行', stationary: '停滞' };
 	if(res.states && Array.isArray(res.states.rows) && res.states.rows.length){
 		lines.push('行星状态盘：');
 		res.states.rows.forEach((row)=>{
 			if(!row || !row.planet) return;
 			const parts = [];
-			if(row.hayyiz){ parts.push(row.hayyiz); }
-			if(row.sunState){ parts.push(row.sunState); }
-			if(row.orient){ parts.push(row.orient); }
-			if(row.motion){ parts.push(row.motion); }
-			if(row.inSect){ parts.push(row.inSect); }
+			if(row.hayyiz && row.hayyiz !== 'None'){ const v = STATE_HAYYIZ[row.hayyiz]; if(v) parts.push(v); }
+			if(row.sunState && row.sunState !== 'None'){ parts.push(STATE_SUN[row.sunState] || row.sunState); }
+			if(row.orient){ parts.push(STATE_ORIENT[row.orient] || row.orient); }
+			if(row.motion){ parts.push(STATE_MOTION[row.motion] || row.motion); }
+			if(row.inSect === true){ parts.push('同宗派'); } else if(row.inSect === false){ parts.push('异宗派'); }
 			if(row.house){ parts.push(`第${row.house}宫`); }
 			lines.push(`${lifespanName(row.planet)}：${parts.join('·')}`);
 		});
@@ -1209,6 +1231,17 @@ function buildClassicalSection(chartObj){
 }
 
 const CLS_OVR_ASP = { sextile: '六分', square: '四分', trine: '三分', conjunction: '合', opposition: '冲' };
+// 阿拉伯点中文名(与 AstroAnalysisLab.js:8 LOT_CN 同源,保持单源 — 改名同步两侧)。
+const CLS_LOT_CN = {
+	'Pars Fortuna': '福点', 'Pars Fortunae': '福点', 'Pars Spirit': '精神点', 'Pars Faith': '信仰点', 'Pars Substance': '资财点',
+	'Pars Wedding [Male]': '婚姻点(男)', 'Pars Wedding [Female]': '婚姻点(女)', 'Pars Sons': '子女点',
+	'Pars Father': '父亲点', 'Pars Mother': '母亲点', 'Pars Brothers': '兄弟点', 'Pars Diseases': '疾厄点',
+	'Pars Death': '死亡点', 'Pars Travel': '旅行点', 'Pars Friends': '朋友点', 'Pars Enemies': '仇敌点',
+	'Pars Saturn': '土星点', 'Pars Jupiter': '木星点', 'Pars Mars': '火星点', 'Pars Venus': '金星点',
+	'Pars Mercury': '水星点', 'Pars Horsemanship': '骑术点', 'Pars Life': '生命点', 'Pars Radix': '根基点',
+	'Pars Eros': '爱欲点', 'Pars Necessity': '必然点', 'Pars Courage': '勇气点', 'Pars Victory': '胜利点',
+	'Pars Nemesis': '报应点',
+};
 const CLS_ELEM = { Fire: '火', Earth: '土', Air: '风', Water: '水' };
 const CLS_MODE = { Cardinal: '始', Fixed: '固', Mutable: '变' };
 const CLS_HEMI = { east: '东', west: '西', above: '地平上', below: '地平下' };
@@ -1262,7 +1295,8 @@ export function buildClassicalAnalysisSection(analysis){
 		if(Array.isArray(ph.hours) && ph.hours.length){
 			const day = ph.hours.filter((h)=> h && h.diurnal);
 			const night = ph.hours.filter((h)=> h && !h.diurnal);
-			const fmtHour = (h)=> `${h.index}.${msg(h.ruler)}${h.current ? '←当前' : ''}`;
+			// 夜时显示 1..12(与 UI AstroAnalysisLab 一致),非原始 13..24 raw index。
+			const fmtHour = (h)=> `${h.diurnal ? h.index : (h.index - 12)}.${msg(h.ruler)}${h.current ? '←当前' : ''}`;
 			if(day.length){ lines.push(`昼时：${day.map(fmtHour).join(' / ')}`); }
 			if(night.length){ lines.push(`夜时：${night.map(fmtHour).join(' / ')}`); }
 		}
@@ -1302,23 +1336,51 @@ export function buildClassicalAnalysisSection(analysis){
 	}
 	const am = analysis.almutem;
 	if(am && am.winner){
-		const totals = Object.keys(am.totals || {}).map((k)=> [k, am.totals[k]]).sort((a, b)=> b[1] - a[1]);
+		// 滤掉 0 分行(满屏 0 噪音),按分降序展开。
+		const totals = Object.keys(am.totals || {})
+			.map((k)=> [k, am.totals[k]])
+			.filter((t)=> t[1] > 0)
+			.sort((a, b)=> b[1] - a[1]);
 		lines.push(`Almuten 总主：${msg(am.winner)}`);
-		// FIX-2 totals 全表逐行展开(按分降序;AI 可引具体星分),不再仅汇总一行。
 		if(totals.length){
 			lines.push('Almuten 逐星得分：');
 			lines.push(...totals.map((t)=> `${msg(t[0])} ${t[1]}`));
 		}
 	}
-	// FIX-6 阿拉伯点扩展 extraLots(LOT_CN 28 种,带 category 题别;前 60 控总长)。
+	// R2 修:bonification(吉化/凶化,每星受惠/受厄关系)engine 已算但 UI 与 snapshot 双双未渲染 → AI 漏。
+	// 显式入快照(对齐 analyze_chart 完整 14 键)。
+	const bn = (analysis.bonification || []).filter((b)=> b && b.planet && (
+		(Array.isArray(b.bonified) && b.bonified.length) ||
+		(Array.isArray(b.maltreated) && b.maltreated.length)
+	));
+	if(bn.length){
+		lines.push('吉化/凶化');
+		bn.forEach((b)=>{
+			const ok = (b.bonified || []).map((x)=> `${msg(x.by)}·${x.rel || '会合'}`).join('、');
+			const bad = (b.maltreated || []).map((x)=> `${msg(x.by)}·${x.rel || '会合'}`).join('、');
+			const segs = [];
+			if(ok) segs.push(`受惠[${ok}]`);
+			if(bad) segs.push(`受厄[${bad}]`);
+			lines.push(`${msg(b.planet)}：${segs.join('；')}`);
+		});
+	}
+	// FIX-6 阿拉伯点扩展 extraLots(LOT_CN 中文 28 种,带 category 题别;前 60 控总长)。
+	// 标签英→中(对齐 UI renderLots);度数缺 sign 时用绝对黄经 fallback,避免尾冒号空值。
 	const extra = (analysis.extraLots || []).filter((l)=> l && l.label);
 	if(extra.length){
 		lines.push('阿拉伯点(扩展)');
 		extra.slice(0, 60).forEach((l)=>{
+			const cnLabel = CLS_LOT_CN[l.label] || l.label;
 			const cat = l.category ? `（${l.category}）` : '';
-			const sign = l.sign ? msg(l.sign) : '';
-			const dg = (l.signlon !== undefined && l.signlon !== null) ? formatSignDegree(l.sign, l.signlon) : sign;
-			lines.push(`${l.label}${cat}：${dg}`);
+			let dg = '';
+			if(l.sign && l.signlon !== undefined && l.signlon !== null){
+				dg = formatSignDegree(l.sign, l.signlon);
+			} else if(l.lon !== undefined && l.lon !== null){
+				dg = lonToSignDegree(l.lon);
+			} else if(l.sign){
+				dg = msg(l.sign);
+			}
+			lines.push(`${cnLabel}${cat}：${dg || '-'}`);
 		});
 	}
 	return buildSectionText('古典格局', lines);

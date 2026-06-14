@@ -568,7 +568,11 @@ export default async function request(url, options) {
 				innerHandleError(buildTimeoutError());
 			}
 		}else{
-			innerHandleError(e);
+			// 修(HIGH-3):silent:true 时不可 surface 错误(原代码非超时分支无条件调 innerHandleError →
+			// silent 守不住)。AI 挂载/导出的 silent 抓取曾让 miss.date 等后端校验错弹到顶栏红 badge。
+			if(!silent){
+				innerHandleError(e);
+			}
 		}
     }finally{
         if(dispatch && !silent){
@@ -657,7 +661,11 @@ export async function requestRaw(url, options) {
 				innerHandleError(buildTimeoutError());
 			}
 		}else{
-			innerHandleError(e);
+			// 修(HIGH-3):silent:true 时不可 surface 错误(原代码非超时分支无条件调 innerHandleError →
+			// silent 守不住)。AI 挂载/导出的 silent 抓取曾让 miss.date 等后端校验错弹到顶栏红 badge。
+			if(!silent){
+				innerHandleError(e);
+			}
 		}
     }finally{
         if(dispatch && !silent){
