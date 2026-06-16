@@ -9,12 +9,12 @@
 **把所有玄学放进一个原生 macOS 软件中**<br />
 *Every kind of metaphysics, in one native macOS app*
 
-[![Version](https://img.shields.io/badge/version-2.6.7-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
+[![Version](https://img.shields.io/badge/version-2.6.8-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.8)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.8)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.8)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.7/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.8/Horosa-Installer-macos-arm64-offline.pkg) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -33,7 +33,7 @@
 
 > Regular users grab the offline installer and open it like any finished macOS app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.7/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.8/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合：Apple Silicon · macOS 12+ · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -94,37 +94,6 @@
 命盘与事盘都能本地保存：带标签、快照、后端原始数据，可 JSON 导入导出，重开后恢复现场。
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
-
-## 本次更新 · What's New in v2.6.7 beta
-
-这一版主线是**古典占星补全 + 围攻详断 + AI 古典挂载** / This release headlines the **classical-astrology augmentation, besiegement analysis, and AI classical mount**:
-
-- **古典 · 命盘参数** —— 出界 / 偕日相（含偕日升没）/ 喜乐 / 宗派 / 野逸 / 度数性质（明暗空烟·阴阳）/ 二十八月站 / 远地点 / 单度主星·九分·Darijan，逐曜列于「古典」标签。/ Out of Bounds, phasis (with heliacal rising-setting), joy, sect, feral, degree quality & gender, the 28 mansions, apogee, monomoiria·ninth-part·Darijan — per planet on the Classical tab.
-- **古典 · 格局分析** —— 护卫 / 优势相位 / 相位动态（入相出相·左右旋·传光·聚光·不合意·交点弯曲）/ 逐题主星 / 偶然尊贵 / 比尼·王者恒星 / 行星时 / 埃及历 / 巴比伦参照星 / 交食食分。/ Doryphory, overcoming, aspect dynamics, topical almutens, accidental dignity, Behenian·Royal stars, planetary hours, Egyptian calendar, Babylonian reference stars, eclipse digits.
-- **围攻详断（十六式）** —— 三围（火土围攻凶 / 金木围荣富 / 日月围耀贵）+ 春秋势 + 宰执夏冬 + 协防截击 + 围魏救赵 + 日木互容制约 + 逆行。/ Sixteen-rule besiegement: three siege types + spring/autumn momentum + overcoming season + interception defense + counter-besiegement + Sun/Jupiter mutual-reception restraint + retrogradation.
-- **AI 古典挂载** —— AI 分析 / 导出快照新增「古典」段（逐曜古典状态 + 围攻详断），四同步（导出 / 导出设置 / 挂载 / 储存）一致；「信息」标签新增格局速览。/ The AI analysis/export snapshot gains a "Classical" section (per-planet classical state + besiegement), consistent across all four mirrors; the Info tab gains a configurations overview.
-
-> 命盘其余计算与 v2.6.6 完全一致。/ Outside these additions, every chart computation is identical to v2.6.6.
-
-### 旧版 · What's New in v2.6.6 beta
-
-这一版主线是**主限法（Primary Directions）全面升级**与 **AI 报告打磨** / This release headlines a **comprehensive Primary Directions upgrade** plus **AI-report polish**:
-
-- **主限法 · 显示窗精确化 + 世俗行集修复** —— 行星对显示窗改为单一判据（弧归一化前原值）；In-Mundo 此前缺失的行星对方向行现全数列出。/ Exact display-window semantics; previously-missing In-Mundo planet-pair rows now all listed.
-- **主限法 · 宿命点（Vertex）应星** —— 黄道向运新增宿命点应星行（闭式直算）。/ Vertex significator rows (closed-form) in zodiacal directions.
-- **主限法 · 时间钥匙修真 + 新钥匙** —— Simmonite / Kepler / Brahe 逐盘真算太阳日速；新增 Kündig 与 太阳弧（黄经）。/ True per-chart time keys; new Kündig & Symbolic Solar Arc keys.
-- **主限法 · 年数上限 3000** —— 360 → 3000，跨圈方向按整圈复发自动延展；默认 100 年行为不变。/ Year range to 3000 with per-revolution recurrences; default unchanged.
-- **AI 报告打磨** —— Gemini 采样参数封装修复、思考档新增 极高 / 最大、界面缩放持久化。/ Gemini param-wrapping fix, Extra-High/Max thinking tiers, zoom persistence.
-- **首启稳定性加固** —— 本地服务就绪探测对系统代理免疫、改以 HTTP 探活为准、共享组件可写性与超时预算放宽，全新安装首次启动更稳。/ Hardened first-launch: loopback readiness probes are proxy-immune, HTTP-first, with looser writability and timeout budgets.
-
-### 旧版 · What's New in v2.6.5 beta
-
-这一版主线是**合盘交互链全面重建 + AI「起课时间」挂载 8→13 技法**，把上版残留的合盘失能与卜卦 / 数算时间起盘缺失一并补齐；默认行为与 v2.6.4 逐位一致。/ This release rebuilt the **Synastry interaction chain end-to-end** and expanded the **AI "Set-Time" mount from 8 to 13 techniques**, with default behavior bit-for-bit identical to v2.6.4:
-
-- **合盘 5 子盘端到端可用** —— 比较 / 组合 / 影响 / 时空中点 / 马克斯盘全部恢复，左栏交互链全链路透传、容器高度实测、宫位制与黄道弹层根治。/ All five relationship sub-charts working again, with the left-panel chain wired through, measured container heights, and a fixed Houses & Zodiac popover.
-- **AI「起课时间」挂载 +5 技法** —— 新增 皇极经世 / 太玄 / 荆诀 / 五兆 / 神易数；挂载齿轮里改的每一项都真重算，AI 四同步（导出 / 导出设置 / 挂载 / 储存）全到位。/ Adds HuangJi / TaiXuan / JingJue / WuZhao / ShenYiShu; mount settings truly recompute, all four AI mirrors in sync.
-- **合并 · AI 报告生成** —— 八字 / 紫微分节流式生成，章节可嵌命盘截图，4 种导出（Markdown / Word / PDF / HTML）。/ AI report generation for Bazi/Ziwei: streamed by section, embeddable chart screenshots, four export formats.
-- **修复与工程** —— Python 真太阳时辅助接受数值经纬度、起课时间合成 record 时间修复；后端 Python 排盘组件更新（运行时自动下载）。/ Numeric lon/lat in the true-solar-time helper, Set-Time record fixes, updated Python runtime.
 
 ## 技术构成 · Under the Hood
 

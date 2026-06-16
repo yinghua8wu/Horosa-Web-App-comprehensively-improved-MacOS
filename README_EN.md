@@ -8,12 +8,12 @@
 
 **Every kind of metaphysics, in one native macOS app**
 
-[![Version](https://img.shields.io/badge/version-2.6.7-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
+[![Version](https://img.shields.io/badge/version-2.6.8-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.8)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.7)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.8)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.8)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.7/Horosa-Installer-macos-arm64-offline.pkg) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.8/Horosa-Installer-macos-arm64-offline.pkg) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@ This repository is the macOS delivery of that app: the application source, the s
 
 Regular users should go straight to the offline installer and open Horosa like any other macOS app.
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.7/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.8/Horosa-Installer-macos-arm64-offline.pkg)**
 
 Best for:
 
@@ -90,37 +90,6 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 - **References (辅助)** — gua-symbol classes, the twelve palaces, and quick rule lookups
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
-
-## What's New in v2.6.7 beta
-
-This release headlines the **classical-astrology augmentation, besiegement analysis, and AI classical mount**:
-
-- **Classical · natal parameters** — Out of Bounds, phasis (with heliacal rising-setting), joy, sect, feral, degree quality & gender, the 28 lunar mansions, apogee, monomoiria·ninth-part·Darijan — per planet on the Classical tab.
-- **Classical · configuration analysis** — doryphory, overcoming, aspect dynamics (applying-separating / dexter-sinister / translation / collection / aversion / nodal bending), topical almutens, accidental dignity, Behenian·Royal stars, planetary hours, Egyptian calendar, Babylonian reference stars, eclipse digits.
-- **Besiegement analysis (sixteen rules)** — three siege types (Mars-Saturn malefic / Venus-Jupiter benefic-frame / Sun-Moon glory) + spring/autumn momentum + overcoming season + interception defense + counter-besiegement + Sun/Jupiter mutual-reception restraint + retrogradation.
-- **AI classical mount** — the AI analysis/export snapshot gains a "Classical" section (per-planet classical state + besiegement), consistent across all four mirrors (export / export-settings / mount / storage); the Info tab gains a configurations overview.
-
-> Outside these additions, every chart computation is identical to v2.6.6.
-
-### Previously · What's New in v2.6.6 beta
-
-This release headlines a **comprehensive Primary Directions upgrade** plus **AI-report polish**:
-
-- **Primary Directions: exact display-window semantics** — the planet-pair display window now uses a single criterion (the arc's pre-normalization value), and the In-Mundo row set is fixed accordingly — planet-pair direction rows that were previously missing are now all listed.
-- **Primary Directions: Vertex significator** — zodiacal directions gain Vertex significator rows (closed-form), wired through the table, AI snapshot and labels.
-- **Primary Directions: true per-chart time keys** — Simmonite / Kepler / Brahe now compute the natal Sun's true daily motion per chart; new **Kündig** and **Symbolic Solar Arc (longitude)** keys (per-arc ephemeris solve, table/dial round-trip).
-- **Primary Directions: year range up to 3000** — the year selector extends from 360 to 3000; directions beyond one revolution (360°) recur automatically per revolution. Default 100-year behaviour is unchanged.
-- **AI report polish** — fixes an occasional Gemini 400 caused by sampling-parameter wrapping; the "thinking effort" selector gains Extra-High / Max tiers; interface zoom persists across restarts.
-- **First-launch hardening** — loopback readiness probes are now proxy-immune and HTTP-first, with looser writability and timeout budgets, so a fresh install starts cleanly the first time.
-
-### Previous · What's New in v2.6.5 beta
-
-This release rebuilt the **Synastry interaction chain end-to-end** and expanded the **AI "Set-Time" mount from 8 to 13 techniques**, with default behavior bit-for-bit identical to v2.6.4:
-
-- **All five relationship sub-charts working again** — compare / composite / synastry / time-space midpoint / Marks restored; the left-panel chain is wired through end-to-end, container heights are measured, and the Houses & Zodiac popover is fixed.
-- **AI "Set-Time" mount +5 techniques** — adds HuangJi / TaiXuan / JingJue / WuZhao / ShenYiShu; every option in the mount gear truly recomputes, with all four AI mirrors (export / export settings / mount / case storage) in sync.
-- **Folded in · AI report generation** — Bazi/Ziwei reports streamed section by section, with embeddable chart screenshots and four export formats (Markdown / Word / PDF / HTML).
-- **Fixes & engineering** — numeric lon/lat in the true-solar-time helper, Set-Time record fixes, navigation search across all modules, and an updated Python runtime (auto-downloaded on upgrade).
 
 ## Under the Hood
 
