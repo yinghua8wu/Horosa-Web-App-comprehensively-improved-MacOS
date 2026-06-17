@@ -4873,61 +4873,73 @@ function downloadBlob(filename, content, mime){
 }
 
 async function copyText(text){
+	// 1) Tauri 桌面剪贴板:webview 里 navigator.clipboard/execCommand 常被拦,优先走原生。
+	try{
+		const t = window.__TAURI__;
+		const cm = t && (t.clipboardManager || t.clipboard);
+		if(cm && typeof cm.writeText === 'function'){ await cm.writeText(text); return true; }
+	}catch(e){ /* 回退 */ }
+	// 2) 标准剪贴板(需安全上下文 + 文档焦点;异步后用户手势可能已失效,失败即回退)。
 	if(navigator.clipboard && window.isSecureContext){
-		try{
-			await navigator.clipboard.writeText(text);
-			return true;
-		}catch(e){
-			// 继续回退到 execCommand，避免权限异常导致无提示。
-		}
+		try{ await navigator.clipboard.writeText(text); return true; }catch(e){ /* 回退 */ }
 	}
+	// 3) execCommand 回退:先抢回窗口/选区焦点(导出多由菜单触发、焦点已散)。
+	try{ window.focus(); }catch(e){}
 	const ta = document.createElement('textarea');
 	ta.value = text;
 	ta.setAttribute('readonly', '');
-	ta.style.position = 'fixed';
-	ta.style.left = '-9999px';
+	ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
 	document.body.appendChild(ta);
+	ta.focus();
 	ta.select();
-	ta.setSelectionRange(0, ta.value.length);
+	try{ ta.setSelectionRange(0, ta.value.length); }catch(e){}
 	let ok = false;
-	try{
-		ok = document.execCommand('copy');
-	}catch(e){
-		ok = false;
-	}
+	try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
 	document.body.removeChild(ta);
 	return ok;
 }
 
-function printAsPdf(title, text){
-	const win = window.open('', '_blank');
-	if(!win){
+// v2.6.10:弃用 window.open 打印窗(桌面 webview 拦截 + 浏览器弹窗拦截)。
+// 改为离屏 DOM → html-to-image → jsPDF 分页直接下载 .pdf:无窗口、CJK 安全(走系统字体渲染成图)、
+// 浏览器与 Tauri 一致(downloadBlob/save 路径既有,TXT/Word 同款已验证可用)。
+async function exportPdf(payload){
+	const title = payload.tech || '';
+	const text = payload.text || '';
+	let host = null;
+	try{
+		const htiMod = await import('html-to-image');
+		const toCanvas = htiMod.toCanvas || (htiMod.default && htiMod.default.toCanvas);
+		const jspdfMod = await import('jspdf');
+		const jsPDF = jspdfMod.jsPDF || jspdfMod.default || jspdfMod;
+		if(!toCanvas || !jsPDF){ return false; }
+		host = document.createElement('div');
+		host.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;padding:48px 56px;box-sizing:border-box;background:#ffffff;color:#111111;font:13px/1.7 "PingFang SC","Microsoft YaHei",Arial,sans-serif;white-space:pre-wrap;word-break:break-word;z-index:-1;';
+		host.textContent = `${title ? title + '\n\n' : ''}${text}`;
+		document.body.appendChild(host);
+		const canvas = await toCanvas(host, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+		const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+		const margin = 10;
+		const cwMm = pdf.internal.pageSize.getWidth() - margin * 2;     // 内容宽(mm)
+		const chMm = pdf.internal.pageSize.getHeight() - margin * 2;    // 内容高(mm)
+		const pxPerMm = canvas.width / cwMm;
+		const pageHpx = Math.floor(chMm * pxPerMm);
+		let y = 0, first = true;
+		while(y < canvas.height){
+			const sliceH = Math.min(pageHpx, canvas.height - y);
+			const slice = document.createElement('canvas');
+			slice.width = canvas.width; slice.height = sliceH;
+			slice.getContext('2d').drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+			if(!first) pdf.addPage();
+			pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, cwMm, sliceH / pxPerMm);
+			first = false; y += sliceH;
+		}
+		pdf.save(`${payload.filenameBase}.pdf`);
+		return true;
+	}catch(e){
 		return false;
+	}finally{
+		if(host && host.parentNode){ try{ host.parentNode.removeChild(host); }catch(e){} }
 	}
-	const html = `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8" />
-<title>${escapeHtml(title)}</title>
-<style>
-@page { size: A4; margin: 16mm; }
-body { font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif; color: #111; }
-pre { white-space: pre-wrap; word-break: break-word; line-height: 1.5; font-size: 12px; }
-</style>
-</head>
-<body>
-<pre>${escapeHtml(text)}</pre>
-<script>
-window.onload = function(){
-  setTimeout(function(){ window.print(); }, 120);
-};
-</script>
-</body>
-</html>`;
-	win.document.open();
-	win.document.write(html);
-	win.document.close();
-	return true;
 }
 
 function exportTxt(payload){
@@ -5452,7 +5464,10 @@ export async function runAIExport(action){
 
 		if(action === 'copy'){
 			const ok = await copyText(payload.text);
-			return { ok: ok, message: ok ? 'AI纯文字已复制。' : '复制失败，请手动导出TXT。' };
+			if(ok){ return { ok: true, message: 'AI纯文字已复制。' }; }
+			// 剪贴板不可用(桌面 webview / 非聚焦 / 安全上下文)→ 自动导出 TXT,用户必有产物。
+			exportTxt(payload);
+			return { ok: true, message: '剪贴板不可用，已自动导出 TXT 文件。' };
 		}
 		if(action === 'txt'){
 			exportTxt(payload);
@@ -5463,20 +5478,19 @@ export async function runAIExport(action){
 			return { ok: true, message: 'Word 已导出。' };
 		}
 		if(action === 'pdf'){
-			const ok = printAsPdf(payload.tech, payload.text);
-			return { ok: ok, message: ok ? 'PDF 打印窗口已打开。' : 'PDF 窗口被浏览器拦截。' };
+			const ok = await exportPdf(payload);
+			return { ok: ok, message: ok ? 'PDF 已导出。' : 'PDF 生成失败，请改用 Word/TXT。' };
 		}
 		if(action === 'all'){
 			const copied = await copyText(payload.text);
 			exportTxt(payload);
 			exportWord(payload);
-			const pdfOk = printAsPdf(payload.tech, payload.text);
-			return {
-				ok: true,
-				message: copied
-					? (pdfOk ? '已完成复制 + TXT/Word/PDF。' : '已完成复制 + TXT/Word，PDF窗口被拦截。')
-					: (pdfOk ? '已导出TXT/Word/PDF（复制失败）。' : '已导出TXT/Word（复制失败，PDF窗口被拦截）。')
-			};
+			const pdfOk = await exportPdf(payload);
+			const got = ['TXT', 'Word'].concat(pdfOk ? ['PDF'] : []);
+			let message = `已导出 ${got.join(' / ')}${copied ? '，并复制到剪贴板' : ''}。`;
+			if(!copied){ message += '（剪贴板不可用，全文已在 TXT 内）'; }
+			if(!pdfOk){ message += '（PDF 生成失败，可用 Word）'; }
+			return { ok: true, message };
 		}
 		return { ok: false, message: '未知导出动作。' };
 	}catch(e){
