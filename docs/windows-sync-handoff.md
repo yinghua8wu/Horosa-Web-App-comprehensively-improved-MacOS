@@ -8,6 +8,14 @@
 
 ---
 
+
+## v2.6.9 — 古典占星技法增强
+
+**改了什么**：围攻协防「以身作盾 / 遥光」按截击相位是否为合相精确判定（+ 水 / 月弱势协防 · 自陷）；格局速览 / 格局 tab 大幅补全（接纳互容纯粹度、龙脉、孤月独明、先验权力、强吉木星照耀计数、主宰循环等）；古典格局接入 AI 导出 / 挂载 / 储存四面。
+
+**Windows 必须做**：同步前端 astroPatternOverview.js、dispositorChain.js、AstroInfo.js、AstroAnalysisLab.js、AstroDispositor.js、astroAiSnapshot.js、app.less；后端 perchart.py 的 _besiege_defense（byBody = 截击相位为合相；协防星扩到日木金 + 弱势水月 + selfTrap）。纯展示 / 真值层改动、无新依赖。
+
+---
 ## v2.6.8（本地批次，未发版）· 全技法 AI 导出 / 挂载 / 储存对齐 + 暗黑模式全覆盖
 
 > Windows 必做：拉前端源码即同步（Java 与 Python 均未改，无需重编 jar、无需重启 Python）。运行时随版本号同步为 2.6.8-runtime1。
