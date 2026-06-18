@@ -1,4 +1,5 @@
 import { getStore, } from './storageutil';
+import { copyDesktopClipboard } from './aiAnalysisDesktop';
 import request from './request';
 import * as ExportConstants from './constants';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from './dayBoundary';
@@ -4873,12 +4874,8 @@ function downloadBlob(filename, content, mime){
 }
 
 async function copyText(text){
-	// 1) Tauri 桌面剪贴板:webview 里 navigator.clipboard/execCommand 常被拦,优先走原生。
-	try{
-		const t = window.__TAURI__;
-		const cm = t && (t.clipboardManager || t.clipboard);
-		if(cm && typeof cm.writeText === 'function'){ await cm.writeText(text); return true; }
-	}catch(e){ /* 回退 */ }
+	// 1) Tauri 桌面剪贴板:webview 里 navigator.clipboard/execCommand 被拦,走原生 pbcopy 命令(invoke)。
+	try{ if(await copyDesktopClipboard(text)){ return true; } }catch(e){ /* 回退 */ }
 	// 2) 标准剪贴板(需安全上下文 + 文档焦点;异步后用户手势可能已失效,失败即回退)。
 	if(navigator.clipboard && window.isSecureContext){
 		try{ await navigator.clipboard.writeText(text); return true; }catch(e){ /* 回退 */ }

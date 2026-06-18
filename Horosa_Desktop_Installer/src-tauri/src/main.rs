@@ -2388,6 +2388,31 @@ fn open_diagnostics_window_command(app: AppHandle) -> std::result::Result<(), St
     open_diagnostics_window(&app).map_err(|err| format!("{err:#}"))
 }
 
+// 桌面剪贴板:webview 里 navigator.clipboard / execCommand 被拦,走系统 pbcopy(macOS 自带、无新依赖)。
+#[tauri::command]
+fn copy_text_to_clipboard_command(text: String) -> std::result::Result<(), String> {
+    use std::io::Write;
+    let mut child = std::process::Command::new("pbcopy")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|err| format!("pbcopy spawn 失败: {err}"))?;
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| "pbcopy stdin 不可用".to_string())?;
+        stdin
+            .write_all(text.as_bytes())
+            .map_err(|err| format!("pbcopy 写入失败: {err}"))?;
+    }
+    let status = child.wait().map_err(|err| format!("pbcopy 等待失败: {err}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("pbcopy 退出码 {:?}", status.code()))
+    }
+}
+
 #[tauri::command]
 fn trigger_update_check_command(app: AppHandle) -> std::result::Result<(), String> {
     thread::spawn(move || {
@@ -5887,7 +5912,8 @@ fn main() {
             open_ai_analysis_backup_command,
             update_check_silent,
             update_start_background,
-            update_install_and_restart
+            update_install_and_restart,
+            copy_text_to_clipboard_command
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
