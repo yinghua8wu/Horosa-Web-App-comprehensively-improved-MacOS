@@ -15,6 +15,13 @@ ok()   { printf '  \033[32m✅\033[0m %s\n' "$1"; }
 bad()  { printf '  \033[31m❌\033[0m %s\n' "$1" >&2; fail=1; }
 warn() { printf '  \033[33m⚠️\033[0m  %s\n' "$1"; }
 
+# keg-only node@22 不在默认 PATH 的终端会让 node -e 检查假阳性失败、误拦 pre-push;缺 node 则自动补常见位置的 node。
+if ! command -v node >/dev/null 2>&1; then
+	for _nd in /opt/homebrew/opt/node@22/bin /opt/homebrew/bin /usr/local/opt/node@22/bin /usr/local/bin; do
+		[ -x "${_nd}/node" ] && { PATH="${_nd}:${PATH}"; export PATH; break; }
+	done
+fi
+
 VERSION="$(python3 -c "import json,os;print(json.load(open(os.path.join('${INSTALLER_ROOT}','package.json')))['version'])" 2>/dev/null || echo "")"
 RUNTIME_VERSION="$(python3 -c "import json,os;print(json.load(open(os.path.join('${INSTALLER_ROOT}','config','release_config.json'))).get('runtimeVersion',''))" 2>/dev/null || echo "")"
 [ -n "${VERSION}" ] || { echo "无法读取 package.json version,终止" >&2; exit 2; }
