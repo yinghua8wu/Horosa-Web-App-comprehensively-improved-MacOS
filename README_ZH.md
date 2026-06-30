@@ -8,12 +8,12 @@
 
 **把所有玄学放进一个原生 macOS 软件中**
 
-[![Version](https://img.shields.io/badge/version-2.6.9-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.8)
+[![Version](https://img.shields.io/badge/version-3.0.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v3.0.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.8)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v2.6.8)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v3.0.0)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v3.0.0)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.9/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v3.0.0/Horosa-Installer-macos-arm64-offline.pkg) ·
 [入口页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -32,7 +32,7 @@
 
 普通用户直接下载离线安装包，像任何 macOS 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v2.6.9/Horosa-Installer-macos-arm64-offline.pkg)**
+**[⬇︎ Horosa-Installer-macos-arm64-offline.pkg](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v3.0.0/Horosa-Installer-macos-arm64-offline.pkg)**
 
 适合场景：
 
@@ -84,7 +84,7 @@
 
 ### 工具 · 工具工作台
 
-- **AI 分析** —— 可接入 OpenAI / Anthropic / Gemini / Ollama / OpenRouter / 自定义端点；支持流式对话、历史记录、资料库（向量检索），把任一技法的盘面挂载进上下文、按技法 / 页签结构化导出，并能生成八字 / 紫微分节命理报告（可嵌入命盘截图，多格式导出）
+- **AI 分析** —— 可接入 OpenAI / Anthropic / Gemini / Ollama / OpenRouter / 自定义端点；支持流式对话、历史记录、资料库（向量检索），把任一技法的盘面挂载进上下文、按技法 / 页签结构化导出
 - **天文馆** —— 基于 Babylon.js 的实时三维天象
 - **黄历** —— 农历、节气与择日
 - **辅助** —— 八卦类象、十二宫、规则速查
@@ -121,7 +121,6 @@
 - 想理解产品首页与用户入口：[README.md](README.md)
 - 想看英文完整说明：[README_EN.md](README_EN.md)
 - 想理解安装器与发布链路：[Horosa_Desktop_Installer/README.md](Horosa_Desktop_Installer/README.md)
-- 想规划 Windows 复刻与发布验收：[Windows 复刻与发布自检指南](docs/windows-porting-and-release-checklist.md)
 - 想确认第三方许可证：[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - 应用源码：`Horosa-Web/` —— 前端 `astrostudyui`，后端 `astrostudysrv` / `astropy`，引擎 `vendor`
 
