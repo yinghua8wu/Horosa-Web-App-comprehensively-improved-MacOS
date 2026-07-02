@@ -9,12 +9,12 @@
 **把所有玄学放进一个原生 macOS 软件里**<br />
 *Every kind of metaphysics, in one native macOS app*
 
-[![Version](https://img.shields.io/badge/version-3.0.1-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v3.0.1)
+[![Version](https://img.shields.io/badge/version-3.1.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v3.1.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v3.0.1)
-[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v3.0.1)
+[![macOS](https://img.shields.io/badge/macOS%2012+-Apple%20Silicon-111111?style=flat-square&logo=apple&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v3.1.0)
+[![Signed & Notarized](https://img.shields.io/badge/Developer%20ID-signed%20%26%20notarized-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/tag/v3.1.0)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v3.0.1/Horosa-Installer-macos-arm64-offline.pkg) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases/download/v3.1.0/Horosa-Installer-macos-arm64-offline.pkg) ·
 [中文详版](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS/releases)
@@ -42,7 +42,7 @@
 
 本仓承担 macOS 这一侧的交付：应用源码、共享运行时、Tauri 桌面外壳，以及把这一切打成单个 `.pkg` 的发布链路。
 
-- **当前版本**：3.0.0（运行时 `3.0.0-runtime1``）
+- **当前版本**：3.1.0（运行时 `3.1.0-runtime1``）
 - **平台**：仅 macOS 12+ / Apple Silicon（`arm64`）
 - **许可**：AGPL-3.0-only
 
@@ -211,6 +211,7 @@
 ## 四、许可与第三方
 
 - **本项目**：[AGPL-3.0-only](LICENSE)。
+- **法律与隐私**：服务条款 / 隐私政策 / 安全说明 / 网络说明 / 开源声明,见 [docs/legal](docs/legal/)(中英双语)。
 - **第三方**：完整清单与许可证文本见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
   - vendored 传统术数计算引擎：部分上游声明 MIT（许可证文本在对应 `Horosa-Web/vendor/*/LICENSE` 保留）；部分上游未声明许可，单独标注、不擅自假定为任何开源许可。
   - 天球坐标参考数据 d3-celestial（BSD 3-Clause；星座线 / IAU 边界 / 中国三垣派生）。
@@ -231,4 +232,5 @@
 
 - 安装器与发布链路：[Horosa_Desktop_Installer/README.md](Horosa_Desktop_Installer/README.md)
 - 社区文档：[CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- 法律与隐私：[docs/legal](docs/legal/)(服务条款 · 隐私政策 · 安全 · 网络 · 开源声明)
 - 语言详版：[README_ZH.md](README_ZH.md) · [README_EN.md](README_EN.md)

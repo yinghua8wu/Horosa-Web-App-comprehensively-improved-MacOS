@@ -96,7 +96,7 @@ mkdir -p "${DIST_ROOT}"
 
 rsync -a "${RSYNC_FILTERS[@]}" "${REPO_ROOT}/Horosa-Web/start_horosa_local.sh" "${STAGE_ROOT}/Horosa-Web/"
 rsync -a "${RSYNC_FILTERS[@]}" "${REPO_ROOT}/Horosa-Web/stop_horosa_local.sh" "${STAGE_ROOT}/Horosa-Web/"
-rsync -a "${RSYNC_FILTERS[@]}" "${REPO_ROOT}/Horosa-Web/astropy/__init__.py" "${STAGE_ROOT}/Horosa-Web/astropy/"
+# (astropy 仓根 __init__.py 已移除——它会让本仓目录遮蔽 PyPI 天文库 astropy,见 tests/test_pkg_hygiene.py)
 rsync -a "${RSYNC_FILTERS[@]}" "${REPO_ROOT}/Horosa-Web/astropy/astrostudy" "${STAGE_ROOT}/Horosa-Web/astropy/"
 rsync -a "${RSYNC_FILTERS[@]}" "${REPO_ROOT}/Horosa-Web/astropy/websrv" "${STAGE_ROOT}/Horosa-Web/astropy/"
 if [ -d "${REPO_ROOT}/Horosa-Web/vendor" ]; then
@@ -147,6 +147,24 @@ fi
 zip -q -d "${STAGE_ROOT}/runtime/mac/bundle/astrostudyboot.jar" \
   'BOOT-INF/lib/netty-transport-native-kqueue-*-osx-x86_64.jar' \
   'BOOT-INF/lib/netty-resolver-dns-native-macos-*-osx-x86_64.jar' >/dev/null 2>&1 || true
+# ── Java exploded 布局(性能):fat jar 原样解开为 bundle/boot-exploded,运行脚本优先以
+# `-cp boot-exploded JarLauncher` 启动(嵌套 jar 读取是启动主开销,实测 7.0s→2.6s,-63%;
+# AppCDS 首启后台自训练再 -0.3s,见 start_horosa_local.sh maybe_train_cds_background)。
+# payload 只保留 exploded、不再重复携带 fat jar(体积约省 300MB 未压缩);字节同源零功能差异。
+STAGE_BOOT_JAR="${STAGE_ROOT}/runtime/mac/bundle/astrostudyboot.jar"
+STAGE_BOOT_EXPLODED="${STAGE_ROOT}/runtime/mac/bundle/boot-exploded"
+rm -rf "${STAGE_BOOT_EXPLODED}"
+mkdir -p "${STAGE_BOOT_EXPLODED}"
+if ! unzip -q "${STAGE_BOOT_JAR}" -d "${STAGE_BOOT_EXPLODED}"; then
+  echo "ERROR: failed to explode astrostudyboot.jar for fast-boot layout" >&2
+  exit 1
+fi
+if [ ! -f "${STAGE_BOOT_EXPLODED}/org/springframework/boot/loader/JarLauncher.class" ]; then
+  echo "ERROR: exploded boot layout missing JarLauncher (unexpected jar structure)" >&2
+  exit 1
+fi
+shasum -a 256 "${STAGE_BOOT_JAR}" | awk '{print $1}' > "${STAGE_BOOT_EXPLODED}/.source-jar.sha256"
+rm -f "${STAGE_BOOT_JAR}"
 rm -rf \
   "${STAGE_ROOT}/runtime/mac/python/lib/python3.12/ensurepip" \
   "${STAGE_ROOT}/runtime/mac/python/include" \
@@ -157,13 +175,38 @@ find "${STAGE_ROOT}/runtime/mac/python/lib/python3.12" \
   -path "${STAGE_ROOT}/runtime/mac/python/lib/python3.12/site-packages" -prune -o \
   -type d \( -name 'test' -o -name 'tests' -o -name '__pycache__' -o -name 'idlelib' -o -name 'turtledemo' \) \
   -prune -exec rm -rf {} + 2>/dev/null || true
+# ── site-packages 重依赖排除表(体积/首启):UI 框架及其依赖树 ≈330MB,排盘计算零引用。
+# 安全性三证:tests/test_runtime_deps_slim.py 哨兵(静态零顶层 import + meta_path 阻断下
+# 全服务链可 import)+ 全量 pytest + 打包后启动冒烟。新增排除项须先过该哨兵。
+# 注:astropy(pip 天文包)被太乙引擎真实使用(SkyCoord/FK5/Time)——不得排除。
+# 注:pandas 被 kentang chunzi 计算路径真实使用(read_csv/DataFrame 过滤)——不得排除;
+#    streamlit 顶层 import 由 websrv/kentang/kinastro_common.py 的 sys.modules 桩兜住。
+SITE_PKGS="${STAGE_ROOT}/runtime/mac/python/lib/python3.12/site-packages"
+for heavy in streamlit pyarrow plotly altair pydeck; do
+  rm -rf "${SITE_PKGS}/${heavy}" "${SITE_PKGS}/${heavy}"-*.dist-info "${SITE_PKGS}/${heavy}"*.dist-info 2>/dev/null || true
+done
+echo "site-packages slimmed: $(du -sh "${SITE_PKGS}" 2>/dev/null | cut -f1)"
 find "${STAGE_ROOT}/runtime/mac/python/lib/python3.12/site-packages" \
   -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
 find "${STAGE_ROOT}" -type d \( -name '.horosa-logs' -o -name '.pytest_cache' -o -name '.cache' -o -name '__pycache__' \) -prune -exec rm -rf {} + 2>/dev/null || true
 find "${STAGE_ROOT}" -type d -name '.git' -prune -exec rm -rf {} + 2>/dev/null || true
+# ── pyc 预编译(性能):用「内嵌 runtime 自己的 python」把 stdlib/site-packages/业务源码
+# 预编译为 __pycache__(pyc magic 绑版本,必须自编自用),用户机首启 import 免逐文件编译
+# (实测省 0.3-0.5s)。个别第三方文件语法不合本版本编不过属正常,|| true 容忍不阻断打包。
+STAGE_PY_BIN="${STAGE_ROOT}/runtime/mac/python/bin/python3"
+if [ -x "${STAGE_PY_BIN}" ]; then
+  "${STAGE_PY_BIN}" -m compileall -q -j0 \
+    "${STAGE_ROOT}/runtime/mac/python/lib/python3.12" \
+    "${STAGE_ROOT}/Horosa-Web/astropy" \
+    "${STAGE_ROOT}/Horosa-Web/flatlib-ctrad2" \
+    "${STAGE_ROOT}/Horosa-Web/vendor" >/dev/null 2>&1 || true
+  echo "pyc precompiled ($(find "${STAGE_ROOT}" -name '*.pyc' 2>/dev/null | wc -l | tr -d ' ') files)"
+fi
 find "${STAGE_ROOT}" -type d -name '_CodeSignature' -prune -exec rm -rf {} + 2>/dev/null || true
 find "${STAGE_ROOT}" \( -name '._*' -o -name '.DS_Store' \) -exec rm -rf {} + 2>/dev/null || true
-find "${STAGE_ROOT}" \( -name '*.pyc' -o -name '*.pyo' -o -name '*.map' -o -name '*.tmp' -o -name '*.temp' -o -name '*.pid' \) -delete 2>/dev/null || true
+# 注:此行曾含 '*.pyc' —— 会把上方 compileall 刚预编译的 pyc 全部删光(预编译白做,
+# 首启回到逐文件编译)。pyc 属预期产物,只清其余临时物。
+find "${STAGE_ROOT}" \( -name '*.pyo' -o -name '*.map' -o -name '*.tmp' -o -name '*.temp' -o -name '*.pid' \) -delete 2>/dev/null || true
 find "${STAGE_ROOT}/runtime/mac/python/lib" -type f \( -name '*.a' -o -name '*.o' \) -delete 2>/dev/null || true
 /usr/bin/python3 "${STAGE_ROOT}/Horosa-Web/scripts/repairEmbeddedPythonRuntime.py" --repair "${STAGE_ROOT}/runtime/mac/python"
 PYTHONNOUSERSITE=1 PYTHONPATH="${STAGE_ROOT}/Horosa-Web/astropy" \
@@ -214,6 +257,141 @@ path = pathlib.Path(r"${STAGE_ROOT}/runtime-manifest.json")
 path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
 INNERPY
 
+# ══════════════════════════════════════════════════════════════════════════
+# 部件化产物(增量更新):在全量 tar 之外,把 stage 树按稳定性切 7 个部件 tar,
+# 客户端只下载 sha 变化的部件(常规版本更新 ~350MB → ~70-90MB)。
+# 制度:部件边界 = 本段 COMPONENT 定义(唯一真值源);SOP 文档与 preflight 哨兵
+# 与之 lockstep(新增/调整部件须三处同改)。全量 tar 永远照旧产出(首装/离线/回退)。
+# 类型:tree=整树替换(客户端先删 paths 再解压);files=文件级(files 清单入 lock,
+#   客户端按「旧 files−新 files」删除消失文件后覆盖解压)。
+# web-app 的 preserve:删 Horosa-Web 整树前把这些兄弟部件的路径 mv 暂存、解压后放回
+#   (它们的 tar 不含这些子树;数据部件自身变化时由其部件重装,不 mv)。
+if [ "${HOROSA_BUILD_COMPONENTS:-1}" = "1" ]; then
+  COMP_DIST="${DIST_ROOT}/components"
+  mkdir -p "${COMP_DIST}"
+  python3 - "${BUILD_ROOT}" "${COMP_DIST}" "${VERSION}" "${PAYLOAD_APP_NAME}" "${BUILT_AT}" <<'PYCOMP'
+import hashlib, json, os, pathlib, subprocess, sys
+
+build_root = pathlib.Path(sys.argv[1])
+comp_dist = pathlib.Path(sys.argv[2])
+runtime_version = sys.argv[3]
+app_name = sys.argv[4]
+built_at = sys.argv[5]
+stage = build_root / 'runtime-payload'
+
+OWN_JAR_PREFIXES = ('astro', 'basecomm', 'boundless')  # 自家模块 jar(BOOT-INF/lib 内)
+LIB_DIR = 'runtime/mac/bundle/boot-exploded/BOOT-INF/lib'
+
+def rel_files(root: pathlib.Path):
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort(); filenames.sort()
+        for fn in filenames:
+            out.append(str((pathlib.Path(dirpath) / fn).relative_to(stage)))
+    return out
+
+# ── 部件定义(唯一真值源;与 SOP / preflight 哨兵 lockstep)──
+tree_components = [
+    ('py-runtime',   ['runtime/mac/python'], []),
+    ('jdk-runtime',  ['runtime/mac/java'], []),
+    ('ephe-data',    ['Horosa-Web/flatlib-ctrad2/flatlib/resources'], []),
+    ('xuanshi-data', ['Horosa-Web/astropy/astrostudy/xuanshi'], []),
+    # web-app:Horosa-Web 整树,但排除上面两个数据子树(应用时 preserve 放回)
+    ('web-app',      ['Horosa-Web'], ['Horosa-Web/flatlib-ctrad2/flatlib/resources',
+                                       'Horosa-Web/astropy/astrostudy/xuanshi']),
+]
+
+# 文件级部件:java-lib=三方 jar;java-app=bundle 其余 + stage 根散文件
+lib_root = stage / LIB_DIR
+lib_files = sorted(str((lib_root / f).relative_to(stage)) for f in os.listdir(lib_root)
+                   if (lib_root / f).is_file())
+java_lib_files = [f for f in lib_files
+                  if not pathlib.Path(f).name.startswith(OWN_JAR_PREFIXES)]
+bundle_all = rel_files(stage / 'runtime/mac/bundle')
+java_app_files = [f for f in bundle_all if f not in set(java_lib_files)]
+root_files = sorted(str(p.relative_to(stage)) for p in stage.iterdir() if p.is_file())
+java_app_files += root_files
+
+components = []
+
+def tar_from_list(name, file_list):
+    lst = comp_dist / f'.{name}.list'
+    lst.write_text('\n'.join(f'runtime-payload/{f}' for f in file_list) + '\n')
+    out = comp_dist / f'horosa-comp-{name}-macos-arm64.tar.gz'
+    env = dict(os.environ, COPYFILE_DISABLE='1', COPY_EXTENDED_ATTRIBUTES_DISABLE='1')
+    subprocess.run(['/usr/bin/tar', '--disable-copyfile', '-czf', str(out),
+                    '-C', str(build_root), '-T', str(lst)], check=True, env=env)
+    lst.unlink()
+    return out
+
+def tar_tree(name, paths, excludes):
+    out = comp_dist / f'horosa-comp-{name}-macos-arm64.tar.gz'
+    env = dict(os.environ, COPYFILE_DISABLE='1', COPY_EXTENDED_ATTRIBUTES_DISABLE='1')
+    cmd = ['/usr/bin/tar', '--disable-copyfile', '-czf', str(out), '-C', str(build_root)]
+    for ex in excludes:
+        cmd.append(f'--exclude=runtime-payload/{ex}')
+    cmd += [f'runtime-payload/{p}' for p in paths]
+    subprocess.run(cmd, check=True, env=env)
+    return out
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+for name, paths, excludes in tree_components:
+    out = tar_tree(name, paths, excludes)
+    entry = {'name': name, 'type': 'tree', 'paths': paths,
+             'file': out.name, 'sha256': sha256(out), 'size': out.stat().st_size}
+    if name == 'web-app':
+        entry['preserve'] = ['Horosa-Web/flatlib-ctrad2/flatlib/resources',
+                             'Horosa-Web/astropy/astrostudy/xuanshi']
+    components.append(entry)
+
+for name, files in (('java-lib', java_lib_files), ('java-app', java_app_files)):
+    out = tar_from_list(name, files)
+    components.append({'name': name, 'type': 'files', 'files': files,
+                       'file': out.name, 'sha256': sha256(out), 'size': out.stat().st_size})
+
+# 零遗漏/零重叠校验:全部部件覆盖面 = 全量 stage 文件集,且互不重叠
+all_stage = set(rel_files(stage))
+covered = []
+for name, paths, excludes in tree_components:
+    sub = set()
+    for pth in paths:
+        sub |= {f for f in all_stage if f == pth or f.startswith(pth + '/')}
+    for ex in excludes:
+        sub -= {f for f in sub if f == ex or f.startswith(ex + '/')}
+    covered.append((name, sub))
+covered.append(('java-lib', set(java_lib_files)))
+covered.append(('java-app', set(java_app_files)))
+union, overlap = set(), []
+for name, sub in covered:
+    dup = union & sub
+    if dup:
+        overlap.append((name, sorted(dup)[:5]))
+    union |= sub
+missing = all_stage - union
+extra = union - all_stage
+if overlap or missing or extra:
+    raise SystemExit(f'component split drift: overlap={overlap[:2]} missing={sorted(missing)[:5]} extra={sorted(extra)[:5]}')
+
+lock = {'schemaVersion': 1, 'runtimeVersion': runtime_version, 'appName': app_name,
+        'builtAt': built_at, 'components': components}
+lock_text = json.dumps(lock, ensure_ascii=False, indent=2) + '\n'
+(comp_dist / 'components-lock.json').write_text(lock_text)
+# lock 同步进 stage 根:全量 tar 自带已装部件清单(客户端增量 diff 的本地基准;
+# 切分枚举发生在写入前,故 lock 不属于任何部件——增量应用成功后由客户端写新 lock)
+(stage / 'components-lock.json').write_text(lock_text)
+total = sum(c['size'] for c in components)
+print(f"components ready: {len(components)} parts, total {total/1048576:.0f}MB -> {comp_dist}")
+for c in components:
+    print(f"  {c['name']:14s} {c['size']/1048576:8.1f}MB  {c['sha256'][:12]}")
+PYCOMP
+fi
+
 (
   cd "${BUILD_ROOT}"
   COPYFILE_DISABLE=1 COPY_EXTENDED_ATTRIBUTES_DISABLE=1 /usr/bin/tar --disable-copyfile -czf "${ARCHIVE_PATH}" runtime-payload
@@ -261,5 +439,6 @@ try:
 finally:
     shutil.rmtree(root, ignore_errors=True)
 PYVERIFY
+
 
 echo "runtime payload ready: ${ARCHIVE_PATH}"

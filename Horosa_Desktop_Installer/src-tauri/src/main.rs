@@ -196,6 +196,27 @@ struct UpdatePlatform {
     pkg_sha256: Option<String>,
     #[serde(rename = "runtimeSha256")]
     runtime_sha256: Option<String>,
+    // manifest v2 增量部件(缺省 = 老 manifest,自动全量)
+    #[serde(default)]
+    components: Option<Vec<ManifestComponent>>,
+    #[serde(default, rename = "componentsLockUrl")]
+    components_lock_url: Option<String>,
+    #[serde(default, rename = "componentsLockSha256")]
+    components_lock_sha256: Option<String>,
+}
+
+// manifest v2 的部件条目:客户端 diff(name+sha256)与下载(url)所需;应用细节
+// (paths/files/preserve)在 components-lock.json asset 里,经 lockSha256 保真。
+#[derive(Debug, Clone, Deserialize)]
+struct ManifestComponent {
+    name: String,
+    #[serde(rename = "type")]
+    kind: String, // "tree" | "files"
+    sha256: String,
+    #[serde(default)]
+    size: Option<u64>,
+    file: String,
+    url: String,
 }
 
 #[derive(Debug, Clone)]
@@ -209,6 +230,10 @@ struct UpdatePlan {
     runtime_url: Option<String>,
     runtime_version: Option<String>,
     runtime_sha256: Option<String>,
+    // manifest v2 增量部件;GithubApi 回退源恒 None(天然全量)
+    components: Option<Vec<ManifestComponent>>,
+    components_lock_url: Option<String>,
+    components_lock_sha256: Option<String>,
     source: UpdateSource,
 }
 
@@ -561,6 +586,17 @@ struct StagedUpdate {
     target_version: String,
     app_should_update: bool,
     runtime_should_update: bool,
+    // 增量部件更新(下载校验完毕):Some = 应用阶段走部件手术;None = 全量 tar。
+    staged_components: Option<StagedComponents>,
+}
+
+// 已下载校验完成的增量部件集:new_lock 是新版 components-lock.json 全文(paths/files/
+// preserve 应用细节的真值源),archives 只含 sha 有变化的部件。
+#[derive(Clone)]
+struct StagedComponents {
+    archives: Vec<(ManifestComponent, PathBuf)>,
+    new_lock_json: serde_json::Value,
+    new_lock_text: String,
 }
 
 fn default_supported_arch() -> String {
@@ -3643,6 +3679,11 @@ fn resolve_update_plan(client: &Client, app: &AppHandle) -> Result<UpdatePlan> {
                         runtime_url: platform.runtime_url.clone(),
                         runtime_version: platform.runtime_version.clone(),
                         runtime_sha256: normalize_checksum(platform.runtime_sha256.clone()),
+                        components: platform.components.clone(),
+                        components_lock_url: platform.components_lock_url.clone(),
+                        components_lock_sha256: normalize_checksum(
+                            platform.components_lock_sha256.clone(),
+                        ),
                         source: UpdateSource::Manifest,
                     });
                 }
@@ -3689,6 +3730,9 @@ fn resolve_update_plan(client: &Client, app: &AppHandle) -> Result<UpdatePlan> {
         runtime_url: runtime_asset.map(|asset| asset.browser_download_url.clone()),
         runtime_version: runtime_asset.map(|_| latest.to_string()),
         runtime_sha256: None,
+        components: None,
+        components_lock_url: None,
+        components_lock_sha256: None,
         source: UpdateSource::GithubApi,
     })
 }
@@ -3966,6 +4010,360 @@ fn clear_runtime_pending_marker(runtime_dir: &Path) -> Result<()> {
             }
         }
     }
+    Ok(())
+}
+
+// ══════════════════════════ 增量部件更新(manifest v2) ══════════════════════════
+// 全量 tar 自带 components-lock.json(打包脚本写进 stage 根),故任何全量安装路径
+// (首装 pkg/离线/修复/回退)之后本地即有部件清单;增量更新按 manifest.components
+// 与本地 lock 的 sha 差集只下载变化部件,应用采用「clone 暂存 → 部件手术 → 原子
+// 对换」协议(与全量 extract_runtime_archive 的 current/previous 语义一致),任何
+// 一步失败 current 纹丝不动,调用方回落全量。kill-switch:HOROSA_UPDATE_FULL_ONLY=1。
+
+/// 本地已装部件清单(<root>/current/components-lock.json)。
+fn read_local_components_lock(runtime_root: &Path) -> Option<serde_json::Value> {
+    let path = runtime_root.join("current").join("components-lock.json");
+    let text = fs::read_to_string(path).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+fn lock_component_map(lock: &serde_json::Value) -> HashMap<String, serde_json::Value> {
+    let mut out = HashMap::new();
+    if let Some(items) = lock.get("components").and_then(|v| v.as_array()) {
+        for item in items {
+            if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
+                out.insert(name.to_string(), item.clone());
+            }
+        }
+    }
+    out
+}
+
+/// 增量可行性判定 + diff。返回需下载的部件集(可为空 = 纯版本标记更新);None = 走全量。
+fn plan_component_diff(
+    plan: &UpdatePlan,
+    runtime_roots: &[PathBuf],
+) -> Option<Vec<ManifestComponent>> {
+    if std::env::var("HOROSA_UPDATE_FULL_ONLY").ok().as_deref() == Some("1") {
+        return None;
+    }
+    let components = plan.components.as_ref()?;
+    plan.components_lock_url.as_ref()?;
+    plan.components_lock_sha256.as_ref()?;
+    if components.is_empty() {
+        return None;
+    }
+    // 多 root(共享+用户罕见修复态)一律全量:各 root 已装态可能不同,增量按单基准
+    // diff 会漏;单 root 覆盖绝大多数常规更新场景。
+    if runtime_roots.len() != 1 {
+        return None;
+    }
+    let local = read_local_components_lock(&runtime_roots[0])?;
+    let local_map = lock_component_map(&local);
+    if local_map.is_empty() {
+        return None;
+    }
+    let changed: Vec<ManifestComponent> = components
+        .iter()
+        .filter(|c| {
+            local_map
+                .get(&c.name)
+                .and_then(|v| v.get("sha256"))
+                .and_then(|v| v.as_str())
+                != Some(c.sha256.as_str())
+        })
+        .cloned()
+        .collect();
+    Some(changed)
+}
+
+/// 下载并校验:components-lock + 变化部件。lock 与 manifest 逐部件核对(防两 asset 漂移)。
+fn download_component_updates(
+    app: &AppHandle,
+    plan: &UpdatePlan,
+    config: &ReleaseConfig,
+    changed: &[ManifestComponent],
+    start_pct: u8,
+    end_pct: u8,
+) -> Result<StagedComponents> {
+    let lock_url = plan
+        .components_lock_url
+        .as_ref()
+        .context("manifest 缺 componentsLockUrl")?;
+    let lock_sha = plan
+        .components_lock_sha256
+        .as_deref()
+        .context("manifest 缺 componentsLockSha256")?;
+    let cache_dir = cached_runtime_archive_path(app, config)?
+        .parent()
+        .map(|p| p.to_path_buf())
+        .context("runtime 缓存目录不可用")?;
+    ensure_dir(&cache_dir)?;
+    let lock_path = cache_dir.join("components-lock.update.json");
+    download_update_asset(app, lock_url, &lock_path, start_pct, start_pct, "下载部件清单")?;
+    verify_sha256(&lock_path, Some(lock_sha), "部件清单")?;
+    let new_lock_text = fs::read_to_string(&lock_path)?;
+    let new_lock_json: serde_json::Value =
+        serde_json::from_str(&new_lock_text).context("解析部件清单 JSON")?;
+    // 身份与一致性:lock 必须与 manifest 同 runtimeVersion/appName,且逐部件 sha 一致。
+    let lock_rt = new_lock_json
+        .get("runtimeVersion")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if Some(lock_rt) != plan.runtime_version.as_deref() {
+        return Err(anyhow!(
+            "部件清单 runtimeVersion({}) 与更新计划({:?})不符",
+            lock_rt,
+            plan.runtime_version
+        ));
+    }
+    let lock_app = new_lock_json
+        .get("appName")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if lock_app != APP_NAME {
+        return Err(anyhow!(
+            "部件清单归属({})与本应用({})不符,拒绝增量",
+            lock_app,
+            APP_NAME
+        ));
+    }
+    let lock_map = lock_component_map(&new_lock_json);
+    if let Some(manifest_comps) = plan.components.as_ref() {
+        for c in manifest_comps {
+            let ok = lock_map
+                .get(&c.name)
+                .and_then(|v| v.get("sha256"))
+                .and_then(|v| v.as_str())
+                == Some(c.sha256.as_str());
+            if !ok {
+                return Err(anyhow!("部件 {} 在清单与 manifest 间 sha 不一致", c.name));
+            }
+        }
+    }
+    let mut archives = Vec::new();
+    let total = changed.len().max(1) as u32;
+    for (idx, comp) in changed.iter().enumerate() {
+        let dest = cache_dir.join(&comp.file);
+        let seg = (end_pct - start_pct) as u32;
+        let s = start_pct + (seg * idx as u32 / total) as u8;
+        let e = start_pct + (seg * (idx as u32 + 1) / total) as u8;
+        download_update_asset(
+            app,
+            &comp.url,
+            &dest,
+            s,
+            e,
+            &format!("下载组件 {}({}/{})", comp.name, idx + 1, changed.len()),
+        )?;
+        verify_sha256(&dest, Some(&comp.sha256), &format!("组件 {}", comp.name))?;
+        archives.push((comp.clone(), dest));
+    }
+    Ok(StagedComponents {
+        archives,
+        new_lock_json,
+        new_lock_text,
+    })
+}
+
+fn clone_dir_fast(src: &Path, dst: &Path) -> Result<()> {
+    // APFS clonefile(秒级零空间);非 APFS 卷退化普通拷贝。cp -R 对 symlink 原样拷。
+    let cloned = Command::new("/bin/cp")
+        .arg("-Rc")
+        .arg(src)
+        .arg(dst)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if cloned {
+        return Ok(());
+    }
+    remove_dir_if_exists(dst)?;
+    let status = Command::new("/bin/cp")
+        .arg("-R")
+        .arg(src)
+        .arg(dst)
+        .status()
+        .context("clone runtime for component staging")?;
+    if !status.success() {
+        return Err(anyhow!("复制 runtime 暂存副本失败"));
+    }
+    Ok(())
+}
+
+fn tar_extract_strip1(archive: &Path, dest: &Path) -> Result<()> {
+    let status = Command::new("/usr/bin/tar")
+        .arg("--strip-components=1")
+        .arg("-xzf")
+        .arg(archive)
+        .arg("-C")
+        .arg(dest)
+        .env("COPYFILE_DISABLE", "1")
+        .env("COPY_EXTENDED_ATTRIBUTES_DISABLE", "1")
+        .status()
+        .with_context(|| format!("extract component {}", archive.display()))?;
+    if !status.success() {
+        return Err(anyhow!("解压组件失败: {}", archive.display()));
+    }
+    Ok(())
+}
+
+/// 对单个 runtime root 应用增量部件:clone 暂存 → 手术 → 原子对换(失败 current 不动)。
+fn apply_component_updates(dest_root: &Path, staged: &StagedComponents) -> Result<()> {
+    let current = dest_root.join("current");
+    if !current.exists() {
+        return Err(anyhow!("增量前提缺失:{} 不存在", current.display()));
+    }
+    let stage = dest_root.join("_comp_stage");
+    remove_dir_if_exists(&stage)?;
+    // 磁盘预检:非 APFS 退化拷贝最多需要一份 runtime 副本 + 解压余量。
+    if let Some(avail) = available_disk_bytes(dest_root) {
+        let need: u64 = staged
+            .archives
+            .iter()
+            .map(|(_, p)| fs::metadata(p).map(|m| m.len()).unwrap_or(0))
+            .sum::<u64>()
+            .saturating_mul(3)
+            .saturating_add(1_000_000_000);
+        if avail < need {
+            return Err(anyhow!(
+                "磁盘空间不足:增量更新约需 {:.1} GB 可用空间,当前仅 {:.1} GB",
+                need as f64 / 1e9,
+                avail as f64 / 1e9
+            ));
+        }
+    }
+    let result = (|| -> Result<()> {
+        clone_dir_fast(&current, &stage)?;
+        let old_lock = fs::read_to_string(stage.join("components-lock.json"))
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+            .context("暂存副本缺已装部件清单(增量基准丢失)")?;
+        let old_map = lock_component_map(&old_lock);
+        let new_map = lock_component_map(&staged.new_lock_json);
+        for (comp, archive) in &staged.archives {
+            let detail = new_map
+                .get(&comp.name)
+                .with_context(|| format!("新清单缺部件 {}", comp.name))?;
+            if comp.kind == "tree" {
+                // preserve:兄弟数据部件的子树先挪出(本部件 tar 不含它们),解压后放回。
+                let preserve: Vec<String> = detail
+                    .get("preserve")
+                    .and_then(|v| v.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let preserve_tmp = stage.join("_preserve_tmp");
+                remove_dir_if_exists(&preserve_tmp)?;
+                let mut moved = Vec::new();
+                for (idx, rel) in preserve.iter().enumerate() {
+                    let from = stage.join(rel);
+                    if from.exists() {
+                        let to = preserve_tmp.join(idx.to_string());
+                        ensure_dir(preserve_tmp.as_path())?;
+                        fs::rename(&from, &to)
+                            .with_context(|| format!("暂存保留子树 {}", rel))?;
+                        moved.push((rel.clone(), to));
+                    }
+                }
+                let paths: Vec<String> = detail
+                    .get("paths")
+                    .and_then(|v| v.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if paths.is_empty() {
+                    return Err(anyhow!("tree 部件 {} 无 paths 声明", comp.name));
+                }
+                for rel in &paths {
+                    remove_dir_if_exists(&stage.join(rel))?;
+                }
+                tar_extract_strip1(archive, &stage)?;
+                for (rel, tmp) in moved {
+                    let back = stage.join(&rel);
+                    if back.exists() {
+                        // 新 tar 已带该子树(部件边界调整),保留新内容。
+                        remove_dir_if_exists(&tmp)?;
+                    } else {
+                        if let Some(parent) = back.parent() {
+                            ensure_dir(parent)?;
+                        }
+                        fs::rename(&tmp, &back)
+                            .with_context(|| format!("放回保留子树 {}", rel))?;
+                    }
+                }
+                remove_dir_if_exists(&preserve_tmp)?;
+            } else {
+                // files 型:消失文件 =(旧清单 files − 新清单 files)逐个删除,再覆盖解压。
+                let files_of = |v: &serde_json::Value| -> Vec<String> {
+                    v.get("files")
+                        .and_then(|x| x.as_array())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                };
+                let new_files: std::collections::HashSet<String> =
+                    files_of(detail).into_iter().collect();
+                if new_files.is_empty() {
+                    return Err(anyhow!("files 部件 {} 无 files 清单", comp.name));
+                }
+                if let Some(old_detail) = old_map.get(&comp.name) {
+                    for f in files_of(old_detail) {
+                        if !new_files.contains(&f) {
+                            let _ = fs::remove_file(stage.join(&f));
+                        }
+                    }
+                }
+                tar_extract_strip1(archive, &stage)?;
+            }
+        }
+        // 新部件清单 + runtime-manifest(version/builtAt/appName 从新 lock 派生)落盘。
+        fs::write(stage.join("components-lock.json"), &staged.new_lock_text)?;
+        let manifest_json = serde_json::json!({
+            "version": staged.new_lock_json.get("runtimeVersion").and_then(|v| v.as_str()).unwrap_or(""),
+            "built_at": staged.new_lock_json.get("builtAt").and_then(|v| v.as_str()).unwrap_or(""),
+            "appName": staged.new_lock_json.get("appName").and_then(|v| v.as_str()).unwrap_or(APP_NAME),
+        });
+        fs::write(
+            stage.join("runtime-manifest.json"),
+            serde_json::to_string_pretty(&manifest_json)? + "\n",
+        )?;
+        prepare_runtime_dir(&stage)?;
+        Ok(())
+    })();
+    if let Err(err) = result {
+        let _ = remove_dir_if_exists(&stage);
+        return Err(err);
+    }
+    // 原子对换(与全量 extract_runtime_archive 同款协议)。
+    let backup = dest_root.join("previous");
+    remove_dir_if_exists(&backup)?;
+    fs::rename(&current, &backup)?;
+    if let Err(err) = fs::rename(&stage, &current) {
+        let _ = fs::rename(&backup, &current);
+        let _ = remove_dir_if_exists(&stage);
+        return Err(err.into());
+    }
+    let _ = Command::new("/usr/bin/xattr")
+        .arg("-dr")
+        .arg("com.apple.quarantine")
+        .arg(&current)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    remove_dir_if_exists(&backup)?;
+    clear_runtime_pending_marker(&current)?;
     Ok(())
 }
 
@@ -5447,13 +5845,53 @@ fn run_background_update_download(app: &AppHandle) -> Result<()> {
         verify_sha256(&zip_path, plan.app_sha256.as_deref(), "桌面更新包")?;
     }
     let mut runtime_archive_path = None;
+    let mut staged_components = None;
     if runtime_should_update {
-        if let Some(runtime_url) = plan.runtime_url.as_ref() {
-            let rp = cached_runtime_archive_path(app, &config)?;
-            let start = if app_should_update { 58 } else { 12 };
-            download_update_asset(app, runtime_url, &rp, start, 92, "下载本机组件更新")?;
-            verify_sha256(&rp, plan.runtime_sha256.as_deref(), "运行环境更新包")?;
-            runtime_archive_path = Some(rp);
+        let start = if app_should_update { 58 } else { 12 };
+        // 增量优先:manifest v2 + 本地部件清单在位时只下载 sha 变化的部件;
+        // 任何一步失败只降级回全量下载,不失败整个更新。
+        if let Some(changed) = plan_component_diff(&plan, &runtime_roots) {
+            let full_mb = plan
+                .components
+                .as_ref()
+                .map(|cs| cs.iter().filter_map(|c| c.size).sum::<u64>() / 1_048_576)
+                .unwrap_or(0);
+            let need_mb = changed.iter().filter_map(|c| c.size).sum::<u64>() / 1_048_576;
+            emit_update_event(
+                app,
+                &serde_json::json!({
+                    "phase": "downloading",
+                    "pct": start,
+                    "message": format!(
+                        "增量更新:仅需下载 {} 个组件(约 {}MB,全量 {}MB)",
+                        changed.len(), need_mb, full_mb
+                    ),
+                })
+                .to_string(),
+            );
+            match download_component_updates(app, &plan, &config, &changed, start, 92) {
+                Ok(staged) => staged_components = Some(staged),
+                Err(err) => {
+                    eprintln!("component update download failed, fallback to full: {err:#}");
+                    emit_update_event(
+                        app,
+                        &serde_json::json!({
+                            "phase": "downloading",
+                            "pct": start,
+                            "message": "增量组件获取失败,改为下载完整本机组件…",
+                        })
+                        .to_string(),
+                    );
+                }
+            }
+        }
+        if staged_components.is_none() {
+            if let Some(runtime_url) = plan.runtime_url.as_ref() {
+                let rp = cached_runtime_archive_path(app, &config)?;
+                download_update_asset(app, runtime_url, &rp, start, 92, "下载本机组件更新")?;
+                verify_sha256(&rp, plan.runtime_sha256.as_deref(), "运行环境更新包")?;
+                runtime_archive_path = Some(rp);
+            }
         }
     }
 
@@ -5471,6 +5909,7 @@ fn run_background_update_download(app: &AppHandle) -> Result<()> {
                 target_version: plan.latest_version.to_string(),
                 app_should_update,
                 runtime_should_update,
+                staged_components,
             });
         }
     }
@@ -5514,7 +5953,18 @@ fn run_staged_install(app: &AppHandle) -> Result<()> {
             .zip_path
             .as_deref()
             .context("已下载的桌面包丢失,请重新下载")?;
-        // 应用包安装会替换 + 重启(install_downloaded_app 内部 app.exit),runtime 随同处理。
+        // 增量部件:进程存活期先完成 runtime 手术(Rust 全逻辑 + 原子对换),
+        // 之后 helper 脚本只负责替换 .app(runtime_archive 传 None)。
+        if staged.runtime_should_update {
+            if let Some(components) = staged.staged_components.as_ref() {
+                cleanup_state(app);
+                for root in &staged.runtime_roots {
+                    apply_component_updates(root, components)
+                        .with_context(|| format!("增量应用本机组件到 {}", root.display()))?;
+                }
+            }
+        }
+        // 应用包安装会替换 + 重启(install_downloaded_app 内部 app.exit),全量 runtime 随同处理。
         install_downloaded_app(
             app.clone(),
             zip,
@@ -5529,15 +5979,22 @@ fn run_staged_install(app: &AppHandle) -> Result<()> {
         let window = app
             .get_webview_window(MAIN_WINDOW_LABEL)
             .context("缺少主窗口,无法完成本机组件更新")?;
-        let runtime_archive = staged
-            .runtime_archive_path
-            .as_deref()
-            .context("已下载的本机组件包丢失,请重新下载")?;
         cleanup_state(app);
-        for root in &staged.runtime_roots {
-            ensure_dir(root)?;
-            extract_runtime_archive(runtime_archive, root)?;
-            clear_runtime_pending_marker(&root.join("current"))?;
+        if let Some(components) = staged.staged_components.as_ref() {
+            for root in &staged.runtime_roots {
+                apply_component_updates(root, components)
+                    .with_context(|| format!("增量应用本机组件到 {}", root.display()))?;
+            }
+        } else {
+            let runtime_archive = staged
+                .runtime_archive_path
+                .as_deref()
+                .context("已下载的本机组件包丢失,请重新下载")?;
+            for root in &staged.runtime_roots {
+                ensure_dir(root)?;
+                extract_runtime_archive(runtime_archive, root)?;
+                clear_runtime_pending_marker(&root.join("current"))?;
+            }
         }
         let app_handle = app.clone();
         let win = window.clone();
@@ -6903,6 +7360,205 @@ mod tests {
         }
         assert_reaped("py", &mut py);
         assert_reaped("java", &mut java);
+        let _ = fs::remove_dir_all(&work);
+    }
+
+    // ── 增量部件应用协议(apply_component_updates):tree/preserve/files 三机制 + 失败原子性 ──
+
+    fn write_file(path: &Path, content: &str) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    }
+
+    /// 打一个部件 tar.gz:条目带 runtime-payload/ 前缀(与打包脚本产物同构)。
+    fn build_component_tar(dest: &Path, entries: &[(&str, &str)]) {
+        let file = fs::File::create(dest).unwrap();
+        let enc = GzEncoder::new(file, Compression::fast());
+        let mut builder = Builder::new(enc);
+        for (rel, content) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(content.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(
+                    &mut header,
+                    format!("runtime-payload/{}", rel),
+                    content.as_bytes(),
+                )
+                .unwrap();
+        }
+        builder.into_inner().unwrap().finish().unwrap();
+    }
+
+    fn lock_json(version: &str, tree_files_note: &str, files_list: &[&str]) -> serde_json::Value {
+        serde_json::json!({
+            "schemaVersion": 1,
+            "runtimeVersion": version,
+            "appName": APP_NAME,
+            "builtAt": tree_files_note,
+            "components": [
+                {"name": "t", "type": "tree", "paths": ["t"], "preserve": ["t/keep"],
+                 "file": "comp-t.tar.gz", "sha256": "x", "size": 1},
+                {"name": "f", "type": "files", "files": files_list,
+                 "file": "comp-f.tar.gz", "sha256": "y", "size": 1},
+            ],
+        })
+    }
+
+    fn setup_v1_runtime(root: &Path) {
+        let current = root.join("current");
+        write_file(&current.join("t/old.txt"), "v1-old");
+        write_file(&current.join("t/keep/k.txt"), "user-data");
+        write_file(&current.join("f/a.txt"), "v1-a");
+        write_file(&current.join("f/b.txt"), "v1-b");
+        let lock = lock_json("1.0.0", "2026-01-01", &["f/a.txt", "f/b.txt"]);
+        write_file(
+            &current.join("components-lock.json"),
+            &serde_json::to_string_pretty(&lock).unwrap(),
+        );
+        write_file(
+            &current.join("runtime-manifest.json"),
+            r#"{"version":"1.0.0","built_at":"2026-01-01","appName":"x"}"#,
+        );
+    }
+
+    fn staged_v2(work: &Path) -> StagedComponents {
+        let t_tar = work.join("comp-t.tar.gz");
+        build_component_tar(&t_tar, &[("t/new.txt", "v2-new")]); // 不含 keep 子树
+        let f_tar = work.join("comp-f.tar.gz");
+        build_component_tar(&f_tar, &[("f/a.txt", "v2-a"), ("f/c.txt", "v2-c")]); // b 消失
+        let new_lock = lock_json("2.0.0", "2026-02-02", &["f/a.txt", "f/c.txt"]);
+        let mk = |name: &str, file: &str| ManifestComponent {
+            name: name.into(),
+            kind: if name == "t" { "tree".into() } else { "files".into() },
+            sha256: "irrelevant-for-apply".into(),
+            size: Some(1),
+            file: file.into(),
+            url: String::new(),
+        };
+        StagedComponents {
+            archives: vec![(mk("t", "comp-t.tar.gz"), t_tar), (mk("f", "comp-f.tar.gz"), f_tar)],
+            new_lock_text: serde_json::to_string_pretty(&new_lock).unwrap(),
+            new_lock_json: new_lock,
+        }
+    }
+
+    #[test]
+    fn component_apply_tree_preserve_and_files_semantics() {
+        let work = std::env::temp_dir().join(format!("horosa-comp-apply-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&work);
+        let root = work.join("root");
+        setup_v1_runtime(&root);
+        let staged = staged_v2(&work);
+
+        apply_component_updates(&root, &staged).expect("incremental apply should succeed");
+
+        let cur = root.join("current");
+        // tree:整树替换 + preserve 子树幸存
+        assert!(!cur.join("t/old.txt").exists(), "旧树文件应被整树替换清除");
+        assert_eq!(fs::read_to_string(cur.join("t/new.txt")).unwrap(), "v2-new");
+        assert_eq!(
+            fs::read_to_string(cur.join("t/keep/k.txt")).unwrap(),
+            "user-data",
+            "preserve 子树必须在整树替换后放回"
+        );
+        // files:更新/新增/删除三态
+        assert_eq!(fs::read_to_string(cur.join("f/a.txt")).unwrap(), "v2-a");
+        assert_eq!(fs::read_to_string(cur.join("f/c.txt")).unwrap(), "v2-c");
+        assert!(!cur.join("f/b.txt").exists(), "消失文件(旧−新)必须删除");
+        // 清单/身份戳重写 + 暂存清理
+        let lock: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(cur.join("components-lock.json")).unwrap())
+                .unwrap();
+        assert_eq!(lock["runtimeVersion"], "2.0.0");
+        let manifest: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(cur.join("runtime-manifest.json")).unwrap())
+                .unwrap();
+        assert_eq!(manifest["version"], "2.0.0");
+        assert_eq!(manifest["appName"], APP_NAME);
+        assert!(!root.join("previous").exists());
+        assert!(!root.join("_comp_stage").exists());
+        let _ = fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn component_apply_failure_leaves_current_untouched() {
+        let work =
+            std::env::temp_dir().join(format!("horosa-comp-fail-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&work);
+        let root = work.join("root");
+        setup_v1_runtime(&root);
+        let staged = staged_v2(&work);
+        fs::write(&staged.archives[1].1, b"not a tar.gz").unwrap(); // 损坏 files 部件
+
+        let err = apply_component_updates(&root, &staged);
+        assert!(err.is_err(), "坏包必须失败");
+        let cur = root.join("current");
+        assert_eq!(fs::read_to_string(cur.join("t/old.txt")).unwrap(), "v1-old");
+        assert_eq!(fs::read_to_string(cur.join("f/b.txt")).unwrap(), "v1-b");
+        let lock: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(cur.join("components-lock.json")).unwrap())
+                .unwrap();
+        assert_eq!(lock["runtimeVersion"], "1.0.0", "失败后 current 必须纹丝不动");
+        assert!(!root.join("_comp_stage").exists(), "失败必须清理暂存");
+        let _ = fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn component_diff_gates_and_change_detection() {
+        let work =
+            std::env::temp_dir().join(format!("horosa-comp-diff-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&work);
+        let root = work.join("root");
+        setup_v1_runtime(&root);
+        let mk = |name: &str, sha: &str| ManifestComponent {
+            name: name.into(),
+            kind: "tree".into(),
+            sha256: sha.into(),
+            size: Some(1),
+            file: format!("comp-{}.tar.gz", name),
+            url: String::new(),
+        };
+        let plan = |comps: Option<Vec<ManifestComponent>>| UpdatePlan {
+            latest_version: Version::parse("9.9.9").unwrap(),
+            notes: String::new(),
+            repo_url: String::new(),
+            release_url: String::new(),
+            app_url: String::new(),
+            app_sha256: None,
+            runtime_url: None,
+            runtime_version: Some("9.9.9".into()),
+            runtime_sha256: None,
+            components: comps,
+            components_lock_url: Some("u".into()),
+            components_lock_sha256: Some("s".into()),
+            source: UpdateSource::Manifest,
+        };
+        let roots = vec![root.clone()];
+        // v1 lock 里 t/f 的 sha 是 "x"/"y":同 sha 不下载,异 sha 进下载集
+        let diff =
+            plan_component_diff(&plan(Some(vec![mk("t", "x"), mk("f", "changed")])), &roots)
+                .expect("应可增量");
+        assert_eq!(diff.len(), 1);
+        assert_eq!(diff[0].name, "f");
+        // 新增部件(本地清单没有)按变化处理
+        let diff2 = plan_component_diff(
+            &plan(Some(vec![mk("t", "x"), mk("brand-new", "z")])),
+            &roots,
+        )
+        .expect("应可增量");
+        assert_eq!(diff2.len(), 1);
+        assert_eq!(diff2[0].name, "brand-new");
+        // 门:无 components → None;多 root → None;kill-switch → None
+        assert!(plan_component_diff(&plan(None), &roots).is_none());
+        assert!(
+            plan_component_diff(&plan(Some(vec![mk("t", "x")])), &[root.clone(), work.clone()])
+                .is_none()
+        );
+        std::env::set_var("HOROSA_UPDATE_FULL_ONLY", "1");
+        assert!(plan_component_diff(&plan(Some(vec![mk("t", "q")])), &roots).is_none());
+        std::env::remove_var("HOROSA_UPDATE_FULL_ONLY");
         let _ = fs::remove_dir_all(&work);
     }
 }

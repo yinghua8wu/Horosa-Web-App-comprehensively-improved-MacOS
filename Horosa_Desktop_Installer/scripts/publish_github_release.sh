@@ -495,6 +495,43 @@ ensure_release "${TAG_NAME}" "${RELEASE_NAME}" "${RELEASE_BODY}" "${APP_MAKE_LAT
 APP_RELEASE_ID="${ENSURE_RELEASE_ID}"
 APP_UPLOAD_URL="${ENSURE_UPLOAD_URL}"
 
+# ── 增量更新部件:跨版本 asset 复用决策(必须在 manifest 上传之前——会重写其 url)。
+# 真值源=线上 latest manifest 的 components(用户正在用的部件 url/sha):
+#   sha 相同 → 沿用旧 url,本次不上传该部件(省带宽,GitHub asset URL 永久有效);
+#   sha 不同/线上无 v2 manifest/拉取失败 → 全部上传(复用只是优化,失败恒全传)。
+# 决策结果写 ${COMP_UPLOAD_LIST}(待上传文件名,一行一个)并原地重写本地 manifest。
+COMP_DIST="${DIST_ROOT}/components"
+COMP_UPLOAD_LIST=""
+if [ -f "${COMP_DIST}/components-lock.json" ] && [ -f "${DIST_ROOT}/${UPDATE_MANIFEST_NAME}" ]; then
+  PREV_MANIFEST_JSON="$(curl -fsSL -H 'Cache-Control: no-cache' "https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/${UPDATE_MANIFEST_NAME}" 2>/dev/null || true)"
+  COMP_UPLOAD_LIST="$(MANIFEST_PATH="${DIST_ROOT}/${UPDATE_MANIFEST_NAME}" PREV_JSON="${PREV_MANIFEST_JSON}" python3 - <<'PYCOMPREUSE'
+import json, os
+manifest_path = os.environ['MANIFEST_PATH']
+manifest = json.loads(open(manifest_path, encoding='utf-8').read())
+try:
+    prev = json.loads(os.environ.get('PREV_JSON') or '{}')
+except Exception:
+    prev = {}
+prev_comps = {}
+for entry in (prev.get('platforms') or {}).values():
+    for c in entry.get('components') or []:
+        prev_comps[c['name']] = c
+upload = set()
+for entry in (manifest.get('platforms') or {}).values():
+    for c in entry.get('components') or []:
+        old = prev_comps.get(c['name'])
+        if old and old.get('sha256') == c['sha256'] and old.get('url'):
+            c['url'] = old['url']  # 复用:指向该 sha 首次发布的 release asset
+        else:
+            upload.add(c['file'])
+    if entry.get('components'):
+        upload.add('components-lock.json')
+open(manifest_path, 'w', encoding='utf-8').write(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+print('\n'.join(sorted(upload)))
+PYCOMPREUSE
+)"
+fi
+
 delete_named_assets "${APP_RELEASE_ID}" "Horosa-Desktop-macos-arm64.dmg" "${DESKTOP_PKG_ZIP}" "${DESKTOP_PKG}" "${DESKTOP_OFFLINE_PKG_ZIP}" "${DESKTOP_OFFLINE_PKG}" "${DESKTOP_ASSET}" "${UPDATE_MANIFEST_NAME}" "${RUNTIME_ASSET}"
 
 for asset in "${APP_ASSETS[@]}"; do
@@ -504,6 +541,7 @@ done
 if [ "${RUNTIME_TAG_NAME}" = "${TAG_NAME}" ]; then
   upload_asset "${APP_UPLOAD_URL}" "${RUNTIME_ARCHIVE_PATH}"
   RUNTIME_RELEASE_ID="${APP_RELEASE_ID}"
+  RUNTIME_UPLOAD_URL="${APP_UPLOAD_URL}"
 else
   ensure_release "${RUNTIME_TAG_NAME}" "${RUNTIME_TAG_NAME}${RELEASE_CHANNEL_LABEL:+ ${RELEASE_CHANNEL_LABEL}}" "${RUNTIME_RELEASE_BODY}" "false" "${RELEASE_PRERELEASE}"
   RUNTIME_RELEASE_ID="${ENSURE_RELEASE_ID}"
@@ -516,6 +554,38 @@ else
   else
     upload_asset "${RUNTIME_UPLOAD_URL}" "${RUNTIME_ARCHIVE_PATH}"
   fi
+fi
+
+# ── 增量更新部件上传(与 manifest 的部件 url 同归 runtime release):
+# 幂等按 GitHub asset digest:同名同 sha=跳过;同名异 sha=产物漂移,删旧重传
+# (manifest 的 sha 是本地新值,留旧 asset 会让客户端校验失败)。
+if [ -n "${COMP_UPLOAD_LIST}" ]; then
+  RUNTIME_ASSETS_JSON="$(api_json "${API_ROOT}/releases/${RUNTIME_RELEASE_ID}/assets?per_page=100")"
+  while IFS= read -r comp_file; do
+    [ -n "${comp_file}" ] || continue
+    comp_path="${COMP_DIST}/${comp_file}"
+    [ -f "${comp_path}" ] || { echo "missing component asset: ${comp_path}" >&2; exit 1; }
+    local_sha="$(shasum -a 256 "${comp_path}" | awk '{print $1}')"
+    remote_sha="$(python3 - <<'PYDIGEST' "${RUNTIME_ASSETS_JSON}" "${comp_file}"
+import json, sys
+for asset in json.loads(sys.argv[1]):
+    if asset.get('name') == sys.argv[2]:
+        digest = str(asset.get('digest') or '')
+        if digest.startswith('sha256:'):
+            print(digest.split(':', 1)[1])
+        break
+PYDIGEST
+)"
+    if [ "${remote_sha}" = "${local_sha}" ]; then
+      echo "component ${comp_file} already present (sha match); skipping"
+      continue
+    fi
+    if [ -n "${remote_sha}" ]; then
+      delete_named_assets "${RUNTIME_RELEASE_ID}" "${comp_file}"
+    fi
+    upload_asset "${RUNTIME_UPLOAD_URL}" "${comp_path}"
+  done <<< "${COMP_UPLOAD_LIST}"
+  echo "components uploaded (incremental set): $(echo "${COMP_UPLOAD_LIST}" | tr '\n' ' ')"
 fi
 
 if [ "${RELEASE_PRERELEASE}" = "true" ]; then

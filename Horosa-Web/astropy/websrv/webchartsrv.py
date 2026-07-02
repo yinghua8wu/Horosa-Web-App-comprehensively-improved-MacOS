@@ -7,6 +7,7 @@ import time
 import socket
 import signal
 import subprocess
+import threading
 import cherrypy
 
 try:
@@ -458,25 +459,49 @@ def ensure_chart_port_free(host, port, attempts=12, wait=0.5):
     return _chart_port_free(host, port)
 
 
-if __name__ == '__main__':
+# ── 启动就绪门(温启提速):warmup(PD+india)移后台线程,HOROSA_READY 提前 ~1.5-2s。
+# 正确性:业务 POST 在门上等 warmup 完成才放行 —— 与旧同步方案同语义(请求最早也要等
+# warmup 完),但端口/探活/前端导航全部提前;任何请求的最早可服务时刻不晚于旧方案。
+# 并发安全:门保证 warmup 期间无业务请求并发(沿旧注释对 swisseph 全局 sid_mode 的顾虑,
+# 见 tests/test_swe_concurrency.py);探活(GET /、/healthz、OPTIONS)不改 sid_mode,放行。
+# kill-switch:HOROSA_PY_WARMUP_SYNC=1 回退旧同步顺序。
+STARTUP_GATE = threading.Event()
+
+
+def _startup_gate_tool():
+    if STARTUP_GATE.is_set():
+        return
+    req = cherrypy.request
+    if req.method in ('GET', 'OPTIONS', 'HEAD'):
+        return  # 探活/预检不碰计算与 sid_mode
+    # 兜底超时:warmup 异常挂死也不至于永久拒绝服务(warmup 平常 1.5-2s)
+    STARTUP_GATE.wait(timeout=60)
+
+
+def _run_warmups():
     try:
         t0 = time.perf_counter()
         warm_chart = PerChart(dict(WebChartSrv.PD_WARMUP_SAMPLE))
         warm_chart.getPredict().getPrimaryDirection()
         WebChartSrv.WARMED = True
-        print('pd warmup ready in {0:.3f}s'.format(time.perf_counter() - t0))
+        print('pd warmup ready in {0:.3f}s'.format(time.perf_counter() - t0), flush=True)
     except Exception:
         traceback.print_exc()
-
-    # 印度盘后端预热:同步跑一个 dummy 印度盘(复用上面 PD 预热已热的 swisseph/星历),把 india
-    # 各子算法的冷计算路径载入,消除每次重启软件后首次进入印度占星的 ~3s 冷启动。同步(非后台线程)
-    # 以避免与首个真实请求并发改 swisseph 全局 sid_mode 致错盘;失败静默不影响服务。
+    # 印度盘预热:把 india 各子算法冷路径载入,消除首次进入印度占星的 ~3s 冷启动;
+    # 与业务请求的并发由启动门隔离(门开前无业务 POST 进入)。失败静默不影响服务。
     try:
         t1 = time.perf_counter()
         warmup_india()
-        print('india warmup ready in {0:.3f}s'.format(time.perf_counter() - t1))
+        print('india warmup ready in {0:.3f}s'.format(time.perf_counter() - t1), flush=True)
     except Exception:
         traceback.print_exc()
+    STARTUP_GATE.set()
+
+
+if __name__ == '__main__':
+    _warmup_sync = os.environ.get('HOROSA_PY_WARMUP_SYNC', '0') == '1'
+    if _warmup_sync:
+        _run_warmups()   # 旧行为:warmup 完才继续起服务
 
     chart_port = int(os.environ.get('HOROSA_CHART_PORT', '8899'))
     cherrypy.config.update({'server.socket_host': '127.0.0.1',
@@ -486,6 +511,8 @@ if __name__ == '__main__':
                             })
 
     cherrypy.tools.cors = cherrypy._cptools.HandlerTool(CORS)
+    cherrypy.tools.startup_gate = cherrypy.Tool('before_handler', _startup_gate_tool, priority=10)
+    cherrypy.config.update({'tools.startup_gate.on': True})
 
     cherrypy.tree.mount(WebChartSrv(), '/')
     cherrypy.tree.mount(PredictSrv(), '/predict')
@@ -503,6 +530,11 @@ if __name__ == '__main__':
 
     # 绑定前先确保端口可用(回收上次崩溃残留的僵尸 chart python),消除「Port 8899 not free」反复起不来。
     ensure_chart_port_free('127.0.0.1', chart_port)
+
+    if not _warmup_sync:
+        threading.Thread(target=_run_warmups, name='horosa-warmup', daemon=True).start()
+    else:
+        STARTUP_GATE.set()
 
     cherrypy.engine.start()
     # P0 启动握手:监听后向 stdout 报端口,壳/launcher 可确认「此端口确为本次起的 chart 后端」(消 TOCTOU/误判)。

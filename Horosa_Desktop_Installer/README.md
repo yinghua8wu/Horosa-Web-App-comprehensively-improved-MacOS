@@ -47,6 +47,7 @@
 - `installer-scripts/distribution.xml.template`：安装器分发清单（系统版本 / 架构门槛）
 - `scripts/package_runtime_payload.sh`：打包 runtime payload
 - `scripts/build_desktop_release.sh`：构建 `.app zip`、离线 `.pkg`、`horosa-latest.json`
+- `scripts/release_preflight.sh`：发布前自检闸门（sentinel；任一不过即阻断）
 - `scripts/verify_desktop_packaging.sh`：一键验收脚本
 - `scripts/generate_icon.sh`：从透明圆角星空图标源生成 macOS app icon / iconset / icns
 
@@ -105,7 +106,7 @@
 4. 发布资产至少同时上传：`Horosa-Desktop-macos-arm64.zip`、`Horosa-Installer-macos-arm64-offline.pkg`、`horosa-latest.json`，以及 runtime 独立 release 中的 `horosa-runtime-macos-arm64.tar.gz`
 5. `horosa-latest.json` 指向同一 tag 下的版本化资产 URL
 6. Release 是正式版 latest，不要把预发布误当最新稳定版
-7. 发布前用 `HOROSA_DESKTOP_SKIP_REBUILD=1 ./scripts/verify_desktop_packaging.sh` 验收，避免重复触发 Apple 签名与公证
+7. 发布前先跑 `release_preflight.sh`；验收用 `HOROSA_DESKTOP_SKIP_REBUILD=1 ./scripts/verify_desktop_packaging.sh`，避免验收阶段重复触发 Apple 签名与公证
 
 只要这几条不破，客户端就会优先抓到固定 manifest，再按其中的准确 URL 和哈希完成更新。
 
@@ -204,5 +205,6 @@ HOROSA_PUBLIC_DISTRIBUTION=1 ./scripts/publish_github_release.sh
 正式分发前务必通过：
 
 - `./scripts/check_apple_signing_prereqs.sh`
+- `./scripts/release_preflight.sh`
 - `./scripts/verify_desktop_packaging.sh`
 - `./scripts/verify_public_distribution_readiness.sh`

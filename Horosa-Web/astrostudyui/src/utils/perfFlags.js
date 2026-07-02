@@ -8,6 +8,7 @@
 //   localStorage.setItem('horosa.perf.chartSCU', '0')       // 盘面重组件 shouldComponentUpdate
 //   localStorage.setItem('horosa.perf.hookRaf', '0')        // 排盘 hook rAF 化
 //   localStorage.setItem('horosa.perf.freezeInactiveTabs','0')// 冻结非激活 TabPane 重渲
+//   localStorage.setItem('horosa.perf.requestDedupe', '0')  // 计算请求 去重+短TTL缓存
 // 恢复:对应 key removeItem 或设 '1'。
 
 function flagEnabled(key){
@@ -43,4 +44,8 @@ export function hookRafEnabled(){
 
 export function freezeInactiveTabsEnabled(){
 	return flagEnabled('horosa.perf.freezeInactiveTabs');
+}
+
+export function requestDedupeEnabled(){
+	return flagEnabled('horosa.perf.requestDedupe');
 }

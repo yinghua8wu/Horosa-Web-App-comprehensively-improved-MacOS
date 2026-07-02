@@ -1343,6 +1343,196 @@ grep -q 'chmod -R a+rwX "${SHARED_ROOT}"' "${REPO_ROOT}/Horosa_Desktop_Installer
 grep -q 'chmod -R a+rX "${SHARED_ROOT}"' "${REPO_ROOT}/Horosa_Desktop_Installer/installer-scripts/postinstall.template" && { bad "[51] postinstall 回归只读 a+rX"; S51_BAD=1; }
 [ "${S51_BAD}" = "0" ] && ok "[51] 退出 detached+去重 / 端口检查 netstat 化 / 探测防代理 / http 直判就绪 / 共享树可写 全在位"
 
+# [52] 占星地图 ACG 全流派:引擎 golden(validate_acg 对 swisseph 独立反验,退0)+
+#      三层透传(Java AcgController 白名单是唯一闸门,漏登=前端参数静默丢)+ 前端接线。
+S52_BAD=0
+S52_PY="${REPO_ROOT}/Horosa-Web/astropy"
+S52_ENG="${S52_PY}/astrostudy/acg/ACGraph.py"
+S52_JAVA="${REPO_ROOT}/Horosa-Web/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/controller/AcgController.java"
+S52_FE="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/acg/AstroAcg.js"
+S52_MAP="${REPO_ROOT}/Horosa-Web/astrostudyui/src/components/acg/AcgD3Map.js"
+echo "[52] 占星地图 ACG 全流派(口径/线型/坐标系/CCG/关系盘/固定星/寻宝图)"
+for fn in "_aspectLines" "_eastWestLines" "_antisciaLines" "_vertexLines" "_cuspLines" "_lotsLines" "_midpointLines" "_geodeticLines" "_crossings" "_starLines" "_starParans" "_ccgLines" "findMundaneEvent" "_lsRhumb"; do
+  grep -q "${fn}" "${S52_ENG}" 2>/dev/null || { bad "[52] ACGraph 缺 ${fn}"; S52_BAD=1; }
+done
+for p in "mode" "lsMode" "geodetic" "cuspLines" "coord" "ayanamsa" "stars" "ccgDate" "ccgMix" "relMode" "relDate"; do
+  grep -q "containsParam(\"${p}\")" "${S52_JAVA}" 2>/dev/null || { bad "[52] AcgController 白名单缺 ${p}"; S52_BAD=1; }
+done
+grep -q "drawTreasure" "${S52_MAP}" 2>/dev/null || { bad "[52] AcgD3Map 缺寻宝图热力层"; S52_BAD=1; }
+grep -q "ayanamsa:" "${S52_FE}" 2>/dev/null || { bad "[52] AstroAcg 缺参数接线"; S52_BAD=1; }
+if [ "${S52_BAD}" = "0" ] && command -v python3 >/dev/null 2>&1 && [ "${HOROSA_ACG_PREFLIGHT_SKIP:-0}" != "1" ]; then
+  S52_OUT="$(cd "${S52_PY}" 2>/dev/null && PYTHONPATH="../flatlib-ctrad2:." python3 astrostudy/acg/validate_acg.py 2>&1)" || {
+    bad "[52] 🔴 validate_acg golden 未退0: $(printf '%s' "${S52_OUT}" | tail -2 | head -1)"; S52_BAD=1; }
+  printf '%s' "${S52_OUT}" | grep -q "ACG alignment PASS" || { bad "[52] validate_acg 输出无 PASS"; S52_BAD=1; }
+fi
+[ "${S52_BAD}" = "0" ] && ok "[52] 占星地图 引擎golden+白名单+前端接线 在位" || bad "[52] 占星地图 护栏 有缺失"
+
+# [53] 性能资产护栏:exploded/CDS 启动、请求去重、前端分包、pyc 预编译、启动骨架、计算缓存面。
+S53_BAD=0
+S53_START="${REPO_ROOT}/Horosa-Web/start_horosa_local.sh"
+S53_PKG="${REPO_ROOT}/Horosa_Desktop_Installer/scripts/package_runtime_payload.sh"
+S53_UMIRC="${REPO_ROOT}/Horosa-Web/astrostudyui/.umirc.js"
+S53_DEDUPE="${REPO_ROOT}/Horosa-Web/astrostudyui/src/utils/requestDedupe.js"
+S53_REQ="${REPO_ROOT}/Horosa-Web/astrostudyui/src/utils/request.js"
+S53_EJS="${REPO_ROOT}/Horosa-Web/astrostudyui/src/pages/document.ejs"
+S53_HELPER="${REPO_ROOT}/Horosa-Web/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java"
+echo "[53] 性能资产(exploded/CDS·分包·去重·pyc·骨架屏·计算缓存面)"
+grep -q "JAVA_EXPLODED_MODE" "${S53_START}" 2>/dev/null || { bad "[53] start 脚本缺 exploded 启动分支"; S53_BAD=1; }
+grep -q "maybe_train_cds_background" "${S53_START}" 2>/dev/null || { bad "[53] start 脚本缺 CDS 自训练"; S53_BAD=1; }
+grep -q "boot-exploded" "${S53_PKG}" 2>/dev/null || { bad "[53] 打包脚本缺 exploded 布局"; S53_BAD=1; }
+grep -q "compileall" "${S53_PKG}" 2>/dev/null || { bad "[53] 打包脚本缺 pyc 预编译"; S53_BAD=1; }
+grep -q "astropy/__init__.py" "${S53_PKG}" 2>/dev/null && { bad "[53] 打包脚本引用已删除的 astropy/__init__.py"; S53_BAD=1; }
+grep -q "splitChunks" "${S53_UMIRC}" 2>/dev/null || { bad "[53] .umirc 缺 splitChunks 分包"; S53_BAD=1; }
+grep -q "ContextReplacementPlugin" "${S53_UMIRC}" 2>/dev/null || { bad "[53] .umirc 缺 moment locale 裁剪(须 ContextReplacement 保 zh-cn)"; S53_BAD=1; }
+[ -f "${S53_DEDUPE}" ] || { bad "[53] 缺 requestDedupe.js"; S53_BAD=1; }
+grep -q "dedupeEligible" "${S53_REQ}" 2>/dev/null || { bad "[53] request.js 未接去重层"; S53_BAD=1; }
+grep -q "predict/dice" "${S53_DEDUPE}" 2>/dev/null || { bad "[53] 去重层缺 dice 随机排除"; S53_BAD=1; }
+grep -q "horosa-boot-splash" "${S53_EJS}" 2>/dev/null || { bad "[53] document.ejs 缺启动骨架"; S53_BAD=1; }
+grep -q "return request(Acg, params)" "${S53_HELPER}" 2>/dev/null || { bad "[53] getAcg 未走缓存"; S53_BAD=1; }
+grep -q "return requestNoCache(Dice, params)" "${S53_HELPER}" 2>/dev/null || { bad "[53] 🔴 Dice 被缓存(随机端点缓存=功能错误)"; S53_BAD=1; }
+grep -q "return requestNoCache(PlanetariumState, params)" "${S53_HELPER}" 2>/dev/null || { bad "[53] 🔴 PlanetariumState 被缓存(实时端点)"; S53_BAD=1; }
+[ "${S53_BAD}" = "0" ] && ok "[53] 性能资产 全在位" || bad "[53] 性能资产 有缺失"
+
+# ============================================================================
+# [54] 择日西方深化:五档流派轴 + 默认档零回归守卫 + golden 锚 + 数据完整性
+#   默认(现代主流)输出与 golden 逐字一致;modern_main extraWeights 必须为空
+#   (空表 = 新增分析模块不进默认总分,评分构成与既往字节不变)。
+# ============================================================================
+S54_BAD=0
+S54_DIR="${REPO_ROOT}/Horosa-Web/astrostudyui/src/divination"
+S54_WS="${S54_DIR}/election/westernSchools.js"
+S54_SNAP="${S54_DIR}/election/__tests__/__snapshots__/electionGolden.test.js.snap"
+echo "[54] 择日西方深化(流派轴·golden·28宿·交映)"
+[ -f "${S54_WS}" ] || { bad "[54] 缺 westernSchools.js 流派真值源"; S54_BAD=1; }
+for s54k in modern_main hellenistic persian renaissance modern_revival; do
+	grep -q "${s54k}: {" "${S54_WS}" 2>/dev/null || { bad "[54] 流派档缺失: ${s54k}"; S54_BAD=1; }
+done
+awk '/modern_main: \{/,/\},/' "${S54_WS}" 2>/dev/null | grep -q "extraWeights: {}," || { bad "[54] 🔴 modern_main extraWeights 非空(默认总分构成被改=零回归破坏)"; S54_BAD=1; }
+awk '/modern_main: \{/,/\},/' "${S54_WS}" 2>/dev/null | grep -q "hsys: null" || { bad "[54] modern_main 宫制联动未保持 null(默认不得改用户宫制)"; S54_BAD=1; }
+[ -f "${S54_SNAP}" ] || { bad "[54] 缺 electionGolden 快照(默认输出法律)"; S54_BAD=1; }
+[ -f "${S54_DIR}/election/__tests__/electionFixture.js" ] || { bad "[54] 缺 golden 固定盘 fixture"; S54_BAD=1; }
+S54_MANSIONS=$(grep -c "{ n: " "${S54_DIR}/data/lunarMansions.js" 2>/dev/null || echo 0)
+[ "${S54_MANSIONS}" = "28" ] || { bad "[54] lunarMansions 应 28 条,实际 ${S54_MANSIONS}"; S54_BAD=1; }
+grep -q "360 / 28" "${S54_DIR}/data/lunarMansions.js" 2>/dev/null || { bad "[54] 28 宿缺 Agrippa 均分锚"; S54_BAD=1; }
+S54_EGY=$(grep -oE "\[[0-9]+, [0-9]+\]" "${S54_DIR}/data/egyptianDays.js" 2>/dev/null | wc -l | tr -d ' ')
+[ "${S54_EGY}" = "12" ] || { bad "[54] 埃及凶日应 12 月×2 日,实际 ${S54_EGY} 组"; S54_BAD=1; }
+grep -q "tanφ·tanδ" "${S54_DIR}/engine/paransLocal.js" 2>/dev/null || { bad "[54] paransLocal 缺公式口径注释"; S54_BAD=1; }
+grep -q "riseHourAngle" "${S54_DIR}/engine/paransLocal.js" 2>/dev/null || { bad "[54] paransLocal 缺升落时角"; S54_BAD=1; }
+grep -q "\['sun', 10\]" "${S54_DIR}/engine/timeLords.js" 2>/dev/null || { bad "[54] Firdaria 昼表缺日10"; S54_BAD=1; }
+grep -q "capricorn: 27, aquarius: 30" "${S54_DIR}/engine/timeLords.js" 2>/dev/null || { bad "[54] ZR 小年表锚缺(摩羯27/水瓶30)"; S54_BAD=1; }
+grep -q "§" "${S54_DIR}/election/electionSnapshot.js" 2>/dev/null && { bad "[54] 快照文本含 § 内部章节引用"; S54_BAD=1; }
+[ "${S54_BAD}" = "0" ] && ok "[54] 择日西方深化 全在位" || bad "[54] 择日西方深化 有缺失"
+
+# ============================================================================
+# [55] 性能资产·第二轮(瘦身/启动门/恒星memo/连接池/3D动态化)
+# ============================================================================
+S55_BAD=0
+S55_PKG="${REPO_ROOT}/Horosa_Desktop_Installer/scripts/package_runtime_payload.sh"
+S55_CHARTSRV="${REPO_ROOT}/Horosa-Web/astropy/websrv/webchartsrv.py"
+S55_SWE="${REPO_ROOT}/Horosa-Web/flatlib-ctrad2/flatlib/ephem/swe.py"
+S55_HTTP="${REPO_ROOT}/Horosa-Web/astrostudysrv/boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"
+S55_IDX="${REPO_ROOT}/Horosa-Web/astrostudyui/src/pages/index.js"
+echo "[55] 性能资产R2(瘦身排除表·启动门·恒星memo·连接池·3D动态化)"
+grep -q "site-packages 重依赖排除表" "${S55_PKG}" 2>/dev/null || { bad "[55] 打包脚本缺重依赖排除表"; S55_BAD=1; }
+grep -q "for heavy in streamlit pyarrow plotly altair pydeck" "${S55_PKG}" 2>/dev/null || { bad "[55] 排除表重依赖清单漂移(pandas 属 chunzi 真依赖不得入表)"; S55_BAD=1; }
+grep -q "_ensure_streamlit_stub" "${REPO_ROOT}/Horosa-Web/astropy/websrv/kentang/kinastro_common.py" 2>/dev/null || { bad "[55] kinastro_common 缺 streamlit 桩(kentang adapter 在瘦身 runtime 会挂)"; S55_BAD=1; }
+grep -E "name '\*\.pyc'" "${S55_PKG}" 2>/dev/null | grep -q "delete" && { bad "[55] 打包清理行又包含 *.pyc -delete(会删光预编译产物)"; S55_BAD=1; }
+[ -f "${REPO_ROOT}/Horosa-Web/astropy/tests/test_runtime_deps_slim.py" ] || { bad "[55] 缺瘦身哨兵测试"; S55_BAD=1; }
+grep -q "STARTUP_GATE" "${S55_CHARTSRV}" 2>/dev/null || { bad "[55] webchartsrv 缺启动就绪门"; S55_BAD=1; }
+grep -q "HOROSA_PY_WARMUP_SYNC" "${S55_CHARTSRV}" 2>/dev/null || { bad "[55] 启动门缺同步回退 kill-switch"; S55_BAD=1; }
+grep -q "_fixstarUtCached" "${S55_SWE}" 2>/dev/null || { bad "[55] flatlib 缺恒星 memo"; S55_BAD=1; }
+grep -q "_sidCtxKey" "${S55_SWE}" 2>/dev/null || { bad "[55] 恒星 memo 缓存键缺 sidereal 语境"; S55_BAD=1; }
+grep -q "PoolingHttpClientConnectionManager" "${S55_HTTP}" 2>/dev/null || { bad "[55] Java 出站客户端缺连接池"; S55_BAD=1; }
+grep -q "AstroChartMain3D = lazyPreloadable" "${S55_IDX}" 2>/dev/null || { bad "[55] 3D 星盘未动态化(回流主包)"; S55_BAD=1; }
+[ "${S55_BAD}" = "0" ] && ok "[55] 性能资产R2 全在位" || bad "[55] 性能资产R2 有缺失"
+
+# ============================================================================
+# [56] 增量更新制度(部件切分/manifest v2/发布复用/客户端分支;边界三处 lockstep)
+# ============================================================================
+S56_BAD=0
+S56_PKG="${REPO_ROOT}/Horosa_Desktop_Installer/scripts/package_runtime_payload.sh"
+S56_BUILD="${REPO_ROOT}/Horosa_Desktop_Installer/scripts/build_desktop_release.sh"
+S56_PUB="${REPO_ROOT}/Horosa_Desktop_Installer/scripts/publish_github_release.sh"
+S56_MAIN="${REPO_ROOT}/Horosa_Desktop_Installer/src-tauri/src/main.rs"
+S56_LOCK="${REPO_ROOT}/Horosa_Desktop_Installer/dist/components/components-lock.json"
+echo "[56] 增量更新制度(部件化 runtime)"
+# 打包端:部件段结构 + 部件名单锚(改边界必须同步 SOP 文档与本哨兵)+ 内建校验 + lock 进全量 tar
+grep -q "HOROSA_BUILD_COMPONENTS" "${S56_PKG}" 2>/dev/null || { bad "[56] 打包脚本缺部件切分段"; S56_BAD=1; }
+for comp in "py-runtime" "jdk-runtime" "ephe-data" "xuanshi-data" "web-app" "java-lib" "java-app"; do
+  grep -q "'${comp}'" "${S56_PKG}" 2>/dev/null || { bad "[56] 部件名单缺 ${comp}(边界漂移:脚本/SOP/哨兵三处须 lockstep)"; S56_BAD=1; }
+done
+grep -q "component split drift" "${S56_PKG}" 2>/dev/null || { bad "[56] 打包脚本缺零遗漏零重叠内建校验"; S56_BAD=1; }
+grep -q "lock 同步进 stage 根" "${S56_PKG}" 2>/dev/null || { bad "[56] components-lock 未写入全量 tar(增量本地基准会缺失)"; S56_BAD=1; }
+# 发布端:manifest v2 + asset 复用
+grep -q "componentsLockUrl" "${S56_BUILD}" 2>/dev/null || { bad "[56] build 脚本缺 manifest v2 部件字段"; S56_BAD=1; }
+grep -q "manifest_version = 2" "${S56_BUILD}" 2>/dev/null || { bad "[56] build 脚本缺 manifestVersion 2 升级"; S56_BAD=1; }
+grep -q "PYCOMPREUSE" "${S56_PUB}" 2>/dev/null || { bad "[56] publish 脚本缺跨版本 asset 复用决策"; S56_BAD=1; }
+# 客户端:diff/下载/应用/回退四件套 + kill-switch
+for anchor in "plan_component_diff" "download_component_updates" "apply_component_updates" "HOROSA_UPDATE_FULL_ONLY" "staged_components"; do
+  grep -q "${anchor}" "${S56_MAIN}" 2>/dev/null || { bad "[56] main.rs 缺增量客户端锚 ${anchor}"; S56_BAD=1; }
+done
+# 产物自洽(仅当本地已构建部件时;发版构建必产):lock 结构 + 部件文件在位 + sha 实测一致
+if [ -f "${S56_LOCK}" ]; then
+  S56_VERIFY="$(python3 - "${S56_LOCK}" 2>&1 <<'PY74'
+import hashlib, json, pathlib, sys
+lock_path = pathlib.Path(sys.argv[1])
+lock = json.loads(lock_path.read_text())
+names = sorted(c['name'] for c in lock['components'])
+expect = sorted(['py-runtime', 'jdk-runtime', 'ephe-data', 'xuanshi-data', 'web-app', 'java-lib', 'java-app'])
+if names != expect:
+    raise SystemExit(f'部件集合漂移: {names}')
+for c in lock['components']:
+    f = lock_path.parent / c['file']
+    if not f.is_file():
+        raise SystemExit(f"部件文件缺失: {c['file']}")
+    h = hashlib.sha256()
+    with open(f, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b''):
+            h.update(chunk)
+    if h.hexdigest() != c['sha256']:
+        raise SystemExit(f"部件 sha 不一致: {c['name']}(lock 与实物漂移,须重跑打包)")
+    if c['type'] == 'tree' and not c.get('paths'):
+        raise SystemExit(f"tree 部件缺 paths: {c['name']}")
+    if c['type'] == 'files' and not c.get('files'):
+        raise SystemExit(f"files 部件缺 files: {c['name']}")
+print('OK')
+PY74
+)"
+  if [ "${S56_VERIFY}" = "OK" ]; then
+    ok "[56] 本地部件产物自洽(7 部件 sha 全核)"
+  else
+    bad "[56] 部件产物自检失败: ${S56_VERIFY}"; S56_BAD=1
+  fi
+fi
+[ "${S56_BAD}" = "0" ] && ok "[56] 增量更新制度 全在位" || bad "[56] 增量更新制度 有缺失"
+
+# ============================================================================
+# [57] 法律文档与隐私声明一致性(协议说的必须就是代码做的)
+# ============================================================================
+S57_BAD=0
+S57_LEGAL="${REPO_ROOT}/docs/legal"
+S57_UI="${REPO_ROOT}/Horosa-Web/astrostudyui/src"
+echo "[57] 法律文档随库完整 + 声明↔代码一致"
+for doc in "最终用户许可协议与服务条款.md" "隐私政策.md" "安全说明.md" "网络与数据传输说明.md" "开源与第三方组件声明.md"; do
+  [ -f "${S57_LEGAL}/${doc}" ] || { bad "[57] 缺法律文档 ${doc}"; S57_BAD=1; }
+done
+for doc in "Terms-of-Service-and-EULA.md" "Privacy-Policy.md" "Security-Statement.md" "Network-and-Data-Transmission-Statement.md" "Open-Source-and-Third-Party-Notices.md"; do
+  [ -f "${S57_LEGAL}/en/${doc}" ] || { bad "[57] 缺英文法律文档 ${doc}"; S57_BAD=1; }
+done
+# 占位符必须清零(对外文档不得携带待填占位)
+grep -rl "〔" "${S57_LEGAL}" --include='*.md' 2>/dev/null | grep -v "README.md" | while read -r f; do bad "[57] 法律文档残留占位符: ${f}"; done
+[ "$(grep -rl '〔' "${S57_LEGAL}" --include='*.md' 2>/dev/null | grep -cv 'README.md')" = "0" ] || S57_BAD=1
+# 关于对话框内嵌声明 + 官方链接接线
+grep -q "aboutLegal" "${S57_UI}/components/homepage/PageHeader.js" 2>/dev/null || { bad "[57] 关于对话框缺法律声明区块"; S57_BAD=1; }
+grep -q "HOROSA_OFFICIAL_REPO" "${S57_UI}/components/homepage/PageHeader.js" 2>/dev/null || { bad "[57] 关于对话框缺官方渠道链接常量"; S57_BAD=1; }
+# 隐私声明↔代码一致性执行锚:
+#   ① 在线地图须有一次性同意闸(隐私政策 5.3 的事实基础)
+grep -q "hasMapConsent" "${S57_UI}/components/amap/MapV2.js" 2>/dev/null || { bad "[57] MapV2 缺地图加载同意闸(隐私政策 5.3 将失实)"; S57_BAD=1; }
+#   ② 历史 3D 模型远端域名不得回流(网络说明「不连历史域名」的执行锚)
+grep -rq "chart3d\.horosa\.com" "${S57_UI}" 2>/dev/null && { bad "[57] 前端出现 chart3d 历史域名回流(网络说明将失实)"; S57_BAD=1; }
+[ "${S57_BAD}" = "0" ] && ok "[57] 法律文档与一致性 全在位" || bad "[57] 法律文档与一致性 有缺失"
+
+
 echo "== 结果 =="
 if [ "${fail}" -ne 0 ]; then echo "pre-flight 有 ❌,先修再发。" >&2; exit 1; fi
 echo "pre-flight 全部通过 ✅(注意:功能层 e2e 仍需另测,如 AI 用真 key、八字切换显示)。"

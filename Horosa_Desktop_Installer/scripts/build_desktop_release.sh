@@ -360,22 +360,44 @@ platform_key = 'darwin-aarch64' if arch in ('arm64', 'aarch64') else 'darwin-x86
 version = json.loads((root / 'package.json').read_text())['version']
 app_base = f"https://github.com/{config['repoOwner']}/{config['repoName']}/releases/download/{app_release_tag}"
 runtime_base = f"https://github.com/{config['repoOwner']}/{config['repoName']}/releases/download/{runtime_release_tag}"
+platform_entry = {
+  'appUrl': f"{app_base}/{config['desktopAssetName']}",
+  'pkgUrl': f"{app_base}/{config['desktopOfflinePkgName']}",
+  'runtimeUrl': f"{runtime_base}/{config['runtimeAssetName']}",
+  'runtimeVersion': runtime_version,
+  'appSha256': hashlib.sha256((dist / config['desktopAssetName']).read_bytes()).hexdigest(),
+  'pkgSha256': hashlib.sha256((dist / config['desktopOfflinePkgName']).read_bytes()).hexdigest(),
+  'runtimeSha256': runtime_sha256,
+}
+# ── manifest v2:增量更新部件清单(v1 字段全保留——老客户端零影响;无 components
+# 的 manifest 让新客户端自动走全量,天然降级)。lock 由 package_runtime_payload.sh
+# 部件切分段产出;runtimeVersion/appName 不符 = 产物漂移(如旧打包残留),立即失败。
+manifest_version = 1
+lock_path = dist / 'components' / 'components-lock.json'
+if lock_path.is_file():
+    lock = json.loads(lock_path.read_text())
+    if str(lock.get('runtimeVersion')) != str(runtime_version):
+        raise SystemExit(f"components-lock runtimeVersion({lock.get('runtimeVersion')}) ≠ 本次构建({runtime_version}):部件产物漂移,请重跑 package_runtime_payload.sh 或清 dist/components")
+    if str(lock.get('appName')) != str(config['appName']):
+        raise SystemExit(f"components-lock appName({lock.get('appName')}) ≠ 本仓配置({config['appName']}):更新通道隔离,拒绝混装")
+    manifest_version = 2
+    # manifest 只带 diff 所需字段;应用细节(paths/files/preserve)在 lock asset 里,
+    # 客户端经 componentsLockSha256 校验后读取(files 清单上千条,不进 manifest)。
+    platform_entry['components'] = [
+        {'name': c['name'], 'type': c['type'], 'sha256': c['sha256'], 'size': c['size'],
+         'file': c['file'], 'url': f"{runtime_base}/{c['file']}"}
+        for c in lock['components']
+    ]
+    platform_entry['componentsLockUrl'] = f"{runtime_base}/components-lock.json"
+    platform_entry['componentsLockSha256'] = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+elif os.environ.get('HOROSA_REUSE_REMOTE_RUNTIME', '0') != '1':
+    raise SystemExit('缺 dist/components/components-lock.json:本地打包路径必须产出部件(package_runtime_payload.sh 部件段被关?)')
 manifest = {
   'version': version,
   'tag': app_release_tag,
   'notes': 'See GitHub release notes.',
-  'manifestVersion': 1,
-  'platforms': {
-    platform_key: {
-      'appUrl': f"{app_base}/{config['desktopAssetName']}",
-      'pkgUrl': f"{app_base}/{config['desktopOfflinePkgName']}",
-      'runtimeUrl': f"{runtime_base}/{config['runtimeAssetName']}",
-      'runtimeVersion': runtime_version,
-      'appSha256': hashlib.sha256((dist / config['desktopAssetName']).read_bytes()).hexdigest(),
-      'pkgSha256': hashlib.sha256((dist / config['desktopOfflinePkgName']).read_bytes()).hexdigest(),
-      'runtimeSha256': runtime_sha256,
-    }
-  }
+  'manifestVersion': manifest_version,
+  'platforms': {platform_key: platform_entry},
 }
 (dist / config['updateManifestName']).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
 PYMANIFEST
